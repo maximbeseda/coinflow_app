@@ -4,7 +4,7 @@ import '../../models/category_model.dart';
 
 class CategoryDialog extends StatefulWidget {
   final Category? category;
-  final String type;
+  final CategoryType type;
 
   const CategoryDialog({super.key, this.category, required this.type});
 
@@ -153,11 +153,9 @@ class _CategoryDialogState extends State<CategoryDialog> {
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.category?.name ?? "");
-
     _amountCtrl = TextEditingController(
       text: widget.category != null ? widget.category!.amount.toString() : "0",
     );
-
     _budgetCtrl = TextEditingController(
       text: widget.category?.budget != null
           ? widget.category!.budget.toString()
@@ -170,9 +168,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
         ? widget.category!.icon
         : _groupedIcons.values.first.first;
 
-    _nameCtrl.addListener(() {
-      setState(() {});
-    });
+    _nameCtrl.addListener(() => setState(() {}));
   }
 
   @override
@@ -185,7 +181,6 @@ class _CategoryDialogState extends State<CategoryDialog> {
 
   void _openIconPicker() {
     FocusScope.of(context).unfocus();
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -217,13 +212,11 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
-              // ЗМІНЕНО: Використовуємо високопродуктивний CustomScrollView
               Expanded(
                 child: CustomScrollView(
                   controller: controller,
                   slivers: [
                     for (var entry in _groupedIcons.entries) ...[
-                      // Заголовок групи
                       SliverPadding(
                         padding: const EdgeInsets.only(bottom: 12),
                         sliver: SliverToBoxAdapter(
@@ -237,7 +230,6 @@ class _CategoryDialogState extends State<CategoryDialog> {
                           ),
                         ),
                       ),
-                      // Сітка іконок
                       SliverGrid(
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
@@ -250,9 +242,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
                           bool isSelected = _selectedIcon == icon;
                           return GestureDetector(
                             onTap: () {
-                              setState(() {
-                                _selectedIcon = icon;
-                              });
+                              setState(() => _selectedIcon = icon);
                               Navigator.pop(ctx);
                             },
                             child: Container(
@@ -273,7 +263,6 @@ class _CategoryDialogState extends State<CategoryDialog> {
                           );
                         }, childCount: entry.value.length),
                       ),
-                      // Відступ після кожної групи
                       const SliverToBoxAdapter(child: SizedBox(height: 24)),
                     ],
                   ],
@@ -288,17 +277,16 @@ class _CategoryDialogState extends State<CategoryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    Color previewBgColor = widget.type == "inc"
+    Color previewBgColor = widget.type == CategoryType.income
         ? Colors.black
-        : (widget.type == "acc"
+        : (widget.type == CategoryType.account
               ? const Color(0xFF2C2C2E)
               : const Color(0xFFE5E5EA));
-    Color previewIconColor = widget.type == "exp" ? Colors.black : Colors.white;
+    Color previewIconColor = widget.type == CategoryType.expense
+        ? Colors.black
+        : Colors.white;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.all(24.0),
         child: SingleChildScrollView(
@@ -396,7 +384,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 keyboardType: TextInputType.text,
               ),
 
-              if (widget.type == "acc") ...[
+              if (widget.type == CategoryType.account) ...[
                 const SizedBox(height: 12),
                 _buildTextField(
                   controller: _amountCtrl,
@@ -408,7 +396,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 ),
               ],
 
-              if (widget.type != "acc") ...[
+              if (widget.type != CategoryType.account) ...[
                 const SizedBox(height: 12),
                 _buildTextField(
                   controller: _budgetCtrl,
@@ -424,15 +412,8 @@ class _CategoryDialogState extends State<CategoryDialog> {
               SizedBox(
                 width: double.infinity,
                 height: 50,
+                // Прибрали гігантські налаштування style
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 0,
-                  ),
                   onPressed: () {
                     if (_nameCtrl.text.isNotEmpty) {
                       double initialAmount =
@@ -443,7 +424,6 @@ class _CategoryDialogState extends State<CategoryDialog> {
                       double? budgetAmount = double.tryParse(
                         _budgetCtrl.text.replaceAll(',', '.'),
                       );
-
                       Navigator.pop(context, {
                         'name': _nameCtrl.text.trim(),
                         'icon': _selectedIcon,
@@ -496,20 +476,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
           fontWeight: FontWeight.bold,
           color: Colors.black54,
         ),
-        filled: true,
-        fillColor: Colors.grey.shade100,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.blue, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
+        // Всі відступи та кольори тепер беруться з Theme
       ),
     );
   }

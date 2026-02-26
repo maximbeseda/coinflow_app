@@ -7,13 +7,23 @@ class StorageService {
   static const String _categoriesBox = 'categories';
 
   // --- ІСТОРІЯ ТРАНЗАКЦІЙ ---
+  // Залишаємо для масового збереження (наприклад, при зміні порядку сортування)
   static Future<void> saveHistory(List<Transaction> history) async {
     final box = Hive.box(_historyBox);
-    await box.clear(); // Очищаємо старі дані
-
-    // Перетворюємо список у Map для миттєвого збереження в базу
     final map = {for (var t in history) t.id: t.toJson()};
     await box.putAll(map);
+  }
+
+  // Збереження лише ОДНІЄЇ транзакції (Оптимізація)
+  static Future<void> saveTransaction(Transaction t) async {
+    final box = Hive.box(_historyBox);
+    await box.put(t.id, t.toJson());
+  }
+
+  // Видалення ОДНІЄЇ транзакції
+  static Future<void> removeTransaction(String id) async {
+    final box = Hive.box(_historyBox);
+    await box.delete(id);
   }
 
   static Future<List<Transaction>> loadHistory() async {
@@ -28,10 +38,20 @@ class StorageService {
   // --- КАТЕГОРІЇ ---
   static Future<void> saveCategories(List<Category> categories) async {
     final box = Hive.box(_categoriesBox);
-    await box.clear();
-
     final map = {for (var c in categories) c.id: c.toJson()};
     await box.putAll(map);
+  }
+
+  // Збереження/Оновлення ОДНІЄЇ категорії (включаючи її amount)
+  static Future<void> saveCategory(Category category) async {
+    final box = Hive.box(_categoriesBox);
+    await box.put(category.id, category.toJson());
+  }
+
+  // Видалення ОДНІЄЇ категорії
+  static Future<void> removeCategory(String id) async {
+    final box = Hive.box(_categoriesBox);
+    await box.delete(id);
   }
 
   static Future<List<Category>> loadCategories() async {
@@ -41,26 +61,5 @@ class StorageService {
     return box.values
         .map((dynamic i) => Category.fromJson(Map<String, dynamic>.from(i)))
         .toList();
-  }
-
-  // --- БАЛАНСИ КАТЕГОРІЙ ---
-  // Зберігаємо зміну балансу прямо всередині збереженої категорії
-  static Future<void> saveAmount(String id, double amount) async {
-    final box = Hive.box(_categoriesBox);
-    final raw = box.get(id);
-    if (raw != null) {
-      final catMap = Map<String, dynamic>.from(raw);
-      catMap['amount'] = amount;
-      await box.put(id, catMap);
-    }
-  }
-
-  static Future<double?> loadAmount(String id) async {
-    final box = Hive.box(_categoriesBox);
-    final raw = box.get(id);
-    if (raw != null) {
-      return Map<String, dynamic>.from(raw)['amount']?.toDouble();
-    }
-    return null;
   }
 }

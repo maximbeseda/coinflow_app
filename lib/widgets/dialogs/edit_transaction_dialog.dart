@@ -15,6 +15,7 @@ class EditTransactionDialog extends StatefulWidget {
 class _EditTransactionDialogState extends State<EditTransactionDialog> {
   late TextEditingController _amountCtrl;
   late DateTime _newDate;
+  bool _hasError = false;
 
   @override
   void initState() {
@@ -32,16 +33,11 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
   }
 
   Future<void> _pickDate() async {
-    // 1. Даємо команду сховати клавіатуру (вона почне ховатися асинхронно)
     FocusScope.of(context).unfocus();
-
-    // 2. Одразу малюємо діалог. Завдяки SingleChildScrollView всередині нього,
-    // конфлікту розмірів не буде, навіть поки клавіатура ще їде вниз.
     DateTime? picked = await showDialog<DateTime>(
       context: context,
       builder: (context) => CustomCalendarDialog(initialDate: _newDate),
     );
-
     if (picked != null) {
       setState(() => _newDate = picked);
     }
@@ -49,13 +45,10 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Прибрали shape, backgroundColor тощо — все береться з Theme!
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.all(24.0),
-        // ДОДАНО ТУТ: Обгортаємо Column у SingleChildScrollView
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -71,6 +64,9 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
+                onChanged: (value) {
+                  if (_hasError) setState(() => _hasError = false);
+                },
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(
                     RegExp(r'^\d*[.,]?\d{0,2}'),
@@ -87,20 +83,25 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                     fontWeight: FontWeight.bold,
                     color: Colors.black54,
                   ),
-                  filled: true,
-                  fillColor: Colors.grey.shade100,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Colors.blue, width: 2),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
+                  // Залишаємо тільки червону рамку помилки
+                  enabledBorder: _hasError
+                      ? OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: Colors.red,
+                            width: 1,
+                          ),
+                        )
+                      : null,
+                  focusedBorder: _hasError
+                      ? OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: Colors.red,
+                            width: 2,
+                          ),
+                        )
+                      : null,
                 ),
               ),
               const SizedBox(height: 12),
@@ -140,15 +141,8 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
               Row(
                 children: [
                   Expanded(
+                    // Прибрали гігантські налаштування style
                     child: TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        backgroundColor: Colors.grey.shade100,
-                        foregroundColor: Colors.black87,
-                      ),
                       onPressed: () => Navigator.pop(context),
                       child: const Text(
                         "Скасувати",
@@ -161,16 +155,8 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
+                    // Прибрали гігантські налаштування style
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
                       onPressed: () {
                         double? val = double.tryParse(
                           _amountCtrl.text.replaceAll(',', '.'),
@@ -180,6 +166,8 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                             'amount': val,
                             'date': _newDate,
                           });
+                        } else {
+                          setState(() => _hasError = true);
                         }
                       },
                       child: const Text(

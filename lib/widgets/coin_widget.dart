@@ -20,8 +20,8 @@ class CoinWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     String displayAmount = CurrencyFormatter.format(category.amount);
 
-    bool isIncome = category.id.startsWith("inc");
-    bool isExpense = category.id.startsWith("exp");
+    bool isIncome = category.type == CategoryType.income;
+    bool isExpense = category.type == CategoryType.expense;
 
     double progress = 0.0;
     Color ringColor = Colors.blueAccent;

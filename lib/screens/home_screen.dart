@@ -31,7 +31,6 @@ class _HomeScreenState extends State<HomeScreen>
   String? draggedCategoryId;
   late AnimationController _jiggleController;
 
-  // ДОДАНО: Контролери сторінок для авто-гортання
   final Map<String, PageController> _pageControllers = {};
 
   @override
@@ -54,8 +53,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _handleTransfer(Category s, Category t) async {
     if (s == t ||
-        s.id.contains("exp") ||
-        (s.id.contains("inc") && t.id.contains("exp"))) {
+        s.type == CategoryType.expense ||
+        (s.type == CategoryType.income && t.type == CategoryType.expense)) {
       return;
     }
     final result = await showDialog<Map<String, dynamic>>(
@@ -172,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen>
         false;
   }
 
-  void _showCategoryDialog({Category? c, required String type}) async {
+  void _showCategoryDialog({Category? c, required CategoryType type}) async {
     final result = await showDialog(
       context: context,
       builder: (ctx) => CategoryDialog(category: c, type: type),
@@ -198,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen>
         if (!mounted) return;
         setState(() => deletingIds.add(c.id));
         await Future.delayed(const Duration(milliseconds: 350));
-        provider.deleteCategory(c, type);
+        provider.deleteCategory(c);
         if (mounted) setState(() => deletingIds.remove(c.id));
       }
       return;
@@ -206,26 +205,33 @@ class _HomeScreenState extends State<HomeScreen>
 
     if (result is Map) {
       if (c == null) {
+        final prefix = type == CategoryType.income
+            ? "inc"
+            : (type == CategoryType.account ? "acc" : "exp");
+
         final n = Category(
-          id: "${type}_${DateTime.now().millisecondsSinceEpoch}",
+          id: "${prefix}_${DateTime.now().millisecondsSinceEpoch}",
+          type: type,
           name: result['name'],
           icon: result['icon'],
           amount: result['amount'] ?? 0.0,
           budget: result['budget'],
-          bgColor: type == "inc"
+          bgColor: type == CategoryType.income
               ? Colors.black
-              : (type == "acc"
+              : (type == CategoryType.account
                     ? const Color(0xFF2C2C2E)
                     : const Color(0xFFE5E5EA)),
-          iconColor: type == "exp" ? Colors.black : Colors.white,
+          iconColor: type == CategoryType.expense ? Colors.black : Colors.white,
         );
-        provider.addOrUpdateCategory(n, type);
+        provider.addOrUpdateCategory(n);
       } else {
         c.name = result['name'];
         c.icon = result['icon'];
         c.budget = result['budget'];
-        if (type == "acc") c.amount = result['amount'] ?? c.amount;
-        provider.addOrUpdateCategory(c, type);
+        if (type == CategoryType.account) {
+          c.amount = result['amount'] ?? c.amount;
+        }
+        provider.addOrUpdateCategory(c);
       }
     }
   }
@@ -281,19 +287,15 @@ class _HomeScreenState extends State<HomeScreen>
                 SummaryHeader(
                   totalBalance: totalBalance,
                   totalExpenses: totalExpenses,
-
-                  // --- ОБРОБКА КЛІКУ ПО БАЛАНСУ ---
                   onBalanceTap: () {
-                    // ДОДАНО: Якщо ми в режимі редагування, виходимо з нього
                     if (isEditMode) {
                       setState(() {
                         isEditMode = false;
                         _jiggleController.stop();
                       });
-                      return; // Зупиняємо подальше виконання (щоб не відкрилась історія)
+                      return;
                     }
 
-                    // Якщо режим редагування вимкнено, відкриваємо історію
                     showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
@@ -324,19 +326,15 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     );
                   },
-
-                  // --- ОБРОБКА КЛІКУ ПО ВИТРАТАХ ---
                   onExpensesTap: () {
-                    // ДОДАНО: Якщо ми в режимі редагування, виходимо з нього
                     if (isEditMode) {
                       setState(() {
                         isEditMode = false;
                         _jiggleController.stop();
                       });
-                      return; // Зупиняємо подальше виконання (щоб не відкрилась історія)
+                      return;
                     }
 
-                    // Якщо режим редагування вимкнено, відкриваємо історію
                     showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
@@ -368,12 +366,17 @@ class _HomeScreenState extends State<HomeScreen>
                     );
                   },
                 ),
-                _buildSection(provider.incomes, "inc"),
-                _buildSection(provider.accounts, "acc", isTarget: true),
+
+                _buildSection(provider.incomes, CategoryType.income),
+                _buildSection(
+                  provider.accounts,
+                  CategoryType.account,
+                  isTarget: true,
+                ),
                 Expanded(
                   child: _buildSection(
                     provider.expenses,
-                    "exp",
+                    CategoryType.expense,
                     isTarget: true,
                     isGrid: true,
                   ),
@@ -388,14 +391,15 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildSection(
     List<Category> list,
-    String type, {
+    CategoryType type, {
     bool isTarget = false,
     bool isGrid = false,
   }) {
-    if (!_pageControllers.containsKey(type)) {
-      _pageControllers[type] = PageController();
+    String typeKey = type.name;
+    if (!_pageControllers.containsKey(typeKey)) {
+      _pageControllers[typeKey] = PageController();
     }
-    PageController pageCtrl = _pageControllers[type]!;
+    PageController pageCtrl = _pageControllers[typeKey]!;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -424,7 +428,6 @@ class _HomeScreenState extends State<HomeScreen>
 
           if (!isGrid) {
             int perPage = crossAxisCount;
-            // Віднімаємо долю пікселя, щоб уникнути багів Wrap з останнім стовпцем
             double itemWidth = (constraints.maxWidth / perPage) - 0.01;
 
             pageView = SizedBox(
@@ -473,11 +476,9 @@ class _HomeScreenState extends State<HomeScreen>
 
                 return SizedBox(
                   width: constraints.maxWidth,
-                  height: constraints
-                      .maxHeight, // Займаємо всю доступну висоту екрана
+                  height: constraints.maxHeight,
                   child: SingleChildScrollView(
-                    physics:
-                        const BouncingScrollPhysics(), // Ефект пружинки для скролу
+                    physics: const BouncingScrollPhysics(),
                     child: Wrap(
                       alignment: WrapAlignment.start,
                       runAlignment: WrapAlignment.start,
@@ -486,7 +487,6 @@ class _HomeScreenState extends State<HomeScreen>
                             (item) => SizedBox(
                               width: itemWidth,
                               height: itemHeight,
-                              // МАГІЯ ТУТ: FittedBox стисне монетку рівно на той 1 мікро-піксель, якого не вистачило!
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
                                 child: item,
@@ -501,7 +501,6 @@ class _HomeScreenState extends State<HomeScreen>
             );
           }
 
-          // ДОДАНО: Stack з прозорими DragTarget для автоматичного гортання сторінок!
           return Stack(
             children: [
               pageView,
@@ -550,7 +549,6 @@ class _HomeScreenState extends State<HomeScreen>
     bool isDeleting = deletingIds.contains(c.id);
     final provider = context.watch<FinanceProvider>();
 
-    // ПЕРЕВІРКА: чи тягнемо ми саме цю монетку зараз?
     bool isBeingDragged = draggedCategoryId == c.id;
 
     Widget dragFeedback = Material(
@@ -558,12 +556,11 @@ class _HomeScreenState extends State<HomeScreen>
       child: CoinWidget(category: c, isFeedback: true),
     );
 
-    // Внутрішнє перетягування (Транзакції)
     Widget buildInteractiveInnerCoin(
       Widget normalCoin,
       Widget placeholderCoin,
     ) {
-      if (isEditMode || c.id.startsWith("exp")) return normalCoin;
+      if (isEditMode || c.type == CategoryType.expense) return normalCoin;
 
       return Draggable<Category>(
         data: c,
@@ -572,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen>
         onDragEnd: (_) => setState(() => draggedCategoryId = null),
         onDraggableCanceled: (_, _) => setState(() => draggedCategoryId = null),
         feedback: dragFeedback,
-        childWhenDragging: placeholderCoin, // Тут залишаємо сірий відбиток
+        childWhenDragging: placeholderCoin,
         child: normalCoin,
       );
     }
@@ -638,8 +635,7 @@ class _HomeScreenState extends State<HomeScreen>
               top: 0,
               right: 0,
               child: GestureDetector(
-                onTap: () =>
-                    _showCategoryDialog(c: c, type: c.id.substring(0, 3)),
+                onTap: () => _showCategoryDialog(c: c, type: c.type),
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: const BoxDecoration(
@@ -675,10 +671,7 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
 
-      // Плейсхолдер для сортування (повна пустота)
       Widget emptySpace = Opacity(opacity: 0.0, child: coin);
-
-      // Відгук для сортування (весь блок)
       Widget dragFeedbackReorder = Material(
         color: Colors.transparent,
         child: CoinWidget(category: c),
@@ -698,12 +691,10 @@ class _HomeScreenState extends State<HomeScreen>
                 setState(() => draggedCategoryId = null),
             feedback: dragFeedbackReorder,
             childWhenDragging: emptySpace,
-            child: isBeingDragged
-                ? emptySpace
-                : coin, // ХОВАЄМО ОРИГІНАЛ ПРИ ПЕРЕТЯГУВАННІ
+            child: isBeingDragged ? emptySpace : coin,
           ),
         );
-      } else if (c.id.startsWith("exp")) {
+      } else if (c.type == CategoryType.expense) {
         interactiveCoin = GestureDetector(
           onTap: openHistory,
           child: LongPressDraggable<Category>(
@@ -726,9 +717,7 @@ class _HomeScreenState extends State<HomeScreen>
                 setState(() => draggedCategoryId = null),
             feedback: dragFeedbackReorder,
             childWhenDragging: emptySpace,
-            child: isBeingDragged
-                ? emptySpace
-                : coin, // ХОВАЄМО ОРИГІНАЛ ПРИ ПЕРЕТЯГУВАННІ
+            child: isBeingDragged ? emptySpace : coin,
           ),
         );
       } else {
@@ -759,8 +748,7 @@ class _HomeScreenState extends State<HomeScreen>
                 final source = details.data;
                 if (source.id == c.id) return false;
 
-                bool isSameGroup =
-                    source.id.substring(0, 3) == c.id.substring(0, 3);
+                bool isSameGroup = source.type == c.type;
 
                 if (isEditMode) {
                   if (isSameGroup) {
@@ -773,22 +761,24 @@ class _HomeScreenState extends State<HomeScreen>
                   return false;
                 } else {
                   if (isSameGroup) {
-                    if (source.id.startsWith("acc")) return true;
+                    if (source.type == CategoryType.account) return true;
                     return false;
                   }
-                  if (source.id.startsWith("inc") && c.id.startsWith("exp")) {
+                  if (source.type == CategoryType.income &&
+                      c.type == CategoryType.expense) {
                     return false;
                   }
-                  if (source.id.startsWith("exp")) return false;
+                  if (source.type == CategoryType.expense) return false;
                   return true;
                 }
               },
               onAcceptWithDetails: (d) {
                 if (!isEditMode) {
                   final source = d.data;
-                  bool isSameGroup =
-                      source.id.substring(0, 3) == c.id.substring(0, 3);
-                  if (isSameGroup && !source.id.startsWith("acc")) return;
+                  bool isSameGroup = source.type == c.type;
+                  if (isSameGroup && source.type != CategoryType.account) {
+                    return;
+                  }
                   _handleTransfer(source, c);
                 }
               },
@@ -801,9 +791,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildAddBtn(String type) => GestureDetector(
+  Widget _buildAddBtn(CategoryType type) => GestureDetector(
     onTap: () {
-      // ЗМІНЕНО: Клік по плюсику теж зупиняє трясіння
       if (isEditMode) {
         setState(() {
           isEditMode = false;
