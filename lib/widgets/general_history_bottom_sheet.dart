@@ -5,7 +5,7 @@ import '../utils/currency_formatter.dart';
 
 class GeneralHistoryBottomSheet extends StatefulWidget {
   final String title;
-  final String filterType; // Прийматиме "acc" (рахунки) або "exp" (витрати)
+  final CategoryType filterType; // ЗМІНЕНО: Тепер використовуємо безпечний Enum
   final List<Transaction> transactions;
   final List<Category> allCategories;
   final Function(Transaction) onDelete;
@@ -14,7 +14,7 @@ class GeneralHistoryBottomSheet extends StatefulWidget {
   const GeneralHistoryBottomSheet({
     super.key,
     required this.title,
-    required this.filterType,
+    required this.filterType, // ЗМІНЕНО
     required this.transactions,
     required this.allCategories,
     required this.onDelete,
@@ -29,10 +29,20 @@ class GeneralHistoryBottomSheet extends StatefulWidget {
 class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
   @override
   Widget build(BuildContext context) {
-    // Фільтруємо історію залежно від того, на що натиснули (Баланс чи Витрати)
+    // 1. Фільтруємо історію за реальним типом категорії
     final filteredHistory = widget.transactions.where((t) {
-      return t.fromId.startsWith(widget.filterType) ||
-          t.toId.startsWith(widget.filterType);
+      Category? fromCat;
+      Category? toCat;
+      try {
+        fromCat = widget.allCategories.firstWhere((c) => c.id == t.fromId);
+      } catch (_) {}
+      try {
+        toCat = widget.allCategories.firstWhere((c) => c.id == t.toId);
+      } catch (_) {}
+
+      // Перевіряємо, чи хоча б одна сторона транзакції відповідає нашому фільтру
+      return fromCat?.type == widget.filterType ||
+          toCat?.type == widget.filterType;
     }).toList();
 
     // Сортуємо: найновіші зверху
@@ -40,8 +50,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
 
     return Container(
       padding: const EdgeInsets.all(20),
-      height:
-          MediaQuery.of(context).size.height * 0.85, // Зробимо його трохи вищим
+      height: MediaQuery.of(context).size.height * 0.85,
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
@@ -70,7 +79,6 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                     itemBuilder: (context, index) {
                       final t = filteredHistory[index];
 
-                      // Шукаємо категорії "Звідки" і "Куди"
                       Category? fromCat;
                       Category? toCat;
                       try {
@@ -87,18 +95,18 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                       String fromName = fromCat?.name ?? "Невідомо";
                       String toName = toCat?.name ?? "Невідомо";
 
-                      // Визначаємо знак і колір суми
+                      // 2. Визначаємо тип операції через безпечний Enum
                       bool isIncome =
-                          t.fromId.startsWith("inc") &&
-                          t.toId.startsWith("acc");
+                          fromCat?.type == CategoryType.income &&
+                          toCat?.type == CategoryType.account;
                       bool isTransfer =
-                          t.fromId.startsWith("acc") &&
-                          t.toId.startsWith("acc");
+                          fromCat?.type == CategoryType.account &&
+                          toCat?.type == CategoryType.account;
 
                       String prefix = "-";
                       Color amountColor = Colors.red;
 
-                      if (widget.filterType == "acc") {
+                      if (widget.filterType == CategoryType.account) {
                         if (isIncome) {
                           prefix = "+";
                           amountColor = Colors.green;
@@ -137,13 +145,11 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                           ),
                           title: Row(
                             children: [
-                              // Обгортаємо першу назву у Flexible
                               Flexible(
                                 child: Text(
                                   fromName,
                                   maxLines: 1,
-                                  overflow:
-                                      TextOverflow.ellipsis, // Додає "..."
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
@@ -158,13 +164,11 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                                   color: Colors.grey,
                                 ),
                               ),
-                              // Обгортаємо другу назву у Flexible
                               Flexible(
                                 child: Text(
                                   toName,
                                   maxLines: 1,
-                                  overflow:
-                                      TextOverflow.ellipsis, // Додає "..."
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,

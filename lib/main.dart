@@ -25,7 +25,7 @@ void main() async {
 
   await initializeDateFormatting('uk_UA', null);
 
-  const bool showPreview = true;
+  const bool showPreview = false;
 
   runApp(
     MultiProvider(

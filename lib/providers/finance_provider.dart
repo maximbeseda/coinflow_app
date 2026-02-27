@@ -16,6 +16,11 @@ class FinanceProvider extends ChangeNotifier {
   );
   bool isLoading = true;
 
+  bool get isCurrentMonth {
+    final now = DateTime.now();
+    return selectedMonth.year == now.year && selectedMonth.month == now.month;
+  }
+
   FinanceProvider() {
     loadData();
   }
@@ -49,11 +54,20 @@ class FinanceProvider extends ChangeNotifier {
       selectedMonth.month + offset,
       1,
     );
-    _recalculateMonthTotals();
+    // БІЛЬШЕ НЕ ВИКЛИКАЄМО _recalculateMonthTotals();
     notifyListeners();
   }
 
+  void setMonth(DateTime newMonth) {
+    selectedMonth = DateTime(newMonth.year, newMonth.month, 1);
+    // БІЛЬШЕ НЕ ВИКЛИКАЄМО _recalculateMonthTotals();
+    notifyListeners();
+  }
+
+  // ТЕПЕР РАХУЄМО ТІЛЬКИ ДЛЯ ГОЛОВНОГО ЕКРАНУ (ЗАВЖДИ ПОТОЧНИЙ МІСЯЦЬ)
   void _recalculateMonthTotals() {
+    final now = DateTime.now(); // Жорстко фіксуємо поточний час
+
     for (var inc in incomes) {
       inc.amount = 0.0;
     }
@@ -62,25 +76,25 @@ class FinanceProvider extends ChangeNotifier {
     }
 
     final currentMonthHistory = history
-        .where(
-          (t) =>
-              t.date.year == selectedMonth.year &&
-              t.date.month == selectedMonth.month,
-        )
+        .where((t) => t.date.year == now.year && t.date.month == now.month)
         .toList();
 
+    final allCategories = [...incomes, ...accounts, ...expenses];
+
     for (var t in currentMonthHistory) {
-      // Поки залишаємо id для транзакцій (зв'язок по базі)
-      if (t.fromId.startsWith("inc")) {
-        try {
+      try {
+        final fromCat = allCategories.firstWhere((c) => c.id == t.fromId);
+        if (fromCat.type == CategoryType.income) {
           incomes.firstWhere((c) => c.id == t.fromId).amount += t.amount;
-        } catch (_) {}
-      }
-      if (t.toId.startsWith("exp")) {
-        try {
+        }
+      } catch (_) {}
+
+      try {
+        final toCat = allCategories.firstWhere((c) => c.id == t.toId);
+        if (toCat.type == CategoryType.expense) {
           expenses.firstWhere((c) => c.id == t.toId).amount += t.amount;
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
     }
   }
 

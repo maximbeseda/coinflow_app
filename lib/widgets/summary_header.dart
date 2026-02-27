@@ -7,6 +7,7 @@ class SummaryHeader extends StatelessWidget {
   final double totalExpenses;
   final VoidCallback onBalanceTap;
   final VoidCallback onExpensesTap;
+  final VoidCallback onSettingsTap; // ДОДАНО: Колбек для налаштувань
 
   const SummaryHeader({
     super.key,
@@ -14,15 +15,13 @@ class SummaryHeader extends StatelessWidget {
     required this.totalExpenses,
     required this.onBalanceTap,
     required this.onExpensesTap,
+    required this.onSettingsTap, // ДОДАНО
   });
 
   @override
   Widget build(BuildContext context) {
-    // 1. ДОДАНО: Обгортка MediaQuery
     return MediaQuery(
-      // 2. ДОДАНО: Жорстко вимикаємо масштабування тексту для цього блоку
       data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-      // 3. ТВІЙ ОРИГІНАЛЬНИЙ КОД ПОЧИНАЄТЬСЯ ТУТ (я просто посунув його вправо)
       child: Padding(
         padding: const EdgeInsets.only(left: 15, right: 10, top: 15, bottom: 0),
         child: Row(
@@ -42,10 +41,7 @@ class SummaryHeader extends StatelessWidget {
             ),
 
             GestureDetector(
-              onTap: () {
-                // Відкрити налаштування
-                debugPrint("Settings tapped!");
-              },
+              onTap: onSettingsTap, // ЗМІНЕНО: Викликаємо передану функцію
               behavior: HitTestBehavior.opaque,
               child: const SizedBox(
                 height: 16,
@@ -83,16 +79,10 @@ class SummaryHeader extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          // ЗМІНЕНО: Вирівнюємо текст і суму чітко по центру вертикалі!
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Щоб текст "не стрибав", якщо у шрифта є специфічні відступи,
-            // ми обгортаємо його в Padding і трошки "підтягуємо" візуально, якщо потрібно.
-            // Але зазвичай CrossAxisAlignment.center робить усе ідеально.
             Padding(
-              padding: const EdgeInsets.only(
-                bottom: 1,
-              ), // Мікро-корекція по висоті
+              padding: const EdgeInsets.only(bottom: 1),
               child: Text(
                 label,
                 style: const TextStyle(
@@ -109,7 +99,6 @@ class SummaryHeader extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  // Цифри і значок "₴" залишаються вирівняними по нижній базовій лінії
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [

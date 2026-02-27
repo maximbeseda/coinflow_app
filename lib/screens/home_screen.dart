@@ -10,6 +10,7 @@ import '../widgets/dialogs/category_dialog.dart';
 import '../widgets/dialogs/edit_transaction_dialog.dart';
 import '../widgets/summary_header.dart';
 import '../widgets/general_history_bottom_sheet.dart';
+import '../widgets/settings_drawer.dart';
 import '../utils/currency_formatter.dart';
 import '../providers/finance_provider.dart';
 
@@ -25,6 +26,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   final Color colorBlueGrey = const Color(0xFFD1D9E6);
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<String> deletingIds = [];
   bool isEditMode = false;
@@ -238,27 +240,11 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<FinanceProvider>();
-
-    if (provider.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    double totalBalance = provider.accounts.fold(
-      0,
-      (sum, item) => sum + item.amount,
-    );
-    double totalExpenses = provider.expenses.fold(
-      0,
-      (sum, item) => sum + item.amount.abs(),
-    );
-    final allCategories = [
-      ...provider.incomes,
-      ...provider.accounts,
-      ...provider.expenses,
-    ];
+    // ПРИБРАЛИ: final provider = context.watch<FinanceProvider>();
 
     return Scaffold(
+      key: _scaffoldKey,
+      endDrawer: const SettingsDrawer(),
       resizeToAvoidBottomInset: false,
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -270,120 +256,152 @@ class _HomeScreenState extends State<HomeScreen>
             });
           }
         },
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [colorBlueGrey, const Color(0xFFF5F5F7)],
-            ),
-          ),
-          child: SafeArea(
-            maintainBottomViewPadding: true,
-            child: Column(
-              children: [
-                SummaryHeader(
-                  totalBalance: totalBalance,
-                  totalExpenses: totalExpenses,
-                  onBalanceTap: () {
-                    if (isEditMode) {
-                      setState(() {
-                        isEditMode = false;
-                        _jiggleController.stop();
-                      });
-                      return;
-                    }
+        // ДОДАНО: Consumer, який точково слухає зміни і малює UI
+        child: Consumer<FinanceProvider>(
+          builder: (context, provider, child) {
+            if (provider.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => GeneralHistoryBottomSheet(
-                        title: "Історія: Баланс",
-                        filterType: "acc",
-                        transactions: provider.history,
-                        allCategories: allCategories,
-                        onDelete: (t) => context
-                            .read<FinanceProvider>()
-                            .deleteTransaction(t),
-                        onEdit: (t) async {
-                          final finance = context.read<FinanceProvider>();
-                          final result = await showDialog<Map<String, dynamic>>(
-                            context: context,
-                            builder: (ctx) =>
-                                EditTransactionDialog(transaction: t),
-                          );
-                          if (result != null) {
-                            finance.editTransaction(
-                              t,
-                              result['amount'],
-                              result['date'],
-                            );
-                          }
-                        },
+            double totalBalance = provider.accounts.fold(
+              0,
+              (sum, item) => sum + item.amount,
+            );
+            double totalExpenses = provider.expenses.fold(
+              0,
+              (sum, item) => sum + item.amount.abs(),
+            );
+            final allCategories = [
+              ...provider.incomes,
+              ...provider.accounts,
+              ...provider.expenses,
+            ];
+
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [colorBlueGrey, const Color(0xFFF5F5F7)],
+                ),
+              ),
+              child: SafeArea(
+                maintainBottomViewPadding: true,
+                child: Column(
+                  children: [
+                    SummaryHeader(
+                      totalBalance: totalBalance,
+                      totalExpenses: totalExpenses,
+                      onBalanceTap: () {
+                        if (isEditMode) {
+                          setState(() {
+                            isEditMode = false;
+                            _jiggleController.stop();
+                          });
+                          return;
+                        }
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => GeneralHistoryBottomSheet(
+                            title: "Історія: Баланс",
+                            filterType: CategoryType.account,
+                            transactions: provider.history,
+                            allCategories: allCategories,
+                            onDelete: (t) => context
+                                .read<FinanceProvider>()
+                                .deleteTransaction(t),
+                            onEdit: (t) async {
+                              final finance = context.read<FinanceProvider>();
+                              final result =
+                                  await showDialog<Map<String, dynamic>>(
+                                    context: context,
+                                    builder: (ctx) =>
+                                        EditTransactionDialog(transaction: t),
+                                  );
+                              if (result != null) {
+                                finance.editTransaction(
+                                  t,
+                                  result['amount'],
+                                  result['date'],
+                                );
+                              }
+                            },
+                          ),
+                        );
+                      },
+                      onExpensesTap: () {
+                        if (isEditMode) {
+                          setState(() {
+                            isEditMode = false;
+                            _jiggleController.stop();
+                          });
+                          return;
+                        }
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => GeneralHistoryBottomSheet(
+                            title: "Історія: Витрати",
+                            filterType: CategoryType.expense,
+                            transactions: provider.history,
+                            allCategories: allCategories,
+                            onDelete: (t) => context
+                                .read<FinanceProvider>()
+                                .deleteTransaction(t),
+                            onEdit: (t) async {
+                              final finance = context.read<FinanceProvider>();
+                              final result =
+                                  await showDialog<Map<String, dynamic>>(
+                                    context: context,
+                                    builder: (ctx) =>
+                                        EditTransactionDialog(transaction: t),
+                                  );
+                              if (result != null) {
+                                finance.editTransaction(
+                                  t,
+                                  result['amount'],
+                                  result['date'],
+                                );
+                              }
+                            },
+                          ),
+                        );
+                      },
+                      onSettingsTap: () {
+                        if (isEditMode) {
+                          setState(() {
+                            isEditMode = false;
+                            _jiggleController.stop();
+                          });
+                          return;
+                        }
+                        _scaffoldKey.currentState?.openEndDrawer();
+                      },
+                    ),
+                    _buildSection(provider.incomes, CategoryType.income),
+                    _buildSection(
+                      provider.accounts,
+                      CategoryType.account,
+                      isTarget: true,
+                    ),
+                    Expanded(
+                      child: _buildSection(
+                        provider.expenses,
+                        CategoryType.expense,
+                        isTarget: true,
+                        isGrid: true,
                       ),
-                    );
-                  },
-                  onExpensesTap: () {
-                    if (isEditMode) {
-                      setState(() {
-                        isEditMode = false;
-                        _jiggleController.stop();
-                      });
-                      return;
-                    }
-
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => GeneralHistoryBottomSheet(
-                        title: "Історія: Витрати",
-                        filterType: "exp",
-                        transactions: provider.history,
-                        allCategories: allCategories,
-                        onDelete: (t) => context
-                            .read<FinanceProvider>()
-                            .deleteTransaction(t),
-                        onEdit: (t) async {
-                          final finance = context.read<FinanceProvider>();
-                          final result = await showDialog<Map<String, dynamic>>(
-                            context: context,
-                            builder: (ctx) =>
-                                EditTransactionDialog(transaction: t),
-                          );
-                          if (result != null) {
-                            finance.editTransaction(
-                              t,
-                              result['amount'],
-                              result['date'],
-                            );
-                          }
-                        },
-                      ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
-
-                _buildSection(provider.incomes, CategoryType.income),
-                _buildSection(
-                  provider.accounts,
-                  CategoryType.account,
-                  isTarget: true,
-                ),
-                Expanded(
-                  child: _buildSection(
-                    provider.expenses,
-                    CategoryType.expense,
-                    isTarget: true,
-                    isGrid: true,
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -547,7 +565,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildCoin(Category c, bool isTarget) {
     bool isDeleting = deletingIds.contains(c.id);
-    final provider = context.watch<FinanceProvider>();
+    final provider = context.read<FinanceProvider>();
 
     bool isBeingDragged = draggedCategoryId == c.id;
 
