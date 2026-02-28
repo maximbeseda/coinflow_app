@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/finance_provider.dart';
 import '../screens/stats_screen.dart';
+import '../screens/subscriptions_screen.dart';
 import '../services/backup_service.dart';
 
 class SettingsDrawer extends StatelessWidget {
@@ -156,6 +157,26 @@ class SettingsDrawer extends StatelessWidget {
                         const SizedBox(height: 20),
                       ],
                     ),
+                  ),
+                );
+              },
+            ),
+
+            // ДОДАЄМО КНОПКУ ПІДПИСОК
+            ListTile(
+              leading: const Icon(Icons.autorenew, color: Colors.black87),
+              title: const Text(
+                'Регулярні платежі',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              onTap: () {
+                // Спочатку закриваємо бокове меню
+                Navigator.pop(context);
+                // Потім відкриваємо наш новий екран
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SubscriptionsScreen(),
                   ),
                 );
               },

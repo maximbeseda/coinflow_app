@@ -3,10 +3,12 @@ import 'package:flutter/foundation.dart'
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/transaction_model.dart';
 import '../models/category_model.dart';
+import '../models/subscription_model.dart';
 
 class StorageService {
   static const String _historyBox = 'transactions';
   static const String _categoriesBox = 'categories';
+  static const String _subscriptionsBox = 'subscriptions';
 
   // --- ІСТОРІЯ ТРАНЗАКЦІЙ ---
   static Future<void> saveHistory(List<Transaction> history) async {
@@ -72,9 +74,23 @@ class StorageService {
     }
   }
 
-  // --- ДОДАНО ДЛЯ БЕКАПІВ: Повне очищення бази перед відновленням ---
+  // --- ПІДПИСКИ (Регулярні платежі) ---
+  static List<Subscription> getSubscriptions() {
+    return Hive.box(_subscriptionsBox).values.cast<Subscription>().toList();
+  }
+
+  static Future<void> saveSubscription(Subscription subscription) async {
+    await Hive.box(_subscriptionsBox).put(subscription.id, subscription);
+  }
+
+  static Future<void> deleteSubscription(String id) async {
+    await Hive.box(_subscriptionsBox).delete(id);
+  }
+
+  // --- ОЧИЩЕННЯ (для бекапів) ---
   static Future<void> clearAll() async {
     await Hive.box(_historyBox).clear();
     await Hive.box(_categoriesBox).clear();
+    await Hive.box(_subscriptionsBox).clear();
   }
 }

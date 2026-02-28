@@ -120,6 +120,20 @@ class _CategoryDialogState extends State<CategoryDialog> {
       Icons.pool,
       Icons.subscriptions,
     ],
+
+    "Підписки та Сервіси": [
+      Icons.play_circle_outline,
+      Icons.music_note,
+      Icons.cloud_queue,
+      Icons.videogame_asset,
+      Icons.fitness_center,
+      Icons.language,
+      Icons.shopping_bag,
+      Icons.article,
+      Icons.phone_iphone,
+      Icons.security,
+    ],
+
     "Сім'я та Тварини": [
       Icons.pets,
       Icons.child_friendly,
@@ -303,22 +317,48 @@ class _CategoryDialogState extends State<CategoryDialog> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (widget.category != null)
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context, 'delete'),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
+
+                  // БЛОК КНОПОК: ВИДАЛЕННЯ ТА ЗАКРИТТЯ
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Кнопка видалення (показується тільки при редагуванні)
+                      if (widget.category != null)
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context, 'delete'),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                              size: 20,
+                            ),
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.red,
-                          size: 20,
+                      if (widget.category != null) const SizedBox(width: 12),
+
+                      // Елегантний хрестик закриття вікна (показується завжди)
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.black87,
+                            size: 20,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 24),

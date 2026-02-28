@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:vibration/vibration.dart';
 import 'package:provider/provider.dart';
 import '../models/category_model.dart';
+import '../models/subscription_model.dart';
 import '../widgets/coin_widget.dart';
 import '../widgets/history_bottom_sheet.dart';
 import '../widgets/dialogs/transfer_dialog.dart';
@@ -35,6 +36,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   final Map<String, PageController> _pageControllers = {};
 
+  // Прапорець для запобігання дублювання діалогів
+  bool _isShowingDueDialog = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,10 +46,260 @@ class _HomeScreenState extends State<HomeScreen>
       vsync: this,
       duration: const Duration(milliseconds: 250),
     );
+
+    // Додаємо слухача, який перевірятиме підписки при кожній зміні в провайдері
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final financeProvider = context.read<FinanceProvider>();
+      financeProvider.addListener(_checkDueSubscriptions);
+      // Перша перевірка при запуску
+      _checkDueSubscriptions();
+    });
+  }
+
+  // Метод перевірки наявності платежів
+  void _checkDueSubscriptions() {
+    if (!mounted) return;
+    final provider = context.read<FinanceProvider>();
+
+    // Якщо є підписки до оплати і діалог ще НЕ відкритий
+    if (provider.dueSubscriptions.isNotEmpty &&
+        !provider.isLoading &&
+        !_isShowingDueDialog) {
+      _showDueSubscriptionDialog(provider.dueSubscriptions.first);
+    }
+  }
+
+  void _showDueSubscriptionDialog(Subscription sub) {
+    if (_isShowingDueDialog) return;
+    _isShowingDueDialog = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_wallet_rounded,
+                      color: Colors.green,
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Регулярний платіж 💸',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Colors.black54,
+                      ),
+                      children: [
+                        const TextSpan(text: 'Настав час оплатити підписку\n'),
+                        TextSpan(
+                          text: sub.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '${sub.amount} ₴',
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            backgroundColor: Colors.grey.shade100,
+                            foregroundColor: Colors.black87,
+                          ),
+                          onPressed: () async {
+                            await context
+                                .read<FinanceProvider>()
+                                .skipSubscriptionPayment(sub);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                            }
+                          },
+                          child: const Text(
+                            "Пропустити",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final (success, message) = await context
+                                .read<FinanceProvider>()
+                                .confirmSubscriptionPayment(sub, sub.amount);
+
+                            if (!context.mounted) return;
+
+                            if (success) {
+                              Navigator.pop(context);
+                            }
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: Colors.white,
+                                behavior: SnackBarBehavior.floating,
+                                margin: const EdgeInsets.only(
+                                  bottom: 30,
+                                  left: 20,
+                                  right: 20,
+                                ),
+                                elevation: 10,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(
+                                    color: success
+                                        ? Colors.green.withValues(alpha: 0.5)
+                                        : Colors.red.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                                content: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: success
+                                            ? Colors.green.withValues(
+                                                alpha: 0.1,
+                                              )
+                                            : Colors.red.withValues(alpha: 0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        success
+                                            ? Icons.check_circle_outline
+                                            : Icons.error_outline,
+                                        color: success
+                                            ? Colors.green
+                                            : Colors.red,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        message,
+                                        style: const TextStyle(
+                                          color: Colors.black87,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            "Сплатити",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // --- НОВИЙ БЛОК: Хрестик закриття ---
+            Positioned(
+              right: 16,
+              top: 16,
+              child: GestureDetector(
+                onTap: () {
+                  // Кажемо провайдеру "забути" про цю підписку на час сесії
+                  context.read<FinanceProvider>().ignoreSubscriptionForSession(
+                    sub.id,
+                  );
+                  Navigator.pop(context); // Просто закриваємо вікно
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.black87,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).then((_) {
+      _isShowingDueDialog = false;
+      _checkDueSubscriptions();
+    });
   }
 
   @override
   void dispose() {
+    // Важливо видалити слухача при видаленні екрана
+    try {
+      context.read<FinanceProvider>().removeListener(_checkDueSubscriptions);
+    } catch (_) {}
+
     _jiggleController.dispose();
     for (var ctrl in _pageControllers.values) {
       ctrl.dispose();
@@ -53,6 +307,7 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  // Решта твого коду (handleTransfer, confirmDeletion, build тощо)...
   void _handleTransfer(Category s, Category t) async {
     if (s == t ||
         s.type == CategoryType.expense ||
@@ -240,8 +495,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    // ПРИБРАЛИ: final provider = context.watch<FinanceProvider>();
+    final provider = Provider.of<FinanceProvider>(context);
 
+    // ПРАВИЛЬНИЙ ВИКЛИК:
+    if (provider.dueSubscriptions.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showDueSubscriptionDialog(provider.dueSubscriptions.first);
+      });
+    }
     return Scaffold(
       key: _scaffoldKey,
       endDrawer: const SettingsDrawer(),
@@ -256,7 +517,6 @@ class _HomeScreenState extends State<HomeScreen>
             });
           }
         },
-        // ДОДАНО: Consumer, який точково слухає зміни і малює UI
         child: Consumer<FinanceProvider>(
           builder: (context, provider, child) {
             if (provider.isLoading) {
@@ -271,11 +531,7 @@ class _HomeScreenState extends State<HomeScreen>
               0,
               (sum, item) => sum + item.amount.abs(),
             );
-            final allCategories = [
-              ...provider.incomes,
-              ...provider.accounts,
-              ...provider.expenses,
-            ];
+            final allCategories = provider.allCategoriesList;
 
             return Container(
               width: double.infinity,
@@ -407,6 +663,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // Методи _buildSection, _buildCoin, _buildAddBtn залишаються без змін...
   Widget _buildSection(
     List<Category> list,
     CategoryType type, {
@@ -607,11 +864,7 @@ class _HomeScreenState extends State<HomeScreen>
         builder: (_) => HistoryBottomSheet(
           category: c,
           transactions: provider.history,
-          allCategories: [
-            ...provider.incomes,
-            ...provider.accounts,
-            ...provider.expenses,
-          ],
+          allCategories: provider.allCategoriesList,
           onDelete: (t) => context.read<FinanceProvider>().deleteTransaction(t),
           onEdit: (t) async {
             final finance = context.read<FinanceProvider>();

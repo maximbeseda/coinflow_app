@@ -9,6 +9,7 @@ import 'dart:ui'; // ДОДАНО: Для PointerDeviceKind
 import 'screens/home_screen.dart';
 import 'package:provider/provider.dart';
 import 'providers/finance_provider.dart';
+import 'models/subscription_model.dart'; // ДОДАНО: Імпорт нової моделі
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,8 +21,14 @@ void main() async {
 
   await Hive.initFlutter();
 
+  // ДОДАНО: Реєструємо адаптер для Підписок (щоб Hive вмів їх читати/записувати)
+  Hive.registerAdapter(SubscriptionAdapter());
+
   await Hive.openBox('categories');
   await Hive.openBox('transactions');
+  await Hive.openBox(
+    'subscriptions',
+  ); // ДОДАНО: Відкриваємо коробку для Підписок
 
   await initializeDateFormatting('uk_UA', null);
 
