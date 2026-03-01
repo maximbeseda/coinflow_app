@@ -4,11 +4,11 @@ import 'package:vibration/vibration.dart';
 import 'package:provider/provider.dart';
 import '../models/category_model.dart';
 import '../models/subscription_model.dart';
-import '../widgets/coin_widget.dart';
-import '../widgets/history_bottom_sheet.dart';
-import '../widgets/summary_header.dart';
-import '../widgets/general_history_bottom_sheet.dart';
-import '../widgets/settings_drawer.dart';
+import '../widgets/common/coin_widget.dart';
+import '../widgets/bottom_sheets/history_bottom_sheet.dart';
+import '../widgets/common/summary_header.dart';
+import '../widgets/bottom_sheets/general_history_bottom_sheet.dart';
+import '../widgets/common/settings_drawer.dart';
 import '../widgets/dialogs/transfer_dialog.dart';
 import '../widgets/dialogs/category_dialog.dart';
 import '../widgets/dialogs/edit_transaction_dialog.dart';
@@ -318,10 +318,9 @@ class _HomeScreenState extends State<HomeScreen>
               0,
               (sum, item) => sum + item.amount,
             );
-            double totalExpenses = provider.expenses.fold(
-              0,
-              (sum, item) => sum + item.amount.abs(),
-            );
+            double totalExpenses = provider.allCategoriesList
+                .where((c) => c.type == CategoryType.expense)
+                .fold(0, (sum, item) => sum + item.amount.abs());
             final allCategories = provider.allCategoriesList;
 
             return Container(

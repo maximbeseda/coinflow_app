@@ -83,25 +83,7 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                     fontWeight: FontWeight.bold,
                     color: Colors.black54,
                   ),
-                  // Залишаємо тільки червону рамку помилки
-                  enabledBorder: _hasError
-                      ? OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Colors.red,
-                            width: 1,
-                          ),
-                        )
-                      : null,
-                  focusedBorder: _hasError
-                      ? OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Colors.red,
-                            width: 2,
-                          ),
-                        )
-                      : null,
+                  errorText: _hasError ? 'Введіть коректну суму' : null,
                 ),
               ),
               const SizedBox(height: 12),

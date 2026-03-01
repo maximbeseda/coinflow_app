@@ -33,6 +33,7 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Dialog автоматично візьме shape та backgroundColor з AppTheme
     return Dialog(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -87,6 +88,8 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
                   },
                   child: Container(
                     decoration: BoxDecoration(
+                      // Залишаємо чорний акцент для вибраного елемента,
+                      // оскільки це логіка вибору, а не загальний стиль кнопки
                       color: isSelected ? Colors.black : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -104,10 +107,10 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
               },
             ),
 
-            // ДОДАНО: Кнопка "Поточний місяць"
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
+              // TextButton тепер автоматично має чорний колір тексту з AppTheme
               child: TextButton(
                 onPressed: () {
                   final now = DateTime.now();

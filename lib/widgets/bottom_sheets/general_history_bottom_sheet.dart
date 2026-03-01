@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../models/category_model.dart';
-import '../models/transaction_model.dart';
-import '../utils/currency_formatter.dart';
+import '../../models/category_model.dart';
+import '../../models/transaction_model.dart';
+import '../../utils/currency_formatter.dart';
 
 class GeneralHistoryBottomSheet extends StatefulWidget {
   final String title;

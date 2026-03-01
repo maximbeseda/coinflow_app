@@ -1,6 +1,6 @@
 import 'package:coin_flow/utils/currency_formatter.dart';
 import 'package:flutter/material.dart';
-import '../models/category_model.dart';
+import '../../models/category_model.dart';
 
 class CoinWidget extends StatelessWidget {
   final Category category;
@@ -159,24 +159,28 @@ class CoinWidget extends StatelessWidget {
         SizedBox(
           width: 75,
           height: 16,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: ScaleTransition(scale: animation, child: child),
-              );
-            },
-            child: Text(
-              "$displayAmount₴",
-              key: ValueKey<String>(displayAmount),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.center,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(scale: animation, child: child),
+                );
+              },
+              child: Text(
+                "$displayAmount₴",
+                key: ValueKey<String>(displayAmount),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
               ),
             ),
           ),

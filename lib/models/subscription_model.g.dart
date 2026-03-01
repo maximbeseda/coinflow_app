@@ -24,14 +24,15 @@ class SubscriptionAdapter extends TypeAdapter<Subscription> {
       accountId: fields[4] as String,
       nextPaymentDate: fields[5] as DateTime,
       periodicity: fields[6] as String,
-      customIconCodePoint: fields[7] as int?, // ДОДАНО
+      customIconCodePoint: fields[7] as int?,
+      isAutoPay: fields[8] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, Subscription obj) {
     writer
-      ..writeByte(8) // Змінено з 7 на 8
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -46,8 +47,10 @@ class SubscriptionAdapter extends TypeAdapter<Subscription> {
       ..write(obj.nextPaymentDate)
       ..writeByte(6)
       ..write(obj.periodicity)
-      ..writeByte(7) // ДОДАНО
-      ..write(obj.customIconCodePoint);
+      ..writeByte(7)
+      ..write(obj.customIconCodePoint)
+      ..writeByte(8)
+      ..write(obj.isAutoPay);
   }
 
   @override

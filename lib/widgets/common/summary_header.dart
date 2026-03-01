@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../utils/currency_formatter.dart';
+import '../../utils/currency_formatter.dart';
 import 'rolling_digit.dart';
 
 class SummaryHeader extends StatelessWidget {

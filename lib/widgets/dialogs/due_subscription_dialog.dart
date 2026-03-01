@@ -10,10 +10,8 @@ class DueSubscriptionDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Всі стилі Dialog підтягуються з глобальної теми!
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
       child: Stack(
         children: [
           Padding(
@@ -70,15 +68,8 @@ class DueSubscriptionDialog extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
+                      // Глобальний стиль для TextButton (сіра кнопка)
                       child: TextButton(
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          backgroundColor: Colors.grey.shade100,
-                          foregroundColor: Colors.black87,
-                        ),
                         onPressed: () async {
                           await context
                               .read<FinanceProvider>()
@@ -99,18 +90,9 @@ class DueSubscriptionDialog extends StatelessWidget {
                     const SizedBox(width: 12),
 
                     Expanded(
+                      // Глобальний стиль для ElevatedButton (чорна кнопка)
                       child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          backgroundColor: Colors.black,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
                         onPressed: () async {
-                          // Зберігаємо посилання на ScaffoldMessenger до async-паузи
                           final scaffoldMessenger = ScaffoldMessenger.of(
                             context,
                           );

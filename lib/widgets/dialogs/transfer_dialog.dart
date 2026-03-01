@@ -69,8 +69,6 @@ class _TransferDialogState extends State<TransferDialog> {
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
-                // Ми залишаємо тут тільки специфічні для ЦЬОГО поля речі:
-                // суфікс, лейбл і червону рамку для помилки. Усе інше тягнеться з Theme!
                 decoration: InputDecoration(
                   labelText: "Сума",
                   suffixText: "₴",
@@ -78,24 +76,7 @@ class _TransferDialogState extends State<TransferDialog> {
                     fontWeight: FontWeight.bold,
                     color: Colors.black54,
                   ),
-                  enabledBorder: _hasError
-                      ? OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Colors.red,
-                            width: 1,
-                          ),
-                        )
-                      : null,
-                  focusedBorder: _hasError
-                      ? OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Colors.red,
-                            width: 2,
-                          ),
-                        )
-                      : null,
+                  errorText: _hasError ? 'Введіть суму' : null,
                 ),
               ),
               const SizedBox(height: 12),

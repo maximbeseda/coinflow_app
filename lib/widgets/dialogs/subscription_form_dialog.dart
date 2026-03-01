@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../providers/finance_provider.dart';
@@ -28,6 +29,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
   late DateTime _selectedDate;
 
   int? _customIconCodePoint;
+  bool _isAutoPay = false;
 
   // Змінна для відстеження спроби збереження з пустими полями
   bool _hasError = false;
@@ -36,15 +38,27 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
   void initState() {
     super.initState();
     final sub = widget.subscription;
+
+    // Отримуємо доступ до списків категорій без прослуховування змін
+    final provider = Provider.of<FinanceProvider>(context, listen: false);
+
     _nameController = TextEditingController(text: sub?.name ?? '');
     _amountController = TextEditingController(
       text: sub != null ? sub.amount.toString() : '',
     );
-    _selectedAccountId = sub?.accountId;
-    _selectedExpenseId = sub?.categoryId;
+
+    // БЕЗПЕЧНА ПЕРЕВІРКА ---
+    // Перевіряємо, чи досі існують збережені категорії в активних списках
+    bool accountExists = provider.accounts.any((c) => c.id == sub?.accountId);
+    _selectedAccountId = accountExists ? sub?.accountId : null;
+
+    bool expenseExists = provider.expenses.any((c) => c.id == sub?.categoryId);
+    _selectedExpenseId = expenseExists ? sub?.categoryId : null;
+
     _selectedPeriodicity = sub?.periodicity ?? 'monthly';
     _selectedDate = sub?.nextPaymentDate ?? DateTime.now();
     _customIconCodePoint = sub?.customIconCodePoint;
+    _isAutoPay = sub?.isAutoPay ?? false;
   }
 
   @override
@@ -82,6 +96,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
       nextPaymentDate: _selectedDate,
       periodicity: _selectedPeriodicity,
       customIconCodePoint: _customIconCodePoint,
+      isAutoPay: _isAutoPay,
     );
 
     if (widget.subscription == null) {
@@ -101,11 +116,6 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
         await showDialog<bool>(
           context: context,
           builder: (ctx) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(28),
-            ),
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
             child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(
@@ -142,14 +152,6 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                       // Кнопка Скасувати
                       Expanded(
                         child: TextButton(
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            backgroundColor: Colors.grey.shade100,
-                            foregroundColor: Colors.black87,
-                          ),
                           onPressed: () => Navigator.pop(ctx, false),
                           child: const Text(
                             "Скасувати",
@@ -161,6 +163,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                         ),
                       ),
                       const SizedBox(width: 12),
+
                       // Кнопка Видалити
                       Expanded(
                         child: ElevatedButton(
@@ -286,8 +289,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                       ),
                       SliverGrid(
                         gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 5,
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent:
+                                  60, // Адаптивна ширина колонки
                               crossAxisSpacing: 10,
                               mainAxisSpacing: 10,
                             ),
@@ -483,11 +487,14 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
             // ПОЛЕ "НАЗВА"
             TextField(
               controller: _nameController,
+              maxLength: 20,
+              textCapitalization: TextCapitalization.sentences,
               onChanged: (_) {
                 if (_hasError) setState(() {});
               },
               decoration: InputDecoration(
-                hintText: 'Назва (напр. Netflix)',
+                labelText: 'Назва (напр. Netflix)',
+                counterText: "", // Ховаємо лічильник символів для краси
                 enabledBorder: _getErrorBorder(
                   _nameController.text.trim().isEmpty,
                 ),
@@ -496,7 +503,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             Row(
               children: [
@@ -512,7 +519,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                       if (_hasError) setState(() {});
                     },
                     decoration: InputDecoration(
-                      hintText: 'Сума',
+                      labelText: 'Сума',
                       suffixText: '₴',
                       enabledBorder: _getErrorBorder(
                         (double.tryParse(
@@ -539,6 +546,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                   child: DropdownButtonFormField<String>(
                     isExpanded: true,
                     iconSize: 24,
+                    decoration: const InputDecoration(labelText: 'Період'),
                     icon: const Icon(
                       Icons.keyboard_arrow_down,
                       color: Colors.black54,
@@ -563,16 +571,12 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // ПОЛЕ "ЗВІДКИ" З ІКОНКАМИ
             DropdownButtonFormField<String>(
-              isExpanded: true, // Додано для запобігання переповнення тексту
+              isExpanded: true,
               initialValue: _selectedAccountId,
-              hint: const Text(
-                'Звідки списувати',
-                style: TextStyle(color: Colors.black54),
-              ),
               iconSize: 24,
               icon: const Icon(
                 Icons.keyboard_arrow_down,
@@ -602,7 +606,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                         child: Icon(cat.icon, size: 16, color: cat.iconColor),
                       ),
                       const SizedBox(width: 12),
-                      Text(cat.name),
+                      Expanded(
+                        child: Text(cat.name, overflow: TextOverflow.ellipsis),
+                      ),
                     ],
                   ),
                 );
@@ -611,20 +617,17 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                 _selectedAccountId = val;
               }),
               decoration: InputDecoration(
+                labelText: 'Звідки списувати',
                 enabledBorder: _getErrorBorder(_selectedAccountId == null),
                 focusedBorder: _getErrorBorder(_selectedAccountId == null),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // ПОЛЕ "КУДИ" З ІКОНКАМИ
             DropdownButtonFormField<String>(
-              isExpanded: true, // Додано для запобігання переповнення тексту
+              isExpanded: true,
               initialValue: _selectedExpenseId,
-              hint: const Text(
-                'Категорія витрат',
-                style: TextStyle(color: Colors.black54),
-              ),
               iconSize: 24,
               icon: const Icon(
                 Icons.keyboard_arrow_down,
@@ -654,7 +657,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                         child: Icon(cat.icon, size: 16, color: cat.iconColor),
                       ),
                       const SizedBox(width: 12),
-                      Text(cat.name),
+                      Expanded(
+                        child: Text(cat.name, overflow: TextOverflow.ellipsis),
+                      ),
                     ],
                   ),
                 );
@@ -663,44 +668,91 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                 _selectedExpenseId = val;
               }),
               decoration: InputDecoration(
+                labelText: 'Категорія витрат',
                 enabledBorder: _getErrorBorder(_selectedExpenseId == null),
                 focusedBorder: _getErrorBorder(_selectedExpenseId == null),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-            GestureDetector(
-              onTap: _pickDate,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 16,
-                  horizontal: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Наступна оплата:',
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 16,
+            // ДАТА ТА АВТОСПИСАННЯ В ОДИН РЯДОК
+            Row(
+              children: [
+                // 1. ДАТА
+                Expanded(
+                  flex: 3,
+                  child: GestureDetector(
+                    onTap: _pickDate,
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Оплата',
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ), // Однаковий відступ
+                      ),
+                      child: SizedBox(
+                        height: 24, // <--- ФІКСУЄМО ВИСОТУ
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              DateFormat('dd.MM.yyyy').format(_selectedDate),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const Icon(
+                              Icons.calendar_today,
+                              size: 18,
+                              color: Colors.black54,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    Text(
-                      DateFormat('dd.MM.yyyy').format(_selectedDate),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // 2. АВТОСПИСАННЯ
+                Expanded(
+                  flex: 2,
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Автоплатіж',
+                      labelStyle: TextStyle(
+                        letterSpacing:
+                            -0.3, // Від'ємне значення "стискає" букви
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ), // Однаковий відступ
+                    ),
+                    child: SizedBox(
+                      height: 24, // <--- ФІКСУЄМО ТАКУ САМУ ВИСОТУ
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: Transform.scale(
+                          scale:
+                              0.75, // Зменшуємо сам перемикач, щоб він вліз у 24 пікселі
+                          child: CupertinoSwitch(
+                            value: _isAutoPay,
+                            activeTrackColor: Colors.black,
+                            onChanged: (val) =>
+                                setState(() => _isAutoPay = val),
+                          ),
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
+
             const SizedBox(height: 32),
 
             ElevatedButton(

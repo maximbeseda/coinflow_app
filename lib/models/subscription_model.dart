@@ -29,6 +29,10 @@ class Subscription extends HiveObject {
   @HiveField(7)
   int? customIconCodePoint;
 
+  // ДОДАНО: Поле автосписання
+  @HiveField(8)
+  bool isAutoPay;
+
   Subscription({
     required this.id,
     required this.name,
@@ -38,6 +42,7 @@ class Subscription extends HiveObject {
     required this.nextPaymentDate,
     this.periodicity = 'monthly',
     this.customIconCodePoint, // ДОДАНО
+    this.isAutoPay = false, // За замовчуванням вимкнено
   });
 
   Map<String, dynamic> toJson() {
@@ -49,7 +54,8 @@ class Subscription extends HiveObject {
       'accountId': accountId,
       'nextPaymentDate': nextPaymentDate.toIso8601String(),
       'periodicity': periodicity,
-      'customIconCodePoint': customIconCodePoint, // ДОДАНО
+      'customIconCodePoint': customIconCodePoint,
+      'isAutoPay': isAutoPay,
     };
   }
 
@@ -62,7 +68,8 @@ class Subscription extends HiveObject {
       accountId: json['accountId'],
       nextPaymentDate: DateTime.parse(json['nextPaymentDate']),
       periodicity: json['periodicity'] ?? 'monthly',
-      customIconCodePoint: json['customIconCodePoint'], // ДОДАНО
+      customIconCodePoint: json['customIconCodePoint'],
+      isAutoPay: json['isAutoPay'] ?? false,
     );
   }
 }

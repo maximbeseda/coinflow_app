@@ -9,7 +9,8 @@ import 'dart:ui'; // ДОДАНО: Для PointerDeviceKind
 import 'screens/home_screen.dart';
 import 'package:provider/provider.dart';
 import 'providers/finance_provider.dart';
-import 'models/subscription_model.dart'; // ДОДАНО: Імпорт нової моделі
+import 'models/subscription_model.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,14 +22,12 @@ void main() async {
 
   await Hive.initFlutter();
 
-  // ДОДАНО: Реєструємо адаптер для Підписок (щоб Hive вмів їх читати/записувати)
+  // Реєструємо адаптер для Підписок
   Hive.registerAdapter(SubscriptionAdapter());
 
   await Hive.openBox('categories');
   await Hive.openBox('transactions');
-  await Hive.openBox(
-    'subscriptions',
-  ); // ДОДАНО: Відкриваємо коробку для Підписок
+  await Hive.openBox('subscriptions'); // Відкриваємо коробку для Підписок
 
   await initializeDateFormatting('uk_UA', null);
 
@@ -84,64 +83,12 @@ class MyApp extends StatelessWidget {
         },
       ),
 
-      // ГЛОБАЛЬНА ТЕМА
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF5F5F7),
-
-        // ВИПРАВЛЕНО: Використовуємо DialogThemeData для нових версій Flutter
-        dialogTheme: DialogThemeData(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-        ),
-
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.grey.shade100,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Colors.blue, width: 2),
-          ),
-        ),
-
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-
-        textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            backgroundColor: Colors.grey.shade100,
-            foregroundColor: Colors.black87,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-      ),
+      // --- ПІДКЛЮЧАЄМО ЗОВНІШНІ ТЕМИ ---
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode:
+          ThemeMode.light, // Згодом тут можна буде поставити ThemeMode.system
+      // ------------------------------------------------
       home: const HomeScreen(),
     );
   }

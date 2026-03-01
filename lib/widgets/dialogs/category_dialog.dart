@@ -102,8 +102,9 @@ class _CategoryDialogState extends State<CategoryDialog> {
                       ),
                       SliverGrid(
                         gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 5,
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent:
+                                  60, // Максимальна ширина однієї комірки
                               crossAxisSpacing: 10,
                               mainAxisSpacing: 10,
                             ),

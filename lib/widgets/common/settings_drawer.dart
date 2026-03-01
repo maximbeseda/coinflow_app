@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/finance_provider.dart';
-import '../screens/stats_screen.dart';
-import '../screens/subscriptions_screen.dart';
-import '../services/backup_service.dart';
+import '../../providers/finance_provider.dart';
+import '../../screens/stats_screen.dart';
+import '../../screens/subscriptions_screen.dart';
+import '../../services/backup_service.dart';
 
 class SettingsDrawer extends StatelessWidget {
   const SettingsDrawer({super.key});

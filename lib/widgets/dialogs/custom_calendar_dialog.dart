@@ -45,10 +45,8 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Стиль Dialog береться з AppTheme
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Padding(
         padding: const EdgeInsets.all(
@@ -92,7 +90,6 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
 
                   // Кнопки вибору Місяця та Року
                   Expanded(
-                    // ВИПРАВЛЕНО 1: FittedBox автоматично стискає текст, якщо він не влазить по ширині (лікує right overflow)
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Row(
@@ -225,8 +222,7 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
               AnimatedSize(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
-                alignment:
-                    Alignment.topCenter, // Анімація розгортання зверху вниз
+                alignment: Alignment.topCenter,
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   transitionBuilder:
@@ -247,15 +243,8 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
               Row(
                 children: [
                   Expanded(
+                    // Стиль TextButton береться з AppTheme
                     child: TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        backgroundColor: Colors.grey.shade100,
-                        foregroundColor: Colors.black87,
-                      ),
                       onPressed: () => Navigator.pop(context),
                       child: const FittedBox(
                         fit: BoxFit.scaleDown,
@@ -271,16 +260,8 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
+                    // Стиль ElevatedButton береться з AppTheme
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
                       onPressed: () => Navigator.pop(context, _selectedDay),
                       child: const FittedBox(
                         fit: BoxFit.scaleDown,
@@ -316,14 +297,13 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
 
   // 1. Стандартний календар
   Widget _buildCalendar() {
-    // ВИПРАВЛЕНО 2: Забрали SizedBox(height: 380). Тепер календар сам підлаштовує розмір!
     return TableCalendar(
       key: const ValueKey('calendar'),
       locale: 'uk_UA',
       firstDay: DateTime.utc(_startYear, 1, 1),
       lastDay: DateTime.utc(_endYear, 12, 31),
       focusedDay: _focusedDay,
-      rowHeight: 46, // Зробили рядки трохи компактнішими
+      rowHeight: 46,
       selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
       startingDayOfWeek: StartingDayOfWeek.monday,
       headerVisible: false,
@@ -370,12 +350,11 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
   Widget _buildMonthGrid() {
     return GridView.builder(
       key: const ValueKey('months'),
-      shrinkWrap:
-          true, // ВИПРАВЛЕНО: Сітка сама стиснеться до потрібного розміру без пустих місць
+      shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        childAspectRatio: 1.8, // Зробили кнопки місяців трохи ширшими
+        childAspectRatio: 1.8,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
       ),
@@ -411,7 +390,6 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
 
   // 3. Сітка вибору року
   Widget _buildYearGrid() {
-    // ДЛЯ РОКІВ ВИСОТУ ЗАЛИШАЄМО, бо це скрол-список на 100 років! Якщо його не обмежити, вікно розтягнеться до нескінченності.
     return SizedBox(
       key: const ValueKey('years'),
       height: 300,
