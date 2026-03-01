@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/category_model.dart';
+import '../../utils/app_constants.dart';
 
 class CategoryDialog extends StatefulWidget {
   final Category? category;
@@ -18,151 +19,6 @@ class _CategoryDialogState extends State<CategoryDialog> {
   late TextEditingController _budgetCtrl;
   late IconData _selectedIcon;
 
-  final Map<String, List<IconData>> _groupedIcons = {
-    "Фінанси та Інвестиції": [
-      Icons.account_balance_wallet,
-      Icons.wallet,
-      Icons.account_balance,
-      Icons.savings,
-      Icons.credit_card,
-      Icons.show_chart,
-      Icons.candlestick_chart,
-      Icons.pie_chart,
-      Icons.trending_up,
-      Icons.atm,
-      Icons.percent,
-      Icons.real_estate_agent,
-      Icons.receipt_long,
-      Icons.business_center,
-      Icons.money,
-    ],
-    "Валюти": [
-      Icons.attach_money,
-      Icons.euro,
-      Icons.currency_pound,
-      Icons.currency_yen,
-      Icons.currency_franc,
-      Icons.currency_lira,
-      Icons.currency_rupee,
-      Icons.currency_bitcoin,
-      Icons.payments,
-      Icons.price_change,
-    ],
-    "Їжа та напої": [
-      Icons.shopping_bag,
-      Icons.shopping_cart,
-      Icons.restaurant,
-      Icons.coffee,
-      Icons.fastfood,
-      Icons.local_bar,
-      Icons.cake,
-      Icons.local_pizza,
-      Icons.liquor,
-      Icons.icecream,
-    ],
-    "Транспорт та Авто": [
-      Icons.directions_car,
-      Icons.local_gas_station,
-      Icons.build,
-      Icons.local_parking,
-      Icons.directions_bus,
-      Icons.train,
-      Icons.flight,
-      Icons.local_taxi,
-      Icons.two_wheeler,
-      Icons.directions_boat,
-    ],
-    "Дім та Рахунки": [
-      Icons.home,
-      Icons.water_drop,
-      Icons.electric_bolt,
-      Icons.wifi,
-      Icons.phone_android,
-      Icons.tv,
-      Icons.cleaning_services,
-      Icons.lightbulb,
-      Icons.router,
-      Icons.weekend,
-    ],
-    "Шопінг та Речі": [
-      Icons.checkroom,
-      Icons.devices,
-      Icons.headphones,
-      Icons.watch,
-      Icons.chair,
-      Icons.local_mall,
-      Icons.card_giftcard,
-      Icons.local_shipping,
-      Icons.smartphone,
-      Icons.laptop_mac,
-    ],
-    "Здоров'я та Краса": [
-      Icons.medical_services,
-      Icons.fitness_center,
-      Icons.spa,
-      Icons.self_improvement,
-      Icons.medication,
-      Icons.local_hospital,
-      Icons.face,
-      Icons.content_cut,
-      Icons.favorite,
-      Icons.healing,
-    ],
-    "Розваги та Хобі": [
-      Icons.theater_comedy,
-      Icons.movie,
-      Icons.music_note,
-      Icons.videogame_asset,
-      Icons.sports_esports,
-      Icons.menu_book,
-      Icons.palette,
-      Icons.camera_alt,
-      Icons.pool,
-      Icons.subscriptions,
-    ],
-
-    "Підписки та Сервіси": [
-      Icons.play_circle_outline,
-      Icons.music_note,
-      Icons.cloud_queue,
-      Icons.videogame_asset,
-      Icons.fitness_center,
-      Icons.language,
-      Icons.shopping_bag,
-      Icons.article,
-      Icons.phone_iphone,
-      Icons.security,
-    ],
-
-    "Сім'я та Тварини": [
-      Icons.pets,
-      Icons.child_friendly,
-      Icons.school,
-      Icons.groups,
-      Icons.person,
-      Icons.accessibility_new,
-      Icons.people,
-      Icons.stroller,
-      Icons.sentiment_satisfied,
-      Icons.cruelty_free,
-    ],
-    "Інше": [
-      Icons.public,
-      Icons.local_laundry_service,
-      Icons.security,
-      Icons.work,
-      Icons.help_outline,
-      Icons.star,
-      Icons.folder,
-      Icons.push_pin,
-      Icons.explore,
-      Icons.bookmark,
-    ],
-  };
-
-  List<IconData> get _allIcons =>
-      _groupedIcons.values.expand((i) => i).toList();
-
   @override
   void initState() {
     super.initState();
@@ -178,9 +34,9 @@ class _CategoryDialogState extends State<CategoryDialog> {
 
     _selectedIcon =
         widget.category?.icon != null &&
-            _allIcons.contains(widget.category!.icon)
+            AppConstants.allIcons.contains(widget.category!.icon)
         ? widget.category!.icon
-        : _groupedIcons.values.first.first;
+        : AppConstants.groupedIcons.values.first.first;
 
     _nameCtrl.addListener(() => setState(() {}));
   }
@@ -230,7 +86,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 child: CustomScrollView(
                   controller: controller,
                   slivers: [
-                    for (var entry in _groupedIcons.entries) ...[
+                    for (var entry in AppConstants.groupedIcons.entries) ...[
                       SliverPadding(
                         padding: const EdgeInsets.only(bottom: 12),
                         sliver: SliverToBoxAdapter(

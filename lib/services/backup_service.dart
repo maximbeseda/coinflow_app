@@ -8,6 +8,7 @@ import '../providers/finance_provider.dart';
 import '../services/storage_service.dart';
 import '../models/category_model.dart';
 import '../models/transaction_model.dart';
+import '../models/subscription_model.dart'; // ДОДАНО: Імпорт моделі підписок
 
 class BackupService {
   // --- ДОПОМІЖНИЙ МЕТОД ДЛЯ КРАСИВИХ СПОВІЩЕНЬ ---
@@ -21,8 +22,7 @@ class BackupService {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.white,
-        behavior: SnackBarBehavior
-            .floating, // Робить віконце плаваючим, а не прилиплим до дна
+        behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.only(bottom: 30, left: 20, right: 20),
         elevation: 10,
         shape: RoundedRectangleBorder(
@@ -73,14 +73,15 @@ class BackupService {
     BuildContext context,
   ) async {
     try {
-      // 1. Збираємо всі категорії та транзакції в єдиний Map
+      // 1. Збираємо всі дані (включаючи підписки та архіви!)
       final data = {
-        'categories': [
-          ...provider.incomes,
-          ...provider.accounts,
-          ...provider.expenses,
-        ].map((c) => c.toJson()).toList(),
+        'categories': provider.allCategoriesList
+            .map((c) => c.toJson())
+            .toList(),
         'transactions': provider.history.map((t) => t.toJson()).toList(),
+        'subscriptions': provider.subscriptions
+            .map((s) => s.toJson())
+            .toList(), // ФІКС: Зберігаємо підписки
       };
 
       // 2. Перетворюємо дані у текстовий формат JSON
@@ -100,8 +101,6 @@ class BackupService {
       await SharePlus.instance.share(
         ShareParams(text: 'Моя резервна копія CoinFlow', files: [xFile]),
       );
-
-      // Ми не показуємо SnackBar при успішному експорті, бо система і так відкриє своє вікно Share
     } catch (e) {
       debugPrint("Помилка експорту: $e");
       if (!context.mounted) return;
@@ -127,7 +126,6 @@ class BackupService {
       if (result != null && result.files.single.path != null) {
         final file = File(result.files.single.path!);
 
-        // Захист від того, що користувач обрав випадковий файл (наприклад, фото)
         if (!file.path.endsWith('.json')) {
           throw Exception("Невірний формат файлу. Очікується .json");
         }
@@ -135,7 +133,13 @@ class BackupService {
         final String jsonString = await file.readAsString();
         final Map<String, dynamic> data = jsonDecode(jsonString);
 
-        // 2. Парсимо дані назад у наші об'єкти (моделі)
+        // БЕЗПЕКА: Жорстка перевірка структури файлу ДО видалення бази
+        if (!data.containsKey('categories') ||
+            !data.containsKey('transactions')) {
+          throw Exception("Файл пошкоджено або це не бекап CoinFlow");
+        }
+
+        // 2. Парсимо дані в оперативну пам'ять
         List<Category> importedCategories = (data['categories'] as List)
             .map((e) => Category.fromJson(e))
             .toList();
@@ -143,12 +147,27 @@ class BackupService {
             .map((e) => Transaction.fromJson(e))
             .toList();
 
-        // 3. Очищаємо стару базу і зберігаємо нові дані
+        // Зворотна сумісність: якщо файл старий і підписок там немає, просто робимо пустий список
+        List<Subscription> importedSubscriptions = [];
+        if (data.containsKey('subscriptions')) {
+          importedSubscriptions = (data['subscriptions'] as List)
+              .map((e) => Subscription.fromJson(e))
+              .toList();
+        }
+
+        // 3. ТІЛЬКИ ТЕПЕР, коли ми впевнені, що дані зчитані успішно, очищаємо стару базу
         await StorageService.clearAll();
+
+        // 4. Зберігаємо нові дані
         await StorageService.saveCategories(importedCategories);
         await StorageService.saveHistory(importedTransactions);
+        for (var sub in importedSubscriptions) {
+          await StorageService.saveSubscription(
+            sub,
+          ); // Зберігаємо підписки по одній
+        }
 
-        // 4. Оновлюємо стан додатку
+        // 5. Оновлюємо стан додатку
         await provider.loadData();
         if (!context.mounted) return;
         _showCustomSnackBar(context, "Дані успішно відновлено! 🎉", true);
@@ -158,7 +177,7 @@ class BackupService {
       if (!context.mounted) return;
       _showCustomSnackBar(
         context,
-        "Помилка відновлення. Файл пошкоджено або невірного формату 😔",
+        "Помилка відновлення. Невірний формат файлу 😔",
         false,
       );
     }

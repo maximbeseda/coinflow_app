@@ -82,6 +82,31 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                         otherCat = null;
                       }
 
+                      // --- НОВА ЛОГІКА КОЛЬОРІВ ---
+                      String prefix = "";
+                      Color amountColor = Colors.black;
+
+                      if (widget.category.type == CategoryType.income) {
+                        // Доходи завжди зелені з плюсом
+                        prefix = "+";
+                        amountColor = Colors.green;
+                      } else if (widget.category.type == CategoryType.expense) {
+                        // Витрати завжди червоні з мінусом
+                        prefix = "-";
+                        amountColor = Colors.red;
+                      } else {
+                        // Якщо це Рахунок (Account), дивимось куди йдуть гроші
+                        if (otherCat?.type == CategoryType.account) {
+                          prefix = isOut ? "-" : "+";
+                          amountColor =
+                              Colors.grey; // Перекази між своїми рахунками сірі
+                        } else {
+                          prefix = isOut ? "-" : "+";
+                          amountColor = isOut ? Colors.red : Colors.green;
+                        }
+                      }
+                      // ----------------------------
+
                       return Dismissible(
                         key: Key(t.id),
                         direction: DismissDirection.endToStart,
@@ -132,10 +157,10 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                "${isOut ? '-' : '+'}${CurrencyFormatter.format(t.amount)} ₴", // ВИКОРИСТОВУЄМО УНІВЕРСАЛЬНЕ ФОРМАТУВАННЯ
+                                "$prefix${CurrencyFormatter.format(t.amount)} ₴",
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: isOut ? Colors.red : Colors.green,
+                                  color: amountColor,
                                 ),
                               ),
                               const SizedBox(width: 4),

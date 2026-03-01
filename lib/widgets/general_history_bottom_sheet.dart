@@ -96,9 +96,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                       String toName = toCat?.name ?? "Невідомо";
 
                       // 2. Визначаємо тип операції через безпечний Enum
-                      bool isIncome =
-                          fromCat?.type == CategoryType.income &&
-                          toCat?.type == CategoryType.account;
+                      bool isIncome = fromCat?.type == CategoryType.income;
                       bool isTransfer =
                           fromCat?.type == CategoryType.account &&
                           toCat?.type == CategoryType.account;
@@ -106,7 +104,11 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                       String prefix = "-";
                       Color amountColor = Colors.red;
 
-                      if (widget.filterType == CategoryType.account) {
+                      // Жорстко задаємо кольори для загальних списків
+                      if (widget.filterType == CategoryType.income) {
+                        prefix = "+";
+                        amountColor = Colors.green;
+                      } else if (widget.filterType == CategoryType.account) {
                         if (isIncome) {
                           prefix = "+";
                           amountColor = Colors.green;
