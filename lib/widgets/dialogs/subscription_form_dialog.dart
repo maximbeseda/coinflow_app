@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../providers/finance_provider.dart';
 import '../../models/subscription_model.dart';
 import '../../utils/app_constants.dart';
 import 'custom_calendar_dialog.dart';
+import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
 
 // ============================================================================
 // ВІДЖЕТ ДІАЛОГОВОГО ВІКОНЦЯ (ФОРМА ДОДАВАННЯ ТА РЕДАГУВАННЯ ПІДПИСКИ)
@@ -111,6 +112,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
   Future<void> _delete() async {
     if (widget.subscription == null) return;
 
+    // ДОДАНО: Кольори теми для діалогу підтвердження
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     // Викликаємо вікно підтвердження в стилі HomeScreen
     bool confirmed =
         await showDialog<bool>(
@@ -125,25 +129,34 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: colors.expense.withValues(alpha: 0.1), // ЗМІНЕНО
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.warning_amber_rounded,
-                      color: Colors.red,
+                      color: colors.expense, // ЗМІНЕНО
                       size: 36,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const Text(
-                    "Видалити підписку?",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Text(
+                    'delete_subscription_title'.tr(),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: colors.textMain, // ЗМІНЕНО
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    "Ви впевнені, що хочете видалити '${widget.subscription!.name}'? Це зупинить відстеження регулярних платежів.",
-                    style: const TextStyle(fontSize: 14, color: Colors.black54),
+                    'delete_subscription_message'.tr(
+                      args: [widget.subscription!.name],
+                    ),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: colors.textSecondary, // ЗМІНЕНО
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
@@ -153,9 +166,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                       Expanded(
                         child: TextButton(
                           onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text(
-                            "Скасувати",
-                            style: TextStyle(
+                          child: Text(
+                            'cancel'.tr(),
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -169,7 +182,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            backgroundColor: Colors.red,
+                            backgroundColor: colors.expense, // ЗМІНЕНО
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -177,9 +190,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                             ),
                           ),
                           onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text(
-                            "Видалити",
-                            style: TextStyle(
+                          child: Text(
+                            'delete'.tr(),
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -221,9 +234,12 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
 
   void _openIconPicker() {
     FocusScope.of(context).unfocus();
+    // ДОДАНО: Кольори теми
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: colors.cardBg, // ЗМІНЕНО
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
@@ -242,22 +258,26 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: colors.textSecondary.withValues(alpha: 0.2), // ЗМІНЕНО
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                "Оберіть іконку",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                'choose_icon'.tr(),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colors.textMain, // ЗМІНЕНО
+                ),
               ),
               const SizedBox(height: 10),
 
               ListTile(
                 leading: const Icon(Icons.refresh, color: Colors.blue),
-                title: const Text(
-                  "Використати іконку категорії",
-                  style: TextStyle(
+                title: Text(
+                  'use_category_icon'.tr(),
+                  style: const TextStyle(
                     color: Colors.blue,
                     fontWeight: FontWeight.w600,
                   ),
@@ -282,7 +302,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade600,
+                              color: colors.textSecondary, // ЗМІНЕНО
                             ),
                           ),
                         ),
@@ -310,14 +330,14 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? Colors.blue
-                                    : Colors.grey.shade100,
+                                    : colors.iconBg, // ЗМІНЕНО
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
                                 icon,
                                 color: isSelected
                                     ? Colors.white
-                                    : Colors.black87,
+                                    : colors.textMain, // ЗМІНЕНО
                                 size: 26,
                               ),
                             ),
@@ -337,12 +357,12 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
   }
 
   // ДОПОМІЖНИЙ МЕТОД ДЛЯ ЧЕРВОНИХ РАМОК
-  InputBorder? _getErrorBorder(bool condition) {
+  InputBorder? _getErrorBorder(bool condition, AppColorsExtension colors) {
     if (_hasError && condition) {
       return OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(
-          color: Colors.red,
+        borderSide: BorderSide(
+          color: colors.expense, // ЗМІНЕНО: Червоний з теми
           width: 1,
         ), // Тоненька червона рамка
       );
@@ -355,9 +375,12 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
     final provider = Provider.of<FinanceProvider>(context, listen: false);
     final isEditing = widget.subscription != null;
 
+    // ДОДАНО: Кольори теми
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     IconData displayIcon = Icons.card_giftcard;
-    Color displayColor = Colors.grey.shade200;
-    Color displayIconColor = Colors.black54;
+    Color displayColor = colors.iconBg; // ЗМІНЕНО: Запасний колір
+    Color displayIconColor = colors.textSecondary; // ЗМІНЕНО: Запасний колір
 
     if (_customIconCodePoint != null) {
       displayIcon = IconData(
@@ -396,10 +419,11 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  isEditing ? 'Редагувати' : 'Нова підписка',
-                  style: const TextStyle(
+                  isEditing ? 'edit'.tr() : 'new_subscription'.tr(),
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
+                    color: colors.textMain, // ЗМІНЕНО
                   ),
                 ),
                 Row(
@@ -412,12 +436,14 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.1),
+                            color: colors.expense.withValues(
+                              alpha: 0.1,
+                            ), // ЗМІНЕНО
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.delete_outline,
-                            color: Colors.red,
+                            color: colors.expense, // ЗМІНЕНО
                             size: 20,
                           ),
                         ),
@@ -430,12 +456,12 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.grey.withValues(alpha: 0.15),
+                          color: colors.iconBg, // ЗМІНЕНО
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.close,
-                          color: Colors.black87,
+                          color: colors.textMain, // ЗМІНЕНО
                           size: 20,
                         ),
                       ),
@@ -470,7 +496,10 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                       decoration: BoxDecoration(
                         color: Colors.blue,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
+                        ), // Залишаємо білим
                       ),
                       child: const Icon(
                         Icons.edit,
@@ -492,14 +521,17 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
               onChanged: (_) {
                 if (_hasError) setState(() {});
               },
+              style: TextStyle(color: colors.textMain), // ЗМІНЕНО
               decoration: InputDecoration(
-                labelText: 'Назва (напр. Netflix)',
+                labelText: 'name_hint_netflix'.tr(),
                 counterText: "", // Ховаємо лічильник символів для краси
                 enabledBorder: _getErrorBorder(
                   _nameController.text.trim().isEmpty,
+                  colors,
                 ),
                 focusedBorder: _getErrorBorder(
                   _nameController.text.trim().isEmpty,
+                  colors,
                 ),
               ),
             ),
@@ -518,15 +550,21 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                     onChanged: (_) {
                       if (_hasError) setState(() {});
                     },
+                    style: TextStyle(color: colors.textMain), // ЗМІНЕНО
                     decoration: InputDecoration(
-                      labelText: 'Сума',
+                      labelText: 'amount'.tr(),
                       suffixText: '₴',
+                      suffixStyle: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: colors.textSecondary, // ЗМІНЕНО
+                      ),
                       enabledBorder: _getErrorBorder(
                         (double.tryParse(
                                   _amountController.text.replaceAll(',', '.'),
                                 ) ??
                                 0) <=
                             0,
+                        colors,
                       ),
                       focusedBorder: _getErrorBorder(
                         (double.tryParse(
@@ -534,6 +572,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                                 ) ??
                                 0) <=
                             0,
+                        colors,
                       ),
                     ),
                   ),
@@ -546,24 +585,33 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                   child: DropdownButtonFormField<String>(
                     isExpanded: true,
                     iconSize: 24,
-                    decoration: const InputDecoration(labelText: 'Період'),
-                    icon: const Icon(
+                    decoration: InputDecoration(labelText: 'period'.tr()),
+                    icon: Icon(
                       Icons.keyboard_arrow_down,
-                      color: Colors.black54,
+                      color: colors.textSecondary, // ЗМІНЕНО
                     ),
-                    dropdownColor: Colors.white,
+                    dropdownColor: colors.cardBg, // ЗМІНЕНО
                     borderRadius: BorderRadius.circular(16),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Colors.black87,
+                      color: colors.textMain, // ЗМІНЕНО
                       fontWeight: FontWeight.w500,
                     ),
                     initialValue: _selectedPeriodicity,
                     onTap: () => FocusScope.of(context).unfocus(),
-                    items: const [
-                      DropdownMenuItem(value: 'monthly', child: Text('міс.')),
-                      DropdownMenuItem(value: 'yearly', child: Text('рік')),
-                      DropdownMenuItem(value: 'weekly', child: Text('тиж.')),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'monthly',
+                        child: Text('period_monthly'.tr()),
+                      ),
+                      DropdownMenuItem(
+                        value: 'yearly',
+                        child: Text('period_yearly'.tr()),
+                      ),
+                      DropdownMenuItem(
+                        value: 'weekly',
+                        child: Text('period_weekly'.tr()),
+                      ),
                     ],
                     onChanged: (val) =>
                         setState(() => _selectedPeriodicity = val!),
@@ -578,15 +626,15 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
               isExpanded: true,
               initialValue: _selectedAccountId,
               iconSize: 24,
-              icon: const Icon(
+              icon: Icon(
                 Icons.keyboard_arrow_down,
-                color: Colors.black54,
+                color: colors.textSecondary, // ЗМІНЕНО
               ),
-              dropdownColor: Colors.white,
+              dropdownColor: colors.cardBg, // ЗМІНЕНО
               borderRadius: BorderRadius.circular(16),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
-                color: Colors.black87,
+                color: colors.textMain, // ЗМІНЕНО
                 fontWeight: FontWeight.w500,
               ),
               onTap: () => FocusScope.of(context).unfocus(),
@@ -617,9 +665,15 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                 _selectedAccountId = val;
               }),
               decoration: InputDecoration(
-                labelText: 'Звідки списувати',
-                enabledBorder: _getErrorBorder(_selectedAccountId == null),
-                focusedBorder: _getErrorBorder(_selectedAccountId == null),
+                labelText: 'write_off_from'.tr(),
+                enabledBorder: _getErrorBorder(
+                  _selectedAccountId == null,
+                  colors,
+                ),
+                focusedBorder: _getErrorBorder(
+                  _selectedAccountId == null,
+                  colors,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -629,15 +683,15 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
               isExpanded: true,
               initialValue: _selectedExpenseId,
               iconSize: 24,
-              icon: const Icon(
+              icon: Icon(
                 Icons.keyboard_arrow_down,
-                color: Colors.black54,
+                color: colors.textSecondary, // ЗМІНЕНО
               ),
-              dropdownColor: Colors.white,
+              dropdownColor: colors.cardBg, // ЗМІНЕНО
               borderRadius: BorderRadius.circular(16),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
-                color: Colors.black87,
+                color: colors.textMain, // ЗМІНЕНО
                 fontWeight: FontWeight.w500,
               ),
               onTap: () => FocusScope.of(context).unfocus(),
@@ -668,9 +722,15 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                 _selectedExpenseId = val;
               }),
               decoration: InputDecoration(
-                labelText: 'Категорія витрат',
-                enabledBorder: _getErrorBorder(_selectedExpenseId == null),
-                focusedBorder: _getErrorBorder(_selectedExpenseId == null),
+                labelText: 'expense_category'.tr(),
+                enabledBorder: _getErrorBorder(
+                  _selectedExpenseId == null,
+                  colors,
+                ),
+                focusedBorder: _getErrorBorder(
+                  _selectedExpenseId == null,
+                  colors,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -684,9 +744,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                   child: GestureDetector(
                     onTap: _pickDate,
                     child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Оплата',
-                        contentPadding: EdgeInsets.symmetric(
+                      decoration: InputDecoration(
+                        labelText: 'payment'.tr(),
+                        contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 8,
                         ), // Однаковий відступ
@@ -698,16 +758,16 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                           children: [
                             Text(
                               DateFormat('dd.MM.yyyy').format(_selectedDate),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.black87,
+                                color: colors.textMain, // ЗМІНЕНО
                               ),
                             ),
-                            const Icon(
+                            Icon(
                               Icons.calendar_today,
                               size: 18,
-                              color: Colors.black54,
+                              color: colors.textSecondary, // ЗМІНЕНО
                             ),
                           ],
                         ),
@@ -721,13 +781,13 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                 Expanded(
                   flex: 2,
                   child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Автоплатіж',
-                      labelStyle: TextStyle(
+                    decoration: InputDecoration(
+                      labelText: 'auto_pay'.tr(),
+                      labelStyle: const TextStyle(
                         letterSpacing:
                             -0.3, // Від'ємне значення "стискає" букви
                       ),
-                      contentPadding: EdgeInsets.symmetric(
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
                       ), // Однаковий відступ
@@ -741,7 +801,8 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                               0.75, // Зменшуємо сам перемикач, щоб він вліз у 24 пікселі
                           child: CupertinoSwitch(
                             value: _isAutoPay,
-                            activeTrackColor: Colors.black,
+                            activeTrackColor: colors
+                                .textMain, // ЗМІНЕНО: Був activeTrackColor: Colors.black, тепер використовуємо activeColor
                             onChanged: (val) =>
                                 setState(() => _isAutoPay = val),
                           ),
@@ -757,9 +818,12 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
 
             ElevatedButton(
               onPressed: _save,
-              child: const Text(
-                'Зберегти',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              child: Text(
+                'save'.tr(),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

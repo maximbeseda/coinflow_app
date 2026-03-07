@@ -1,59 +1,69 @@
 import 'package:flutter/material.dart';
 import '../../utils/currency_formatter.dart';
 import 'rolling_digit.dart';
+import '../../theme/app_colors_extension.dart';
 
 class SummaryHeader extends StatelessWidget {
   final double totalBalance;
+  final double totalIncomes;
   final double totalExpenses;
   final VoidCallback onBalanceTap;
+  final VoidCallback onIncomesTap;
   final VoidCallback onExpensesTap;
-  final VoidCallback onSettingsTap; // ДОДАНО: Колбек для налаштувань
+  final VoidCallback onSettingsTap;
 
   const SummaryHeader({
     super.key,
     required this.totalBalance,
+    required this.totalIncomes,
     required this.totalExpenses,
     required this.onBalanceTap,
+    required this.onIncomesTap,
     required this.onExpensesTap,
-    required this.onSettingsTap, // ДОДАНО
+    required this.onSettingsTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
       child: Padding(
         padding: const EdgeInsets.only(left: 15, right: 10, top: 15, bottom: 0),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             _item(
-              "БАЛАНС  ",
+              Icons.account_balance_wallet_outlined,
               totalBalance,
-              const Color(0xFF2D3748),
+              colors.textMain,
               onBalanceTap,
+              colors,
             ),
             _item(
-              "ВИТРАТИ  ",
+              Icons.arrow_downward_rounded,
+              totalIncomes,
+              Colors.green,
+              onIncomesTap,
+              colors,
+            ),
+            _item(
+              Icons.arrow_upward_rounded,
               totalExpenses,
-              const Color(0xFFE05252),
+              colors.expense,
               onExpensesTap,
+              colors,
             ),
 
             GestureDetector(
-              onTap: onSettingsTap, // ЗМІНЕНО: Викликаємо передану функцію
+              onTap: onSettingsTap,
               behavior: HitTestBehavior.opaque,
               child: const SizedBox(
-                height: 16,
                 width: 24,
-                child: OverflowBox(
-                  maxHeight: 30,
-                  alignment: Alignment.center,
-                  child: Icon(
-                    Icons.settings_outlined,
-                    size: 20,
-                    color: Colors.black38,
-                  ),
+                child: Icon(
+                  Icons.settings_outlined,
+                  size: 20,
+                  color: Colors.black38,
                 ),
               ),
             ),
@@ -63,36 +73,24 @@ class SummaryHeader extends StatelessWidget {
     );
   }
 
-  Widget _item(String label, double amount, Color color, VoidCallback onTap) {
+  Widget _item(
+    IconData icon,
+    double amount,
+    Color color,
+    VoidCallback onTap,
+    AppColorsExtension colors,
+  ) {
     String formattedAmount = CurrencyFormatter.format(amount, isHeader: true);
-
-    TextStyle amountStyle = TextStyle(
-      fontSize: 14,
-      fontWeight: FontWeight.w900,
-      letterSpacing: -0.2,
-      color: color,
-    );
 
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start, // СТРОГО ПО ЛІВОМУ КРАЮ
           children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 1),
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.black45,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
+            Icon(icon, size: 14, color: colors.textSecondary),
+            const SizedBox(width: 4),
             Flexible(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -105,13 +103,17 @@ class SummaryHeader extends StatelessWidget {
                     for (int i = 0; i < formattedAmount.length; i++)
                       RollingDigit(
                         char: formattedAmount[i],
-                        style: amountStyle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
                       ),
                     Text(
                       " ₴",
-                      style: amountStyle.copyWith(
+                      style: TextStyle(
                         fontSize: 11,
-                        letterSpacing: 0,
+                        fontWeight: FontWeight.bold,
                         color: color.withValues(alpha: 0.6),
                       ),
                     ),

@@ -1,6 +1,7 @@
 import 'package:coin_flow/utils/currency_formatter.dart';
 import 'package:flutter/material.dart';
 import '../../models/category_model.dart';
+import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт нашого контракту кольорів
 
 class CoinWidget extends StatelessWidget {
   final Category category;
@@ -18,6 +19,9 @@ class CoinWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ДОДАНО: Отримуємо кольори поточної теми
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     String displayAmount = CurrencyFormatter.format(category.amount);
 
     bool isIncome = category.type == CategoryType.income;
@@ -32,7 +36,8 @@ class CoinWidget extends StatelessWidget {
       progress = (amountAbs / category.budget!).clamp(0.0, 1.0);
 
       if (isIncome) {
-        ringColor = progress >= 1.0 ? Colors.green : Colors.blueAccent;
+        // ЗМІНЕНО: Використовуємо колір доходу з теми замість жорсткого зеленого
+        ringColor = progress >= 1.0 ? colors.income : Colors.blueAccent;
       } else if (isExpense) {
         DateTime now = DateTime.now();
         int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
@@ -41,7 +46,8 @@ class CoinWidget extends StatelessWidget {
         double expectedPace = (category.budget! / daysInMonth) * currentDay;
 
         if (amountAbs >= category.budget!) {
-          ringColor = Colors.redAccent;
+          // ЗМІНЕНО: Використовуємо колір витрат з теми замість жорсткого червоного
+          ringColor = colors.expense;
         } else if (amountAbs > expectedPace) {
           ringColor = Colors.orange;
         } else {
@@ -58,7 +64,9 @@ class CoinWidget extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withValues(
+              alpha: 0.08,
+            ), // Тінь лишаємо чорною завжди
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -87,12 +95,14 @@ class CoinWidget extends StatelessWidget {
       width: 55,
       height: 55,
       decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.15),
+        color: colors.iconBg, // ЗМІНЕНО: Беремо фон для іконок з теми
         shape: BoxShape.circle,
       ),
       child: Icon(
         category.icon,
-        color: Colors.grey.withValues(alpha: 0.3),
+        color: colors.textSecondary.withValues(
+          alpha: 0.3,
+        ), // ЗМІНЕНО: Адаптивний колір
         size: 24,
       ),
     );
@@ -118,7 +128,8 @@ class CoinWidget extends StatelessWidget {
               child: CircularProgressIndicator(
                 value: progress,
                 strokeWidth: 3,
-                backgroundColor: Colors.black.withValues(alpha: 0.05),
+                // ЗМІНЕНО: Адаптивне тло прогрес-бару (буде білим у темній, чорним у світлій)
+                backgroundColor: colors.textMain.withValues(alpha: 0.1),
                 valueColor: AlwaysStoppedAnimation<Color>(ringColor),
               ),
             ),
@@ -149,7 +160,7 @@ class CoinWidget extends StatelessWidget {
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: Colors.black.withValues(alpha: 0.6),
+              color: colors.textSecondary, // ЗМІНЕНО: Колір назви категорії
             ),
           ),
         ),
@@ -176,10 +187,10 @@ class CoinWidget extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: Colors.black87,
+                  color: colors.textMain, // ЗМІНЕНО: Колір суми
                 ),
               ),
             ),

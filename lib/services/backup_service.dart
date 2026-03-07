@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../providers/finance_provider.dart';
 import '../services/storage_service.dart';
 import '../models/category_model.dart';
 import '../models/transaction_model.dart';
-import '../models/subscription_model.dart'; // ДОДАНО: Імпорт моделі підписок
+import '../models/subscription_model.dart';
+import '../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
 
 class BackupService {
   // --- ДОПОМІЖНИЙ МЕТОД ДЛЯ КРАСИВИХ СПОВІЩЕНЬ ---
@@ -19,18 +21,20 @@ class BackupService {
   ) {
     if (!context.mounted) return;
 
+    // ДОДАНО: Отримуємо кольори теми
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+    final accentColor = isSuccess ? colors.income : colors.expense;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Colors.white,
+        backgroundColor: colors.cardBg, // ЗМІНЕНО: Фон SnackBar адаптивний
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.only(bottom: 30, left: 20, right: 20),
         elevation: 10,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: isSuccess
-                ? Colors.green.withAlpha(80)
-                : Colors.red.withAlpha(80),
+            color: accentColor.withValues(alpha: 0.3), // ЗМІНЕНО
             width: 1,
           ),
         ),
@@ -39,14 +43,12 @@ class BackupService {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: isSuccess
-                    ? Colors.green.withAlpha(30)
-                    : Colors.red.withAlpha(30),
+                color: accentColor.withValues(alpha: 0.1), // ЗМІНЕНО
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 isSuccess ? Icons.check_circle_outline : Icons.error_outline,
-                color: isSuccess ? Colors.green : Colors.red,
+                color: accentColor, // ЗМІНЕНО
                 size: 24,
               ),
             ),
@@ -54,8 +56,8 @@ class BackupService {
             Expanded(
               child: Text(
                 message,
-                style: const TextStyle(
-                  color: Colors.black87,
+                style: TextStyle(
+                  color: colors.textMain, // ЗМІНЕНО: Текст адаптивний
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                 ),
@@ -99,16 +101,12 @@ class BackupService {
       // 5. Викликаємо системне вікно "Поділитися"
       final xFile = XFile(file.path);
       await SharePlus.instance.share(
-        ShareParams(text: 'Моя резервна копія CoinFlow', files: [xFile]),
+        ShareParams(text: 'backup_share_text'.tr(), files: [xFile]),
       );
     } catch (e) {
       debugPrint("Помилка експорту: $e");
       if (!context.mounted) return;
-      _showCustomSnackBar(
-        context,
-        "Помилка при створенні резервної копії 😔",
-        false,
-      );
+      _showCustomSnackBar(context, 'backup_error'.tr(), false);
     }
   }
 
@@ -170,16 +168,12 @@ class BackupService {
         // 5. Оновлюємо стан додатку
         await provider.loadData();
         if (!context.mounted) return;
-        _showCustomSnackBar(context, "Дані успішно відновлено! 🎉", true);
+        _showCustomSnackBar(context, 'backup_success'.tr(), true);
       }
     } catch (e) {
       debugPrint("Помилка імпорту: $e");
       if (!context.mounted) return;
-      _showCustomSnackBar(
-        context,
-        "Помилка відновлення. Невірний формат файлу 😔",
-        false,
-      );
+      _showCustomSnackBar(context, 'import_error'.tr(), false);
     }
   }
 }

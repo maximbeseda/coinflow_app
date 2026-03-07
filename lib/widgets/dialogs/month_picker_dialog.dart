@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
+import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
 
 class MonthPickerDialog extends StatefulWidget {
   final DateTime initialDate;
@@ -10,20 +12,13 @@ class MonthPickerDialog extends StatefulWidget {
 
 class _MonthPickerDialogState extends State<MonthPickerDialog> {
   late int _selectedYear;
-  final List<String> _months = [
-    'Січ',
-    'Лют',
-    'Бер',
-    'Кві',
-    'Тра',
-    'Чер',
-    'Лип',
-    'Сер',
-    'Вер',
-    'Жов',
-    'Лис',
-    'Гру',
-  ];
+  String _getShortMonthName(int month, BuildContext context) {
+    // Формат MMM дає коротку назву місяця (Січ, Лют, Jan, Feb)
+    String m = DateFormat.MMM(
+      context.locale.languageCode,
+    ).format(DateTime(2000, month));
+    return m[0].toUpperCase() + m.substring(1);
+  }
 
   @override
   void initState() {
@@ -33,6 +28,9 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // ДОДАНО: Отримуємо кольори теми
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     // Dialog автоматично візьме shape та backgroundColor з AppTheme
     return Dialog(
       child: Padding(
@@ -45,18 +43,25 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.chevron_left),
+                  icon: Icon(
+                    Icons.chevron_left,
+                    color: colors.textMain,
+                  ), // ЗМІНЕНО
                   onPressed: () => setState(() => _selectedYear--),
                 ),
                 Text(
                   _selectedYear.toString(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
+                    color: colors.textMain, // ЗМІНЕНО
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.chevron_right),
+                  icon: Icon(
+                    Icons.chevron_right,
+                    color: colors.textMain,
+                  ), // ЗМІНЕНО
                   onPressed: () => setState(() => _selectedYear++),
                 ),
               ],
@@ -88,16 +93,18 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
                   },
                   child: Container(
                     decoration: BoxDecoration(
-                      // Залишаємо чорний акцент для вибраного елемента,
-                      // оскільки це логіка вибору, а не загальний стиль кнопки
-                      color: isSelected ? Colors.black : Colors.grey.shade100,
+                      // ЗМІНЕНО: Використовуємо адаптивні кольори
+                      color: isSelected ? colors.textMain : colors.iconBg,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      _months[index],
+                      _getShortMonthName(index + 1, context),
                       style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.black87,
+                        // ЗМІНЕНО: Якщо вибрано, інвертуємо колір тексту (робимо його кольором фону)
+                        color: isSelected
+                            ? Theme.of(context).scaffoldBackgroundColor
+                            : colors.textMain,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -110,15 +117,18 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
-              // TextButton тепер автоматично має чорний колір тексту з AppTheme
+              // TextButton тепер автоматично має правильний колір з AppTheme
               child: TextButton(
                 onPressed: () {
                   final now = DateTime.now();
                   Navigator.pop(context, DateTime(now.year, now.month, 1));
                 },
-                child: const Text(
-                  "Поточний місяць",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                child: Text(
+                  'current_month'.tr(),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),

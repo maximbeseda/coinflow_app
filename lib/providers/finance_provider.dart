@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../models/category_model.dart';
 import '../models/transaction_model.dart';
 import '../models/subscription_model.dart';
@@ -10,10 +11,8 @@ class FinanceProvider extends ChangeNotifier {
   List<Category> accounts = [];
   List<Category> expenses = [];
   List<Transaction> history = [];
-  List<Category> archivedCategories =
-      []; // ДОДАНО: Сховище для видалених категорій
+  List<Category> archivedCategories = [];
 
-  // ДОДАНО: Геттер, який об'єднує всі категорії. Потрібен, щоб історія не губила іконки видалених категорій.
   List<Category> get allCategoriesList => [
     ...incomes,
     ...accounts,
@@ -22,10 +21,9 @@ class FinanceProvider extends ChangeNotifier {
   ];
 
   // --- ПІДПИСКИ ---
-  List<Subscription> subscriptions = []; // Всі підписки
-  List<Subscription> dueSubscriptions =
-      []; // Ті, що потребують підтвердження САМЕ СЬОГОДНІ
-  final Set<String> _ignoredSubIds = {}; // Підписки, які юзер закрив хрестиком
+  List<Subscription> subscriptions = [];
+  List<Subscription> dueSubscriptions = [];
+  final Set<String> _ignoredSubIds = {};
 
   DateTime selectedMonth = DateTime(
     DateTime.now().year,
@@ -43,11 +41,41 @@ class FinanceProvider extends ChangeNotifier {
     loadData();
   }
 
+  // Допоміжний метод для оновлення балансу/суми категорії в пам'яті та базі
+  void _updateCategoryAmount(String id, double delta) {
+    final all = allCategoriesList;
+    final index = all.indexWhere((c) => c.id == id);
+    if (index == -1) return;
+
+    final category = all[index];
+    final updatedCategory = category.copyWith(amount: category.amount + delta);
+
+    // Оновлюємо у відповідному списку
+    if (updatedCategory.type == CategoryType.income) {
+      int idx = incomes.indexWhere((c) => c.id == id);
+      if (idx != -1) incomes[idx] = updatedCategory;
+    } else if (updatedCategory.type == CategoryType.account) {
+      int idx = accounts.indexWhere((c) => c.id == id);
+      if (idx != -1) accounts[idx] = updatedCategory;
+    } else {
+      int idx = expenses.indexWhere((c) => c.id == id);
+      if (idx != -1) expenses[idx] = updatedCategory;
+    }
+
+    StorageService.saveCategory(updatedCategory);
+  }
+
+  void _refreshUI() {
+    history.sort((a, b) => b.date.compareTo(a.date));
+    _recalculateMonthTotals();
+    notifyListeners();
+  }
+
   Future<void> loadData() async {
+    // ДАНІ ВЖЕ ПРОЙШЛИ МІГРАЦІЮ В main.dart
     final savedCats = await StorageService.loadCategories();
 
     if (savedCats.isNotEmpty) {
-      // Завантажуємо тільки АКТИВНІ категорії в основні списки UI
       incomes = savedCats
           .where((c) => c.type == CategoryType.income && !c.isArchived)
           .toList();
@@ -57,23 +85,16 @@ class FinanceProvider extends ChangeNotifier {
       expenses = savedCats
           .where((c) => c.type == CategoryType.expense && !c.isArchived)
           .toList();
-
-      // Завантажуємо видалені категорії в архів
       archivedCategories = savedCats.where((c) => c.isArchived).toList();
     }
 
-    final loadedHistory = await StorageService.loadHistory();
-    history = loadedHistory;
-    history.sort((a, b) => b.date.compareTo(a.date));
-
-    // ДОДАНО: Завантажуємо підписки і одразу перевіряємо, чи є прострочені/актуальні
+    history = await StorageService.loadHistory();
     subscriptions = StorageService.getSubscriptions();
-    await processAutoPayments(); // Спершу тихо списуємо автоматичні
-    _checkDueSubscriptions(); // Потім шукаємо борги для ручних
+    await processAutoPayments();
+    _checkDueSubscriptions();
 
-    _recalculateMonthTotals();
+    _refreshUI();
     isLoading = false;
-    notifyListeners();
   }
 
   void changeMonth(int offset) {
@@ -91,57 +112,36 @@ class FinanceProvider extends ChangeNotifier {
   }
 
   void _recalculateMonthTotals() {
-    final now = DateTime.now(); // Жорстко фіксуємо поточний час
+    final now = DateTime.now();
 
-    for (var inc in incomes) {
-      inc.amount = 0.0;
-    }
-    for (var exp in expenses) {
-      exp.amount = 0.0;
-    }
+    // Зануляємо суми через copyWith
+    incomes = incomes.map((c) => c.copyWith(amount: 0.0)).toList();
+    expenses = expenses.map((c) => c.copyWith(amount: 0.0)).toList();
 
     final currentMonthHistory = history
         .where((t) => t.date.year == now.year && t.date.month == now.month)
         .toList();
 
-    // ВИПРАВЛЕНО: Використовуємо загальний геттер (щоб бачити і архівні)
-    final allCategories = allCategoriesList;
-
     for (var t in currentMonthHistory) {
-      // Шукаємо категорію безпечним методом (без try-catch)
-      // firstOrNull поверне null, якщо категорію не знайдено, і не зламає додаток
-      final fromCat = allCategories.where((c) => c.id == t.fromId).firstOrNull;
-      final toCat = allCategories.where((c) => c.id == t.toId).firstOrNull;
-
-      if (fromCat != null &&
-          fromCat.type == CategoryType.income &&
-          !fromCat.isArchived) {
-        // Знаходимо саме ту категорію в списку доходів, щоб оновити її суму
-        final targetIncome = incomes.where((c) => c.id == t.fromId).firstOrNull;
-        if (targetIncome != null) {
-          targetIncome.amount += t.amount;
-        }
-      } else if (fromCat == null) {
-        debugPrint(
-          "Увага: Знайдено осиротілу транзакцію доходу ${t.id}. Категорія ${t.fromId} відсутня.",
+      // Оновлення доходів у списку
+      int incIdx = incomes.indexWhere((c) => c.id == t.fromId);
+      if (incIdx != -1) {
+        incomes[incIdx] = incomes[incIdx].copyWith(
+          amount: incomes[incIdx].amount + t.amount,
         );
       }
 
-      if (toCat != null &&
-          toCat.type == CategoryType.expense &&
-          !toCat.isArchived) {
-        // Знаходимо саме ту категорію в списку витрат
-        final targetExpense = expenses.where((c) => c.id == t.toId).firstOrNull;
-        if (targetExpense != null) {
-          targetExpense.amount += t.amount;
-        }
-      } else if (toCat == null) {
-        debugPrint(
-          "Увага: Знайдено осиротілу транзакцію витрати ${t.id}. Категорія ${t.toId} відсутня.",
+      // Оновлення витрат у списку
+      int expIdx = expenses.indexWhere((c) => c.id == t.toId);
+      if (expIdx != -1) {
+        expenses[expIdx] = expenses[expIdx].copyWith(
+          amount: expenses[expIdx].amount + t.amount,
         );
       }
     }
   }
+
+  // --- ОПЕРАЦІЇ З ТРАНЗАКЦІЯМИ ---
 
   void addTransfer(
     Category source,
@@ -149,8 +149,12 @@ class FinanceProvider extends ChangeNotifier {
     double amount,
     DateTime date,
   ) {
-    if (source.type == CategoryType.account) source.amount -= amount;
-    if (target.type == CategoryType.account) target.amount += amount;
+    if (source.type == CategoryType.account) {
+      _updateCategoryAmount(source.id, -amount);
+    }
+    if (target.type == CategoryType.account) {
+      _updateCategoryAmount(target.id, amount);
+    }
 
     final newTx = Transaction(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -162,74 +166,39 @@ class FinanceProvider extends ChangeNotifier {
     );
 
     history.insert(0, newTx);
-    history.sort((a, b) => b.date.compareTo(a.date));
-
-    _recalculateMonthTotals();
     StorageService.saveTransaction(newTx);
-    StorageService.saveCategory(source);
-    StorageService.saveCategory(target);
-    notifyListeners();
+    _refreshUI();
   }
 
   void editTransaction(Transaction oldT, double newAmount, DateTime newDate) {
-    final all = allCategoriesList;
+    // Скасовуємо стару суму
+    _updateCategoryAmount(oldT.fromId, oldT.amount);
+    _updateCategoryAmount(oldT.toId, -oldT.amount);
 
-    // Шукаємо безпечно
-    final src = all.where((c) => c.id == oldT.fromId).firstOrNull;
-    final dst = all.where((c) => c.id == oldT.toId).firstOrNull;
-
-    // 1. Повертаємо старі гроші на баланс (відміна старої операції)
-    if (src != null && src.type == CategoryType.account) {
-      src.amount += oldT.amount;
-    }
-    if (dst != null && dst.type == CategoryType.account) {
-      dst.amount -= oldT.amount;
-    }
-
-    // 2. Оновлюємо дані транзакції
     oldT.amount = newAmount;
     oldT.date = newDate;
 
-    // 3. Віднімаємо нові гроші з балансу (застосування нової операції)
-    if (src != null && src.type == CategoryType.account) {
-      src.amount -= oldT.amount;
-    }
-    if (dst != null && dst.type == CategoryType.account) {
-      dst.amount += oldT.amount;
-    }
-
-    history.sort((a, b) => b.date.compareTo(a.date));
-    _recalculateMonthTotals();
+    // Застосовуємо нову суму
+    _updateCategoryAmount(oldT.fromId, -oldT.amount);
+    _updateCategoryAmount(oldT.toId, oldT.amount);
 
     StorageService.saveTransaction(oldT);
-    if (src != null) StorageService.saveCategory(src);
-    if (dst != null) StorageService.saveCategory(dst);
-    notifyListeners();
+    _refreshUI();
   }
 
   void deleteTransaction(Transaction t) {
-    final all = allCategoriesList;
-
-    // Шукаємо безпечно
-    final src = all.where((c) => c.id == t.fromId).firstOrNull;
-    final dst = all.where((c) => c.id == t.toId).firstOrNull;
-
-    // Відкочуємо баланси тільки якщо рахунки існують
-    if (src != null && src.type == CategoryType.account) src.amount += t.amount;
-    if (dst != null && dst.type == CategoryType.account) dst.amount -= t.amount;
-
-    if (src != null) StorageService.saveCategory(src);
-    if (dst != null) StorageService.saveCategory(dst);
+    _updateCategoryAmount(t.fromId, t.amount);
+    _updateCategoryAmount(t.toId, -t.amount);
 
     history.removeWhere((item) => item.id == t.id);
-    _recalculateMonthTotals();
     StorageService.removeTransaction(t.id);
-    notifyListeners();
+    _refreshUI();
   }
+
+  // --- КАТЕГОРІЇ ---
 
   void addOrUpdateCategory(Category cat) {
     List<Category> targetList;
-
     if (cat.type == CategoryType.income) {
       targetList = incomes;
     } else if (cat.type == CategoryType.account) {
@@ -239,7 +208,6 @@ class FinanceProvider extends ChangeNotifier {
     }
 
     int index = targetList.indexWhere((c) => c.id == cat.id);
-
     if (index == -1) {
       targetList.add(cat);
     } else {
@@ -251,36 +219,29 @@ class FinanceProvider extends ChangeNotifier {
   }
 
   void deleteCategory(Category cat) {
-    // 1. Ставимо мітку "Архівовано" і зберігаємо в базу
-    cat.isArchived = true;
-    StorageService.saveCategory(cat);
+    final archived = cat.copyWith(isArchived: true);
+    StorageService.saveCategory(archived);
 
-    // 2. Прибираємо категорію з екрана (видаляємо з активних списків)
     if (cat.type == CategoryType.income) {
-      incomes.remove(cat);
+      incomes.removeWhere((c) => c.id == cat.id);
     } else if (cat.type == CategoryType.account) {
-      accounts.remove(cat);
+      accounts.removeWhere((c) => c.id == cat.id);
     } else {
-      expenses.remove(cat);
+      expenses.removeWhere((c) => c.id == cat.id);
     }
 
-    // 3. Відправляємо в архів (щоб транзакції в історії все ще мали іконку та ім'я)
-    archivedCategories.add(cat);
-
+    archivedCategories.add(archived);
     notifyListeners();
   }
 
   void reorderCategories(Category dragged, Category target) {
     if (dragged.type != target.type) return;
 
-    List<Category> targetList;
-    if (dragged.type == CategoryType.income) {
-      targetList = incomes;
-    } else if (dragged.type == CategoryType.account) {
-      targetList = accounts;
-    } else {
-      targetList = expenses;
-    }
+    List<Category> targetList = (dragged.type == CategoryType.income)
+        ? incomes
+        : (dragged.type == CategoryType.account)
+        ? accounts
+        : expenses;
 
     int oldIndex = targetList.indexWhere((c) => c.id == dragged.id);
     int newIndex = targetList.indexWhere((c) => c.id == target.id);
@@ -288,29 +249,19 @@ class FinanceProvider extends ChangeNotifier {
     if (oldIndex != -1 && newIndex != -1 && oldIndex != newIndex) {
       final item = targetList.removeAt(oldIndex);
       targetList.insert(newIndex, item);
-
-      StorageService.saveCategories([
-        ...incomes,
-        ...accounts,
-        ...expenses,
-        ...archivedCategories,
-      ]);
+      StorageService.saveCategories(allCategoriesList);
       notifyListeners();
     }
   }
 
-  // ==========================================
-  // ЛОГІКА РЕГУЛЯРНИХ ПЛАТЕЖІВ (ПІДПИСОК)
-  // ==========================================
+  // --- ПІДПИСКИ ---
 
   void _checkDueSubscriptions() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
     dueSubscriptions = subscriptions.where((sub) {
-      // ФІКС: Якщо юзер натиснув хрестик, ми ігноруємо цю підписку до перезапуску додатка
       if (_ignoredSubIds.contains(sub.id)) return false;
-
       final paymentDate = DateTime(
         sub.nextPaymentDate.year,
         sub.nextPaymentDate.month,
@@ -346,46 +297,30 @@ class FinanceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- ОНОВЛЕНИЙ МЕТОД ОПЛАТИ ---
-  // Тепер він повертає bool (успіх/помилка) та String (повідомлення для SnackBar)
   Future<(bool, String)> confirmSubscriptionPayment(
     Subscription sub,
     double finalAmount,
   ) async {
-    // ВИПРАВЛЕНО: Використовуємо загальний геттер
-    final allCategories = allCategoriesList;
+    final all = allCategoriesList;
     Category? sourceAccount;
     Category? targetExpense;
 
     try {
-      sourceAccount = allCategories.firstWhere((c) => c.id == sub.accountId);
-      targetExpense = allCategories.firstWhere((c) => c.id == sub.categoryId);
-
-      // --- ДОДАЄМО ЦЕЙ БЛОК: Захист від оплати у видалену категорію ---
+      sourceAccount = all.firstWhere((c) => c.id == sub.accountId);
+      targetExpense = all.firstWhere((c) => c.id == sub.categoryId);
       if (sourceAccount.isArchived || targetExpense.isArchived) {
-        return (
-          false,
-          "Помилка: Рахунок або категорію для цієї підписки видалено. Відредагуйте підписку.",
-        );
+        return (false, 'error_category_deleted'.tr());
       }
     } catch (e) {
-      // Якщо юзер випадково повністю видалив рахунок з бази (хоча у нас є архів)
-      return (
-        false,
-        "Помилка: Рахунок або категорію для цієї підписки не знайдено.",
-      );
+      return (false, 'error_category_not_found'.tr());
     }
 
-    // Перевірка на від'ємний баланс (опціонально, але корисно для UX)
     if (sourceAccount.amount < finalAmount) {
-      return (
-        false,
-        "Недостатньо коштів на рахунку '${sourceAccount.name}' 😔",
-      );
+      return (false, 'not_enough_funds'.tr(args: [sourceAccount.name]));
     }
 
-    // Віднімаємо гроші
-    sourceAccount.amount -= finalAmount;
+    _updateCategoryAmount(sourceAccount.id, -finalAmount);
+    _updateCategoryAmount(targetExpense.id, finalAmount);
 
     final newTx = Transaction(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -397,26 +332,12 @@ class FinanceProvider extends ChangeNotifier {
     );
 
     history.insert(0, newTx);
-    history.sort((a, b) => b.date.compareTo(a.date));
-
-    _recalculateMonthTotals();
-
     await StorageService.saveTransaction(newTx);
-    await StorageService.saveCategory(sourceAccount);
-    await StorageService.saveCategory(targetExpense);
-
     await SubscriptionService.shiftSubscriptionDate(sub);
-    _checkDueSubscriptions(); // Перераховуємо, чи лишилися ще борги
-    notifyListeners(); // Даємо команду UI оновитися
 
-    return (true, "Оплачено: ${sub.name} 🎉");
-  }
-
-  // Викликається, коли користувач вирішив пропустити платіж
-  Future<void> skipSubscriptionPayment(Subscription sub) async {
-    await SubscriptionService.shiftSubscriptionDate(sub);
-    _checkDueSubscriptions(); // Додаємо оновлення UI
-    notifyListeners();
+    _checkDueSubscriptions();
+    _refreshUI();
+    return (true, 'paid_success'.tr(args: [sub.name]));
   }
 
   Future<void> processAutoPayments() async {
@@ -425,63 +346,51 @@ class FinanceProvider extends ChangeNotifier {
     bool processedAny = false;
 
     for (var sub in subscriptions) {
-      if (!sub.isAutoPay) continue; // Ігноруємо ті, де автосписання вимкнено
-
-      final paymentDate = DateTime(
+      if (!sub.isAutoPay) continue;
+      final pDate = DateTime(
         sub.nextPaymentDate.year,
         sub.nextPaymentDate.month,
         sub.nextPaymentDate.day,
       );
 
-      // Якщо час платити настав
-      if (paymentDate.isBefore(today) || paymentDate.isAtSameMomentAs(today)) {
-        final account = allCategoriesList
-            .where((c) => c.id == sub.accountId)
-            .firstOrNull;
-        final expense = allCategoriesList
-            .where((c) => c.id == sub.categoryId)
-            .firstOrNull;
+      if (pDate.isBefore(today) || pDate.isAtSameMomentAs(today)) {
+        final all = allCategoriesList;
+        final account = all.where((c) => c.id == sub.accountId).firstOrNull;
+        final expense = all.where((c) => c.id == sub.categoryId).firstOrNull;
 
-        // ПЕРЕВІРКА: Рахунки існують, не видалені, і ГРОШЕЙ ДОСТАТНЬО
         if (account != null &&
             expense != null &&
             account.amount >= sub.amount &&
             !account.isArchived &&
             !expense.isArchived) {
-          account.amount -= sub.amount; // Тихо списуємо гроші
+          _updateCategoryAmount(account.id, -sub.amount);
+          _updateCategoryAmount(expense.id, sub.amount);
 
           final newTx = Transaction(
-            id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}", // Унікальний ID
+            id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}",
             fromId: account.id,
             toId: expense.id,
-            title: "${sub.name} (Авто)", // Додаємо маркер, що це автосписання
+            title: 'auto_payment_marker'.tr(args: [sub.name]),
             amount: sub.amount,
             date: sub.nextPaymentDate,
           );
 
           history.insert(0, newTx);
           await StorageService.saveTransaction(newTx);
-          await StorageService.saveCategory(account);
-          await StorageService.saveCategory(expense);
-
-          await SubscriptionService.shiftSubscriptionDate(
-            sub,
-          ); // Переносимо дату
+          await SubscriptionService.shiftSubscriptionDate(sub);
           processedAny = true;
         }
-        // Якщо грошей мало — ми просто пропускаємо її.
-        // Вона потрапить у _checkDueSubscriptions() і покаже вікно ручної оплати!
       }
     }
-
-    if (processedAny) {
-      history.sort((a, b) => b.date.compareTo(a.date));
-      _recalculateMonthTotals();
-      notifyListeners();
-    }
+    if (processedAny) _refreshUI();
   }
 
-  // Метод для тимчасового приховування вікна оплати
+  Future<void> skipSubscriptionPayment(Subscription sub) async {
+    await SubscriptionService.shiftSubscriptionDate(sub);
+    _checkDueSubscriptions();
+    notifyListeners();
+  }
+
   void ignoreSubscriptionForSession(String subId) {
     _ignoredSubIds.add(subId);
     _checkDueSubscriptions();

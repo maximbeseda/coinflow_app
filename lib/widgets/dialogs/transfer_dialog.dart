@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../models/category_model.dart';
 import 'custom_calendar_dialog.dart';
+import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
 
 class TransferDialog extends StatefulWidget {
   final Category source;
@@ -37,7 +39,9 @@ class _TransferDialogState extends State<TransferDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // ВАУ! Ми прибрали shape та backgroundColor, бо вони тепер у Theme
+    // ДОДАНО: Отримуємо кольори теми
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     return Dialog(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -45,9 +49,13 @@ class _TransferDialogState extends State<TransferDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                "Сума та дата",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                'amount_and_date'.tr(),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colors.textMain, // ЗМІНЕНО
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -65,18 +73,19 @@ class _TransferDialogState extends State<TransferDialog> {
                     RegExp(r'^\d*[.,]?\d{0,2}'),
                   ),
                 ],
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
+                  color: colors.textMain, // ЗМІНЕНО
                 ),
                 decoration: InputDecoration(
-                  labelText: "Сума",
+                  labelText: 'amount'.tr(),
                   suffixText: "₴",
-                  suffixStyle: const TextStyle(
+                  suffixStyle: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.black54,
+                    color: colors.textSecondary, // ЗМІНЕНО: Був Colors.black54
                   ),
-                  errorText: _hasError ? 'Введіть суму' : null,
+                  errorText: _hasError ? 'enter_amount'.tr() : null,
                 ),
               ),
               const SizedBox(height: 12),
@@ -89,22 +98,23 @@ class _TransferDialogState extends State<TransferDialog> {
                     vertical: 16,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: colors.iconBg, // ЗМІНЕНО: Був Colors.grey.shade100
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.calendar_today,
                         size: 20,
-                        color: Colors.black54,
+                        color: colors.textSecondary, // ЗМІНЕНО
                       ),
                       const SizedBox(width: 12),
                       Text(
                         "${_selectedDate.day.toString().padLeft(2, '0')}.${_selectedDate.month.toString().padLeft(2, '0')}.${_selectedDate.year}",
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
+                          color: colors.textMain, // ЗМІНЕНО
                         ),
                       ),
                     ],
@@ -116,12 +126,11 @@ class _TransferDialogState extends State<TransferDialog> {
               Row(
                 children: [
                   Expanded(
-                    // Більше ніякого полотна з padding, shape та backgroundColor!
                     child: TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        "Скасувати",
-                        style: TextStyle(
+                      child: Text(
+                        'cancel'.tr(),
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -130,7 +139,6 @@ class _TransferDialogState extends State<TransferDialog> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    // Так само і тут — все підтягується з Theme
                     child: ElevatedButton(
                       onPressed: () {
                         double? val = double.tryParse(
@@ -145,9 +153,9 @@ class _TransferDialogState extends State<TransferDialog> {
                           setState(() => _hasError = true);
                         }
                       },
-                      child: const Text(
-                        "Готово",
-                        style: TextStyle(
+                      child: Text(
+                        'done'.tr(),
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),

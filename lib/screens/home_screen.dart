@@ -1,7 +1,9 @@
+import 'package:coin_flow/theme/category_defaults.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:vibration/vibration.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../models/category_model.dart';
 import '../models/subscription_model.dart';
 import '../widgets/common/coin_widget.dart';
@@ -15,6 +17,7 @@ import '../widgets/dialogs/edit_transaction_dialog.dart';
 import '../widgets/dialogs/due_subscription_dialog.dart';
 import '../utils/currency_formatter.dart';
 import '../providers/finance_provider.dart';
+import '../theme/app_colors_extension.dart';
 
 String formatCurrency(double amount) => CurrencyFormatter.format(amount);
 
@@ -27,7 +30,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  final Color colorBlueGrey = const Color(0xFFD1D9E6);
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<String> deletingIds = [];
@@ -36,8 +38,6 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _jiggleController;
 
   final Map<String, PageController> _pageControllers = {};
-
-  // Прапорець для запобігання дублювання діалогів
   bool _isShowingDueDialog = false;
 
   @override
@@ -48,21 +48,17 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 250),
     );
 
-    // Додаємо слухача, який перевірятиме підписки при кожній зміні в провайдері
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final financeProvider = context.read<FinanceProvider>();
       financeProvider.addListener(_checkDueSubscriptions);
-      // Перша перевірка при запуску
       _checkDueSubscriptions();
     });
   }
 
-  // Метод перевірки наявності платежів
   void _checkDueSubscriptions() {
     if (!mounted) return;
     final provider = context.read<FinanceProvider>();
 
-    // Якщо є підписки до оплати і діалог ще НЕ відкритий
     if (provider.dueSubscriptions.isNotEmpty &&
         !provider.isLoading &&
         !_isShowingDueDialog) {
@@ -86,7 +82,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
-    // Важливо видалити слухача при видаленні екрана
     try {
       context.read<FinanceProvider>().removeListener(_checkDueSubscriptions);
     } catch (_) {}
@@ -98,7 +93,6 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  // Решта твого коду (handleTransfer, confirmDeletion, build тощо)...
   void _handleTransfer(Category s, Category t) async {
     if (s == t ||
         s.type == CategoryType.expense ||
@@ -127,11 +121,6 @@ class _HomeScreenState extends State<HomeScreen>
     return await showDialog<bool>(
           context: context,
           builder: (ctx) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(28),
-            ),
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
             child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(
@@ -161,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen>
                   const SizedBox(height: 12),
                   Text(
                     message,
-                    style: const TextStyle(fontSize: 14, color: Colors.black54),
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
@@ -169,18 +158,10 @@ class _HomeScreenState extends State<HomeScreen>
                     children: [
                       Expanded(
                         child: TextButton(
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            backgroundColor: Colors.grey.shade100,
-                            foregroundColor: Colors.black87,
-                          ),
                           onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text(
-                            "Скасувати",
-                            style: TextStyle(
+                          child: Text(
+                            'cancel'.tr(),
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -191,18 +172,13 @@ class _HomeScreenState extends State<HomeScreen>
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
                             backgroundColor: Colors.red,
                             foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
                           ),
                           onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text(
-                            "Видалити",
-                            style: TextStyle(
+                          child: Text(
+                            'delete'.tr(),
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -238,8 +214,8 @@ class _HomeScreenState extends State<HomeScreen>
     if (result == 'delete' && c != null) {
       bool confirmed = await _confirmDeletion(
         context,
-        "Видалити категорію?",
-        "Ви впевнені, що хочете видалити '${c.name}'? Це також видалить історію операцій.",
+        'delete_category_title'.tr(),
+        'delete_category_message'.tr(args: [c.name]),
       );
       if (confirmed) {
         if (!mounted) return;
@@ -264,22 +240,21 @@ class _HomeScreenState extends State<HomeScreen>
           icon: result['icon'],
           amount: result['amount'] ?? 0.0,
           budget: result['budget'],
-          bgColor: type == CategoryType.income
-              ? Colors.black
-              : (type == CategoryType.account
-                    ? const Color(0xFF2C2C2E)
-                    : const Color(0xFFE5E5EA)),
-          iconColor: type == CategoryType.expense ? Colors.black : Colors.white,
+          bgColor: CategoryDefaults.getBgColor(type),
+          iconColor: CategoryDefaults.getIconColor(type),
         );
         provider.addOrUpdateCategory(n);
       } else {
-        c.name = result['name'];
-        c.icon = result['icon'];
-        c.budget = result['budget'];
-        if (type == CategoryType.account) {
-          c.amount = result['amount'] ?? c.amount;
-        }
-        provider.addOrUpdateCategory(c);
+        final updatedCategory = c.copyWith(
+          name: result['name'],
+          icon: result['icon'],
+          budget: result['budget'],
+          amount: type == CategoryType.account
+              ? (result['amount'] ?? c.amount)
+              : c.amount,
+        );
+
+        provider.addOrUpdateCategory(updatedCategory);
       }
     }
   }
@@ -287,13 +262,16 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<FinanceProvider>(context);
+    final _ = context.locale;
 
-    // ПРАВИЛЬНИЙ ВИКЛИК:
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     if (provider.dueSubscriptions.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showDueSubscriptionDialog(provider.dueSubscriptions.first);
       });
     }
+
     return Scaffold(
       key: _scaffoldKey,
       endDrawer: const SettingsDrawer(),
@@ -318,6 +296,9 @@ class _HomeScreenState extends State<HomeScreen>
               0,
               (sum, item) => sum + item.amount,
             );
+            double totalIncomes = provider.allCategoriesList
+                .where((c) => c.type == CategoryType.income)
+                .fold(0, (sum, item) => sum + item.amount.abs());
             double totalExpenses = provider.allCategoriesList
                 .where((c) => c.type == CategoryType.expense)
                 .fold(0, (sum, item) => sum + item.amount.abs());
@@ -330,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen>
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [colorBlueGrey, const Color(0xFFF5F5F7)],
+                  colors: [colors.bgGradientStart, colors.bgGradientEnd],
                 ),
               ),
               child: SafeArea(
@@ -339,7 +320,10 @@ class _HomeScreenState extends State<HomeScreen>
                   children: [
                     SummaryHeader(
                       totalBalance: totalBalance,
+                      totalIncomes: totalIncomes, // Наші нові доходи
                       totalExpenses: totalExpenses,
+
+                      // --- БАЛАНС ---
                       onBalanceTap: () {
                         if (isEditMode) {
                           setState(() {
@@ -353,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen>
                           isScrollControlled: true,
                           backgroundColor: Colors.transparent,
                           builder: (_) => GeneralHistoryBottomSheet(
-                            title: "Історія: Баланс",
+                            title: 'history_balance'.tr(),
                             filterType: CategoryType.account,
                             transactions: provider.history,
                             allCategories: allCategories,
@@ -379,6 +363,50 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         );
                       },
+
+                      // --- ДОХОДИ ---
+                      onIncomesTap: () {
+                        if (isEditMode) {
+                          setState(() {
+                            isEditMode = false;
+                            _jiggleController.stop();
+                          });
+                          return;
+                        }
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => GeneralHistoryBottomSheet(
+                            title: 'history_incomes'
+                                .tr(), // Не забудь додати цей ключ у переклади!
+                            filterType: CategoryType.income,
+                            transactions: provider.history,
+                            allCategories: allCategories,
+                            onDelete: (t) => context
+                                .read<FinanceProvider>()
+                                .deleteTransaction(t),
+                            onEdit: (t) async {
+                              final finance = context.read<FinanceProvider>();
+                              final result =
+                                  await showDialog<Map<String, dynamic>>(
+                                    context: context,
+                                    builder: (ctx) =>
+                                        EditTransactionDialog(transaction: t),
+                                  );
+                              if (result != null) {
+                                finance.editTransaction(
+                                  t,
+                                  result['amount'],
+                                  result['date'],
+                                );
+                              }
+                            },
+                          ),
+                        );
+                      },
+
+                      // --- ВИТРАТИ ---
                       onExpensesTap: () {
                         if (isEditMode) {
                           setState(() {
@@ -392,7 +420,7 @@ class _HomeScreenState extends State<HomeScreen>
                           isScrollControlled: true,
                           backgroundColor: Colors.transparent,
                           builder: (_) => GeneralHistoryBottomSheet(
-                            title: "Історія: Витрати",
+                            title: 'history_expenses'.tr(),
                             filterType: CategoryType.expense,
                             transactions: provider.history,
                             allCategories: allCategories,
@@ -418,6 +446,8 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         );
                       },
+
+                      // --- НАЛАШТУВАННЯ ---
                       onSettingsTap: () {
                         if (isEditMode) {
                           setState(() {
@@ -453,13 +483,14 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // Методи _buildSection, _buildCoin, _buildAddBtn залишаються без змін...
   Widget _buildSection(
     List<Category> list,
     CategoryType type, {
     bool isTarget = false,
     bool isGrid = false,
   }) {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     String typeKey = type.name;
     if (!_pageControllers.containsKey(typeKey)) {
       _pageControllers[typeKey] = PageController();
@@ -470,7 +501,7 @@ class _HomeScreenState extends State<HomeScreen>
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.cardBg,
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
@@ -611,6 +642,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildCoin(Category c, bool isTarget) {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     bool isDeleting = deletingIds.contains(c.id);
     final provider = context.read<FinanceProvider>();
 
@@ -699,10 +732,10 @@ class _HomeScreenState extends State<HomeScreen>
                 onTap: () => _showCategoryDialog(c: c, type: c.type),
                 child: Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: colors.cardBg,
                     shape: BoxShape.circle,
-                    boxShadow: [
+                    boxShadow: const [
                       BoxShadow(
                         color: Colors.black26,
                         blurRadius: 2,
@@ -852,38 +885,42 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildAddBtn(CategoryType type) => GestureDetector(
-    onTap: () {
-      if (isEditMode) {
-        setState(() {
-          isEditMode = false;
-          _jiggleController.stop();
-        });
-        return;
-      }
-      _showCategoryDialog(type: type);
-    },
-    child: Opacity(
-      opacity: isEditMode ? 0.3 : 1.0,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text("", style: TextStyle(fontSize: 10)),
-          const SizedBox(height: 4),
-          Container(
-            width: 55,
-            height: 55,
-            decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
+  Widget _buildAddBtn(CategoryType type) {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    return GestureDetector(
+      onTap: () {
+        if (isEditMode) {
+          setState(() {
+            isEditMode = false;
+            _jiggleController.stop();
+          });
+          return;
+        }
+        _showCategoryDialog(type: type);
+      },
+      child: Opacity(
+        opacity: isEditMode ? 0.3 : 1.0,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text("", style: TextStyle(fontSize: 10)),
+            const SizedBox(height: 4),
+            Container(
+              width: 55,
+              height: 55,
+              decoration: BoxDecoration(
+                color: colors.iconBg,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.add, color: colors.textSecondary, size: 24),
             ),
-            child: const Icon(Icons.add, color: Colors.grey, size: 24),
-          ),
-          const SizedBox(height: 4),
-          const Text("", style: TextStyle(fontSize: 10)),
-        ],
+            const SizedBox(height: 4),
+            const Text("", style: TextStyle(fontSize: 10)),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

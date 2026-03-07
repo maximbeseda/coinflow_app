@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 
-// ДОДАНО: Чіткі типи замість рядків "inc", "acc", "exp"
 enum CategoryType { income, account, expense }
 
 class Category {
   final String id;
   final CategoryType type;
-  String name;
-  IconData icon;
+  final String name;
+  final IconData icon;
   final Color bgColor;
   final Color iconColor;
-  double amount;
-  double? budget;
-  bool isArchived = false; // ФІКС: Жорстко задаємо false за замовчуванням
+  final double amount;
+  final double? budget;
+  final bool isArchived;
 
   Category({
     required this.id,
@@ -23,8 +22,30 @@ class Category {
     required this.iconColor,
     this.amount = 0.0,
     this.budget,
-    this.isArchived = false, // За замовчуванням категорія активна
+    this.isArchived = false,
   });
+
+  Category copyWith({
+    String? name,
+    IconData? icon,
+    Color? bgColor,
+    Color? iconColor,
+    double? amount,
+    double? budget,
+    bool? isArchived,
+  }) {
+    return Category(
+      id: id,
+      type: type,
+      name: name ?? this.name,
+      icon: icon ?? this.icon,
+      bgColor: bgColor ?? this.bgColor,
+      iconColor: iconColor ?? this.iconColor,
+      amount: amount ?? this.amount,
+      budget: budget ?? this.budget,
+      isArchived: isArchived ?? this.isArchived,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -35,7 +56,7 @@ class Category {
     'iconColor': iconColor.toARGB32(),
     'amount': amount,
     'budget': budget,
-    'isArchived': isArchived, // Зберігаємо в базу
+    'isArchived': isArchived,
   };
 
   factory Category.fromJson(Map<String, dynamic> json) {
@@ -62,7 +83,7 @@ class Category {
       iconColor: Color(json['iconColor'] ?? 0xFF000000),
       amount: (json['amount'] ?? 0.0).toDouble(),
       budget: json['budget']?.toDouble(),
-      isArchived: json['isArchived'] ?? false, // Для старих баз буде false
+      isArchived: json['isArchived'] ?? false,
     );
   }
 }

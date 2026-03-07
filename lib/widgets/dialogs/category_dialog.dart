@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../models/category_model.dart';
 import '../../utils/app_constants.dart';
+import '../../theme/app_colors_extension.dart';
+import '../../theme/category_defaults.dart'; // ДОДАНО: Імпорт нашого контракту кольорів
 
 class CategoryDialog extends StatefulWidget {
   final Category? category;
@@ -23,12 +26,18 @@ class _CategoryDialogState extends State<CategoryDialog> {
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.category?.name ?? "");
+    String formatDouble(double val) {
+      return val.toStringAsFixed(2).replaceAll(RegExp(r'\.?0*$'), '');
+    }
+
     _amountCtrl = TextEditingController(
-      text: widget.category != null ? widget.category!.amount.toString() : "0",
+      text: widget.category != null
+          ? formatDouble(widget.category!.amount)
+          : "0",
     );
     _budgetCtrl = TextEditingController(
       text: widget.category?.budget != null
-          ? widget.category!.budget.toString()
+          ? formatDouble(widget.category!.budget!)
           : "",
     );
 
@@ -51,9 +60,11 @@ class _CategoryDialogState extends State<CategoryDialog> {
 
   void _openIconPicker() {
     FocusScope.of(context).unfocus();
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: colors.cardBg,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
@@ -72,14 +83,18 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: colors.textSecondary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                "Оберіть іконку",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                'choose_icon'.tr(),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colors.textMain,
+                ),
               ),
               const SizedBox(height: 10),
               Expanded(
@@ -95,7 +110,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade600,
+                              color: colors.textSecondary,
                             ),
                           ),
                         ),
@@ -103,8 +118,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
                       SliverGrid(
                         gridDelegate:
                             const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent:
-                                  60, // Максимальна ширина однієї комірки
+                              maxCrossAxisExtent: 60,
                               crossAxisSpacing: 10,
                               mainAxisSpacing: 10,
                             ),
@@ -118,16 +132,14 @@ class _CategoryDialogState extends State<CategoryDialog> {
                             },
                             child: Container(
                               decoration: BoxDecoration(
-                                color: isSelected
-                                    ? Colors.blue
-                                    : Colors.grey.shade100,
+                                color: isSelected ? Colors.blue : colors.iconBg,
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
                                 icon,
                                 color: isSelected
                                     ? Colors.white
-                                    : Colors.black87,
+                                    : colors.textMain,
                                 size: 26,
                               ),
                             ),
@@ -148,14 +160,11 @@ class _CategoryDialogState extends State<CategoryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    Color previewBgColor = widget.type == CategoryType.income
-        ? Colors.black
-        : (widget.type == CategoryType.account
-              ? const Color(0xFF2C2C2E)
-              : const Color(0xFFE5E5EA));
-    Color previewIconColor = widget.type == CategoryType.expense
-        ? Colors.black
-        : Colors.white;
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    // ЗМІНЕНО: Тепер ми беремо кольори прев'ю безпосередньо з нашої централізованої системи!
+    Color previewBgColor = CategoryDefaults.getBgColor(widget.type);
+    Color previewIconColor = CategoryDefaults.getIconColor(widget.type);
 
     return Dialog(
       child: Padding(
@@ -168,48 +177,44 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    widget.category == null ? "Нова категорія" : "Редагувати",
-                    style: const TextStyle(
+                    widget.category == null ? 'new_category'.tr() : 'edit'.tr(),
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: colors.textMain,
                     ),
                   ),
-
-                  // БЛОК КНОПОК: ВИДАЛЕННЯ ТА ЗАКРИТТЯ
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Кнопка видалення (показується тільки при редагуванні)
                       if (widget.category != null)
                         GestureDetector(
                           onTap: () => Navigator.pop(context, 'delete'),
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.red.withValues(alpha: 0.1),
+                              color: colors.expense.withValues(alpha: 0.1),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.delete_outline,
-                              color: Colors.red,
+                              color: colors.expense,
                               size: 20,
                             ),
                           ),
                         ),
                       if (widget.category != null) const SizedBox(width: 12),
-
-                      // Елегантний хрестик закриття вікна (показується завжди)
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.grey.withValues(alpha: 0.15),
+                            color: colors.iconBg,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.close,
-                            color: Colors.black87,
+                            color: colors.textMain,
                             size: 20,
                           ),
                         ),
@@ -263,11 +268,11 @@ class _CategoryDialogState extends State<CategoryDialog> {
               ),
               const SizedBox(height: 8),
               Text(
-                _nameCtrl.text.isEmpty ? "Назва..." : _nameCtrl.text,
-                style: const TextStyle(
+                _nameCtrl.text.isEmpty ? 'name_hint'.tr() : _nameCtrl.text,
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  color: colors.textMain,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -276,9 +281,10 @@ class _CategoryDialogState extends State<CategoryDialog> {
 
               _buildTextField(
                 controller: _nameCtrl,
-                label: "Назва",
+                label: 'name'.tr(),
                 maxLength: 20,
                 keyboardType: TextInputType.text,
+                colors: colors,
               ),
 
               if (widget.type == CategoryType.account) ...[
@@ -286,10 +292,11 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 _buildTextField(
                   controller: _amountCtrl,
                   label: widget.category == null
-                      ? "Початковий баланс"
-                      : "Поточний баланс",
+                      ? 'initial_balance'.tr()
+                      : 'current_balance'.tr(),
                   suffix: "₴",
                   isNumber: true,
+                  colors: colors,
                 ),
               ],
 
@@ -297,10 +304,11 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 const SizedBox(height: 12),
                 _buildTextField(
                   controller: _budgetCtrl,
-                  label: "Місячний бюджет",
-                  hintText: "Вкажіть суму",
+                  label: 'monthly_budget'.tr(),
+                  hintText: 'enter_amount'.tr(),
                   suffix: "₴",
                   isNumber: true,
+                  colors: colors,
                 ),
               ],
 
@@ -309,7 +317,6 @@ class _CategoryDialogState extends State<CategoryDialog> {
               SizedBox(
                 width: double.infinity,
                 height: 50,
-                // Прибрали гігантські налаштування style
                 child: ElevatedButton(
                   onPressed: () {
                     if (_nameCtrl.text.isNotEmpty) {
@@ -330,7 +337,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
                     }
                   },
                   child: Text(
-                    widget.category == null ? "Створити" : "Зберегти",
+                    widget.category == null ? 'create'.tr() : 'save'.tr(),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -348,6 +355,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
+    required AppColorsExtension colors,
     String? hintText,
     int? maxLength,
     String? suffix,
@@ -369,11 +377,10 @@ class _CategoryDialogState extends State<CategoryDialog> {
         hintText: hintText,
         counterText: "",
         suffixText: suffix,
-        suffixStyle: const TextStyle(
+        suffixStyle: TextStyle(
           fontWeight: FontWeight.bold,
-          color: Colors.black54,
+          color: colors.textSecondary,
         ),
-        // Всі відступи та кольори тепер беруться з Theme
       ),
     );
   }

@@ -3,42 +3,80 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'dart:ui'; // ДОДАНО: Для PointerDeviceKind
-import 'screens/home_screen.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'dart:ui';
+
 import 'package:provider/provider.dart';
+import 'screens/home_screen.dart';
 import 'providers/finance_provider.dart';
+import 'providers/theme_provider.dart';
 import 'models/subscription_model.dart';
 import 'theme/app_theme.dart';
+import 'services/storage_service.dart';
 
 void main() async {
+  // 1. Гарантуємо ініціалізацію Flutter
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 2. Ініціалізуємо локалізацію
+  await EasyLocalization.ensureInitialized();
+
+  // 3. Фіксуємо орієнтацію екрана
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
+  // 4. Ініціалізуємо базу даних Hive
   await Hive.initFlutter();
 
-  // Реєструємо адаптер для Підписок
-  Hive.registerAdapter(SubscriptionAdapter());
+  // Реєструємо адаптери (важливо для складних об'єктів як підписки)
+  if (!Hive.isAdapterRegistered(2)) {
+    Hive.registerAdapter(SubscriptionAdapter());
+  }
 
-  await Hive.openBox('categories');
-  await Hive.openBox('transactions');
-  await Hive.openBox('subscriptions'); // Відкриваємо коробку для Підписок
+  // Відкриваємо всі необхідні бокси
+  await Future.wait([
+    Hive.openBox('categories'),
+    Hive.openBox('transactions'),
+    Hive.openBox('subscriptions'),
+    Hive.openBox('settings'),
+  ]);
 
+  // ==========================================
+  // Глобальний менеджер міграцій баз даних
+  // ==========================================
+  // Виконується строго ПІСЛЯ відкриття боксів, але ДО запуску UI
+  await StorageService.runMigrationsIfNeeded();
+
+  // ==========================================
+  // АВТО-СИНХРОНІЗАЦІЯ ДИЗАЙНУ
+  // Перефарбовує старі категорії у актуальні кольори
+  // ==========================================
+  await StorageService.syncSystemDesign();
+
+  // 5. Ініціалізуємо формати дат
   await initializeDateFormatting('uk_UA', null);
 
   const bool showPreview = false;
 
   runApp(
-    MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => FinanceProvider())],
-      child: DevicePreview(
-        enabled: !kReleaseMode && showPreview,
-        builder: (context) => const MyApp(),
+    EasyLocalization(
+      supportedLocales: const [Locale('uk'), Locale('en'), Locale('de')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('uk'),
+      child: MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => FinanceProvider()),
+          ChangeNotifierProvider(
+            create: (_) => ThemeProvider(),
+          ), // Провайдер тем
+        ],
+        child: DevicePreview(
+          enabled: !kReleaseMode && showPreview,
+          builder: (context) => const MyApp(),
+        ),
       ),
     ),
   );
@@ -49,14 +87,37 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Слухаємо зміни теми через провайдер
+    final themeProvider = context.watch<ThemeProvider>();
+
+    // Отримуємо об'єкт теми з нашої фабрики AppTheme
+    final currentTheme = AppTheme.getTheme(themeProvider.currentThemeId);
+
+    // Встановлюємо стиль системних іконок (батарея, годинник) залежно від теми
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: currentTheme.brightness == Brightness.dark
+            ? Brightness.light
+            : Brightness.dark,
+      ),
+    );
+
     return MaterialApp(
-      locale: DevicePreview.locale(context),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [Locale('uk', 'UA'), Locale('en', 'US')],
+      debugShowCheckedModeBanner: false,
+      title: 'CoinFlow',
+
+      // Локалізація
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale,
+
+      // Налаштування теми
+      theme: currentTheme,
+      // Ми не використовуємо darkTheme параметр MaterialApp, бо наша система
+      // через currentThemeId підтримує необмежену кількість кастомних тем.
+
+      // Керування масштабуванням тексту (захист від занадто великих шрифтів у системі)
       builder: (context, child) {
         Widget currentChild = DevicePreview.appBuilder(context, child);
         final mediaQueryData = MediaQuery.of(context);
@@ -71,9 +132,7 @@ class MyApp extends StatelessWidget {
         );
       },
 
-      debugShowCheckedModeBanner: false,
-      title: 'CoinFlow',
-
+      // Підтримка різних пристроїв введення (мишка, тачпад тощо)
       scrollBehavior: const MaterialScrollBehavior().copyWith(
         dragDevices: {
           PointerDeviceKind.mouse,
@@ -83,12 +142,6 @@ class MyApp extends StatelessWidget {
         },
       ),
 
-      // --- ПІДКЛЮЧАЄМО ЗОВНІШНІ ТЕМИ ---
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode:
-          ThemeMode.light, // Згодом тут можна буде поставити ThemeMode.system
-      // ------------------------------------------------
       home: const HomeScreen(),
     );
   }

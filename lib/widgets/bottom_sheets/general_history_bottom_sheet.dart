@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../models/category_model.dart';
 import '../../models/transaction_model.dart';
 import '../../utils/currency_formatter.dart';
+import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
 
 class GeneralHistoryBottomSheet extends StatefulWidget {
   final String title;
@@ -29,6 +31,9 @@ class GeneralHistoryBottomSheet extends StatefulWidget {
 class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
   @override
   Widget build(BuildContext context) {
+    // ДОДАНО: Отримуємо кольори поточної теми
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     // 1. Фільтруємо історію за реальним типом категорії
     final filteredHistory = widget.transactions.where((t) {
       Category? fromCat;
@@ -51,9 +56,9 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
     return Container(
       padding: const EdgeInsets.all(20),
       height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      decoration: BoxDecoration(
+        color: colors.cardBg, // ЗМІНЕНО: Фон панелі
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
       ),
       child: Column(
         children: [
@@ -61,19 +66,30 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey[300],
+              color: colors.textSecondary.withValues(
+                alpha: 0.2,
+              ), // ЗМІНЕНО: Колір повзунка
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           const SizedBox(height: 20),
           Text(
             widget.title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: colors.textMain, // ЗМІНЕНО
+            ),
           ),
           const SizedBox(height: 15),
           Expanded(
             child: filteredHistory.isEmpty
-                ? const Center(child: Text("Операцій ще не було"))
+                ? Center(
+                    child: Text(
+                      'no_transactions_yet'.tr(),
+                      style: TextStyle(color: colors.textSecondary), // ЗМІНЕНО
+                    ),
+                  )
                 : ListView.builder(
                     itemCount: filteredHistory.length,
                     itemBuilder: (context, index) {
@@ -92,8 +108,8 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                         );
                       } catch (_) {}
 
-                      String fromName = fromCat?.name ?? "Невідомо";
-                      String toName = toCat?.name ?? "Невідомо";
+                      String fromName = fromCat?.name ?? 'unknown'.tr();
+                      String toName = toCat?.name ?? 'unknown'.tr();
 
                       // 2. Визначаємо тип операції через безпечний Enum
                       bool isIncome = fromCat?.type == CategoryType.income;
@@ -101,20 +117,26 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                           fromCat?.type == CategoryType.account &&
                           toCat?.type == CategoryType.account;
 
+                      // ЗМІНЕНО: Логіка визначення префіксів та кольорів сум
                       String prefix = "-";
-                      Color amountColor = Colors.red;
+                      Color amountColor = colors.expense;
 
-                      // Жорстко задаємо кольори для загальних списків
                       if (widget.filterType == CategoryType.income) {
                         prefix = "+";
-                        amountColor = Colors.green;
+                        amountColor = colors.income;
+                      } else if (widget.filterType == CategoryType.expense) {
+                        prefix = "-";
+                        amountColor = colors.expense;
                       } else if (widget.filterType == CategoryType.account) {
                         if (isIncome) {
                           prefix = "+";
-                          amountColor = Colors.green;
+                          amountColor = colors.income;
                         } else if (isTransfer) {
                           prefix = "";
-                          amountColor = Colors.grey;
+                          amountColor = colors.textSecondary;
+                        } else {
+                          prefix = "-";
+                          amountColor = colors.expense;
                         }
                       }
 
@@ -122,10 +144,13 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                         key: Key(t.id),
                         direction: DismissDirection.endToStart,
                         background: Container(
-                          color: Colors.red,
+                          color: colors.expense, // ЗМІНЕНО: Фон при видаленні
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 20),
-                          child: const Icon(Icons.delete, color: Colors.white),
+                          child: const Icon(
+                            Icons.delete,
+                            color: Colors.white,
+                          ), // Іконка біла
                         ),
                         onDismissed: (_) {
                           widget.onDelete(t);
@@ -138,10 +163,13 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                           },
                           leading: CircleAvatar(
                             backgroundColor:
-                                toCat?.bgColor ?? Colors.grey.shade200,
+                                toCat?.bgColor ??
+                                colors.iconBg, // ЗМІНЕНО: Запасний фон
                             child: Icon(
                               toCat?.icon ?? Icons.help_outline,
-                              color: toCat?.iconColor ?? Colors.black54,
+                              color:
+                                  toCat?.iconColor ??
+                                  colors.textSecondary, // ЗМІНЕНО
                               size: 20,
                             ),
                           ),
@@ -152,18 +180,21 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                                   fromName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
+                                    color: colors.textMain, // ЗМІНЕНО
                                   ),
                                 ),
                               ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 4.0),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4.0,
+                                ),
                                 child: Icon(
                                   Icons.arrow_forward,
                                   size: 14,
-                                  color: Colors.grey,
+                                  color: colors.textSecondary, // ЗМІНЕНО
                                 ),
                               ),
                               Flexible(
@@ -171,9 +202,10 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                                   toName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
+                                    color: colors.textMain, // ЗМІНЕНО
                                   ),
                                 ),
                               ),
@@ -181,7 +213,10 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                           ),
                           subtitle: Text(
                             "${t.date.day.toString().padLeft(2, '0')}.${t.date.month.toString().padLeft(2, '0')}.${t.date.year}",
-                            style: const TextStyle(fontSize: 12),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textSecondary, // ЗМІНЕНО
+                            ),
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -194,10 +229,10 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              const Icon(
+                              Icon(
                                 Icons.chevron_right,
                                 size: 16,
-                                color: Colors.grey,
+                                color: colors.textSecondary, // ЗМІНЕНО
                               ),
                             ],
                           ),

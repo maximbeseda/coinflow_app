@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:easy_localization/easy_localization.dart';
+import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
 
 // Створюємо стани для нашого календаря
 enum CalendarMode { date, month, year }
@@ -18,20 +20,13 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
   late DateTime _focusedDay;
   CalendarMode _mode = CalendarMode.date;
 
-  final List<String> _months = [
-    'Січень',
-    'Лютий',
-    'Березень',
-    'Квітень',
-    'Травень',
-    'Червень',
-    'Липень',
-    'Серпень',
-    'Вересень',
-    'Жовтень',
-    'Листопад',
-    'Грудень',
-  ];
+  String _getMonthName(int month, BuildContext context) {
+    // Формат LLLL дає назву місяця в називному відмінку (Січень, Лютий і т.д.)
+    String m = DateFormat.LLLL(
+      context.locale.languageCode,
+    ).format(DateTime(2000, month));
+    return m[0].toUpperCase() + m.substring(1); // Робимо першу літеру великою
+  }
 
   final int _startYear = 2000;
   final int _endYear = DateTime.now().year + 100;
@@ -45,6 +40,11 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // ДОДАНО: Отримуємо кольори теми
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+    // ДОДАНО: Колір для інвертованого тексту (текст на активному тлі)
+    final invertedTextColor = Theme.of(context).scaffoldBackgroundColor;
+
     // Стиль Dialog береться з AppTheme
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -56,9 +56,13 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                "Вибрати дату",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                'select_date'.tr(),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colors.textMain, // ЗМІНЕНО
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -75,7 +79,10 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                         minWidth: 40,
                         minHeight: 40,
                       ),
-                      icon: const Icon(Icons.chevron_left),
+                      icon: Icon(
+                        Icons.chevron_left,
+                        color: colors.textMain,
+                      ), // ЗМІНЕНО
                       onPressed: _mode == CalendarMode.date
                           ? () => setState(
                               () => _focusedDay = DateTime(
@@ -110,20 +117,21 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                               ),
                               decoration: BoxDecoration(
                                 color: _mode == CalendarMode.month
-                                    ? Colors.black
-                                    : Colors.grey.shade100,
+                                    ? colors
+                                          .textMain // ЗМІНЕНО
+                                    : colors.iconBg, // ЗМІНЕНО
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
                                 children: [
                                   Text(
-                                    _months[_focusedDay.month - 1],
+                                    _getMonthName(_focusedDay.month, context),
                                     style: TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
                                       color: _mode == CalendarMode.month
-                                          ? Colors.white
-                                          : Colors.black87,
+                                          ? invertedTextColor // ЗМІНЕНО
+                                          : colors.textMain, // ЗМІНЕНО
                                     ),
                                   ),
                                   const SizedBox(width: 4),
@@ -133,8 +141,8 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                                         : Icons.keyboard_arrow_down,
                                     size: 16,
                                     color: _mode == CalendarMode.month
-                                        ? Colors.white
-                                        : Colors.black54,
+                                        ? invertedTextColor // ЗМІНЕНО
+                                        : colors.textSecondary, // ЗМІНЕНО
                                   ),
                                 ],
                               ),
@@ -157,8 +165,9 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                               ),
                               decoration: BoxDecoration(
                                 color: _mode == CalendarMode.year
-                                    ? Colors.black
-                                    : Colors.grey.shade100,
+                                    ? colors
+                                          .textMain // ЗМІНЕНО
+                                    : colors.iconBg, // ЗМІНЕНО
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
@@ -169,8 +178,8 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
                                       color: _mode == CalendarMode.year
-                                          ? Colors.white
-                                          : Colors.black87,
+                                          ? invertedTextColor // ЗМІНЕНО
+                                          : colors.textMain, // ЗМІНЕНО
                                     ),
                                   ),
                                   const SizedBox(width: 4),
@@ -180,8 +189,8 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                                         : Icons.keyboard_arrow_down,
                                     size: 16,
                                     color: _mode == CalendarMode.year
-                                        ? Colors.white
-                                        : Colors.black54,
+                                        ? invertedTextColor // ЗМІНЕНО
+                                        : colors.textSecondary, // ЗМІНЕНО
                                   ),
                                 ],
                               ),
@@ -201,7 +210,10 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                         minWidth: 40,
                         minHeight: 40,
                       ),
-                      icon: const Icon(Icons.chevron_right),
+                      icon: Icon(
+                        Icons.chevron_right,
+                        color: colors.textMain,
+                      ), // ЗМІНЕНО
                       onPressed: _mode == CalendarMode.date
                           ? () => setState(
                               () => _focusedDay = DateTime(
@@ -235,7 +247,10 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                           ),
                         );
                       },
-                  child: _buildContent(),
+                  child: _buildContent(
+                    colors,
+                    invertedTextColor,
+                  ), // Передаємо кольори
                 ),
               ),
 
@@ -246,11 +261,11 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                     // Стиль TextButton береться з AppTheme
                     child: TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const FittedBox(
+                      child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          "Скасувати",
-                          style: TextStyle(
+                          'cancel'.tr(),
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -263,11 +278,11 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                     // Стиль ElevatedButton береться з AppTheme
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(context, _selectedDay),
-                      child: const FittedBox(
+                      child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          "OK",
-                          style: TextStyle(
+                          'ok'.tr(),
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -284,22 +299,22 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(AppColorsExtension colors, Color invertedTextColor) {
     switch (_mode) {
       case CalendarMode.month:
-        return _buildMonthGrid();
+        return _buildMonthGrid(colors, invertedTextColor);
       case CalendarMode.year:
-        return _buildYearGrid();
+        return _buildYearGrid(colors, invertedTextColor);
       case CalendarMode.date:
-        return _buildCalendar();
+        return _buildCalendar(colors, invertedTextColor);
     }
   }
 
   // 1. Стандартний календар
-  Widget _buildCalendar() {
+  Widget _buildCalendar(AppColorsExtension colors, Color invertedTextColor) {
     return TableCalendar(
       key: const ValueKey('calendar'),
-      locale: 'uk_UA',
+      locale: context.locale.languageCode,
       firstDay: DateTime.utc(_startYear, 1, 1),
       lastDay: DateTime.utc(_endYear, 12, 31),
       focusedDay: _focusedDay,
@@ -307,28 +322,40 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
       selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
       startingDayOfWeek: StartingDayOfWeek.monday,
       headerVisible: false,
+      daysOfWeekStyle: DaysOfWeekStyle(
+        weekdayStyle: TextStyle(color: colors.textSecondary),
+        weekendStyle: TextStyle(
+          color: colors.expense,
+        ), // Вихідні кольором витрат
+      ),
       calendarStyle: CalendarStyle(
         outsideDaysVisible: true,
-        outsideTextStyle: const TextStyle(color: Colors.black38),
-        defaultTextStyle: const TextStyle(
-          color: Colors.black87,
+        outsideTextStyle: TextStyle(
+          color: colors.textSecondary.withValues(alpha: 0.5),
+        ), // ЗМІНЕНО
+        defaultTextStyle: TextStyle(
+          color: colors.textMain, // ЗМІНЕНО
           fontWeight: FontWeight.w500,
         ),
-        weekendTextStyle: const TextStyle(
-          color: Colors.redAccent,
+        weekendTextStyle: TextStyle(
+          color: colors.expense, // ЗМІНЕНО: червоний з теми
           fontWeight: FontWeight.w500,
         ),
         cellMargin: const EdgeInsets.all(2.0),
-        selectedDecoration: const BoxDecoration(
-          color: Colors.black,
+        selectedDecoration: BoxDecoration(
+          color: colors.textMain, // ЗМІНЕНО
           shape: BoxShape.circle,
+        ),
+        selectedTextStyle: TextStyle(
+          color: invertedTextColor, // ЗМІНЕНО: інвертований текст для вибраного
+          fontWeight: FontWeight.bold,
         ),
         todayDecoration: BoxDecoration(
-          color: Colors.grey.shade200,
+          color: colors.iconBg, // ЗМІНЕНО
           shape: BoxShape.circle,
         ),
-        todayTextStyle: const TextStyle(
-          color: Colors.black,
+        todayTextStyle: TextStyle(
+          color: colors.textMain, // ЗМІНЕНО
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -347,7 +374,7 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
   }
 
   // 2. Сітка вибору місяця
-  Widget _buildMonthGrid() {
+  Widget _buildMonthGrid(AppColorsExtension colors, Color invertedTextColor) {
     return GridView.builder(
       key: const ValueKey('months'),
       shrinkWrap: true,
@@ -370,14 +397,16 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
           },
           child: Container(
             decoration: BoxDecoration(
-              color: isSelected ? Colors.black : Colors.grey.shade100,
+              color: isSelected ? colors.textMain : colors.iconBg, // ЗМІНЕНО
               borderRadius: BorderRadius.circular(16),
             ),
             alignment: Alignment.center,
             child: Text(
-              _months[index],
+              _getMonthName(index + 1, context),
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.black87,
+                color: isSelected
+                    ? invertedTextColor
+                    : colors.textMain, // ЗМІНЕНО
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
               ),
@@ -389,7 +418,7 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
   }
 
   // 3. Сітка вибору року
-  Widget _buildYearGrid() {
+  Widget _buildYearGrid(AppColorsExtension colors, Color invertedTextColor) {
     return SizedBox(
       key: const ValueKey('years'),
       height: 300,
@@ -429,14 +458,18 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                 },
                 child: Container(
                   decoration: BoxDecoration(
-                    color: isSelected ? Colors.black : Colors.grey.shade100,
+                    color: isSelected
+                        ? colors.textMain
+                        : colors.iconBg, // ЗМІНЕНО
                     borderRadius: BorderRadius.circular(12),
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     year.toString(),
                     style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.black87,
+                      color: isSelected
+                          ? invertedTextColor
+                          : colors.textMain, // ЗМІНЕНО
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
                     ),

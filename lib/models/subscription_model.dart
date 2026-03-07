@@ -25,11 +25,9 @@ class Subscription extends HiveObject {
   @HiveField(6)
   String periodicity;
 
-  // ДОДАНО: Поле для збереження власної іконки (може бути пустим, тоді беремо з категорії)
   @HiveField(7)
   int? customIconCodePoint;
 
-  // ДОДАНО: Поле автосписання
   @HiveField(8)
   bool isAutoPay;
 
@@ -41,9 +39,33 @@ class Subscription extends HiveObject {
     required this.accountId,
     required this.nextPaymentDate,
     this.periodicity = 'monthly',
-    this.customIconCodePoint, // ДОДАНО
-    this.isAutoPay = false, // За замовчуванням вимкнено
+    this.customIconCodePoint,
+    this.isAutoPay = false,
   });
+
+  // ДОДАНО: copyWith для зручного редагування окремих полів
+  Subscription copyWith({
+    String? name,
+    double? amount,
+    String? categoryId,
+    String? accountId,
+    DateTime? nextPaymentDate,
+    String? periodicity,
+    int? customIconCodePoint,
+    bool? isAutoPay,
+  }) {
+    return Subscription(
+      id: id, // ID ніколи не змінюємо
+      name: name ?? this.name,
+      amount: amount ?? this.amount,
+      categoryId: categoryId ?? this.categoryId,
+      accountId: accountId ?? this.accountId,
+      nextPaymentDate: nextPaymentDate ?? this.nextPaymentDate,
+      periodicity: periodicity ?? this.periodicity,
+      customIconCodePoint: customIconCodePoint ?? this.customIconCodePoint,
+      isAutoPay: isAutoPay ?? this.isAutoPay,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -63,7 +85,7 @@ class Subscription extends HiveObject {
     return Subscription(
       id: json['id'],
       name: json['name'],
-      amount: json['amount'],
+      amount: (json['amount'] as num).toDouble(), // Захист від int/double
       categoryId: json['categoryId'],
       accountId: json['accountId'],
       nextPaymentDate: DateTime.parse(json['nextPaymentDate']),

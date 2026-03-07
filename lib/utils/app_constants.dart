@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 class AppConstants {
-  static const Map<String, List<IconData>> groupedIcons = {
-    "Фінанси та Інвестиції": [
+  // ДОДАНО: Єдиний список підтримуваних мов
+  static const Map<String, String> languages = {
+    'uk': 'Українська',
+    'en': 'English',
+    'de': 'Deutsch',
+  };
+
+  // Використовуємо getter (get), щоб переклади підтягувалися динамічно
+  static Map<String, List<IconData>> get groupedIcons => {
+    'icons_finance'.tr(): [
       Icons.account_balance_wallet,
       Icons.wallet,
       Icons.account_balance,
@@ -19,7 +28,7 @@ class AppConstants {
       Icons.business_center,
       Icons.money,
     ],
-    "Валюти": [
+    'icons_currencies'.tr(): [
       Icons.attach_money,
       Icons.euro,
       Icons.currency_pound,
@@ -31,7 +40,7 @@ class AppConstants {
       Icons.payments,
       Icons.price_change,
     ],
-    "Їжа та напої": [
+    'icons_food'.tr(): [
       Icons.shopping_bag,
       Icons.shopping_cart,
       Icons.restaurant,
@@ -43,7 +52,7 @@ class AppConstants {
       Icons.liquor,
       Icons.icecream,
     ],
-    "Транспорт та Авто": [
+    'icons_transport'.tr(): [
       Icons.directions_car,
       Icons.local_gas_station,
       Icons.build,
@@ -55,7 +64,7 @@ class AppConstants {
       Icons.two_wheeler,
       Icons.directions_boat,
     ],
-    "Дім та Рахунки": [
+    'icons_home'.tr(): [
       Icons.home,
       Icons.water_drop,
       Icons.electric_bolt,
@@ -67,7 +76,7 @@ class AppConstants {
       Icons.router,
       Icons.weekend,
     ],
-    "Шопінг та Речі": [
+    'icons_shopping'.tr(): [
       Icons.checkroom,
       Icons.devices,
       Icons.headphones,
@@ -79,7 +88,7 @@ class AppConstants {
       Icons.smartphone,
       Icons.laptop_mac,
     ],
-    "Здоров'я та Краса": [
+    'icons_health'.tr(): [
       Icons.medical_services,
       Icons.fitness_center,
       Icons.spa,
@@ -91,7 +100,7 @@ class AppConstants {
       Icons.favorite,
       Icons.healing,
     ],
-    "Розваги та Хобі": [
+    'icons_entertainment'.tr(): [
       Icons.theater_comedy,
       Icons.movie,
       Icons.music_note,
@@ -103,7 +112,7 @@ class AppConstants {
       Icons.pool,
       Icons.subscriptions,
     ],
-    "Підписки та Сервіси": [
+    'icons_subscriptions'.tr(): [
       Icons.play_circle_outline,
       Icons.music_note,
       Icons.cloud_queue,
@@ -116,7 +125,7 @@ class AppConstants {
       Icons.security,
       Icons.ondemand_video,
     ],
-    "Сім'я та Тварини": [
+    'icons_family'.tr(): [
       Icons.pets,
       Icons.child_friendly,
       Icons.school,
@@ -128,7 +137,7 @@ class AppConstants {
       Icons.sentiment_satisfied,
       Icons.cruelty_free,
     ],
-    "Інше": [
+    'icons_other'.tr(): [
       Icons.public,
       Icons.local_laundry_service,
       Icons.security,

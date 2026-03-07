@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../providers/finance_provider.dart';
 import '../models/subscription_model.dart';
 import '../models/category_model.dart';
 import '../utils/currency_formatter.dart';
 import '../widgets/dialogs/subscription_form_dialog.dart';
+import '../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт контракту кольорів
 
 class SubscriptionsScreen extends StatelessWidget {
   const SubscriptionsScreen({super.key});
@@ -23,26 +24,34 @@ class SubscriptionsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<FinanceProvider>(context);
+    // ДОДАНО: Отримуємо кольори поточної теми!
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     // ОБГОРТАЄМО SCAFFOLD У КОНТЕЙНЕР З ГРАДІЄНТОМ
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFD1D9E6),
-            Color(0xFFF5F5F7),
-          ], // Той самий фірмовий колір
+            colors.bgGradientStart, // ЗМІНЕНО: Градієнт теми
+            colors.bgGradientEnd,
+          ],
         ),
       ),
       child: Scaffold(
         backgroundColor:
             Colors.transparent, // Робимо фон прозорим, щоб бачити градієнт
         appBar: AppBar(
-          title: const Text(
-            'Регулярні платежі',
-            style: TextStyle(fontWeight: FontWeight.w600),
+          iconTheme: IconThemeData(
+            color: colors.textMain,
+          ), // Колір кнопки "Назад"
+          title: Text(
+            'regular_payments'.tr(),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: colors.textMain, // ЗМІНЕНО
+            ),
           ),
           centerTitle: true,
           backgroundColor: Colors.transparent,
@@ -56,21 +65,26 @@ class SubscriptionsScreen extends StatelessWidget {
                 onPressed: () => _showSubscriptionDialog(context),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 56),
-                  backgroundColor: Colors.black,
+                  // ЗМІНЕНО: Прибрали backgroundColor: Colors.black,
+                  // Тепер кнопка бере колір з ThemeData.elevatedButtonTheme!
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 4,
-                  shadowColor: Colors.black.withValues(alpha: 0.2),
+                  shadowColor: Colors.black.withValues(
+                    alpha: 0.2,
+                  ), // Тінь можемо лишити чорною
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_circle_outline, color: Colors.white),
-                    SizedBox(width: 8),
+                    const Icon(
+                      Icons.add_circle_outline,
+                    ), // ЗМІНЕНО: Прибрали жорсткий білий колір
+                    const SizedBox(width: 8),
                     Text(
-                      'Додати підписку',
-                      style: TextStyle(
+                      'add_subscription'.tr(),
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -81,10 +95,13 @@ class SubscriptionsScreen extends StatelessWidget {
             ),
             Expanded(
               child: provider.subscriptions.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        'У вас ще немає регулярних платежів',
-                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                        'no_subscriptions'.tr(),
+                        style: TextStyle(
+                          color: colors.textSecondary, // ЗМІНЕНО
+                          fontSize: 16,
+                        ),
                       ),
                     )
                   : ListView.builder(
@@ -110,10 +127,10 @@ class SubscriptionsScreen extends StatelessWidget {
                           orElse: () => Category(
                             id: '',
                             type: CategoryType.expense,
-                            name: 'Невідомо',
+                            name: 'unknown'.tr(),
                             icon: Icons.help_outline,
-                            bgColor: Colors.grey.shade200,
-                            iconColor: Colors.black54,
+                            bgColor: colors.iconBg, // ЗМІНЕНО
+                            iconColor: colors.textSecondary, // ЗМІНЕНО
                           ),
                         );
 
@@ -140,12 +157,14 @@ class SubscriptionsScreen extends StatelessWidget {
                         return Container(
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: colors.cardBg, // ЗМІНЕНО
                             borderRadius: BorderRadius.circular(24),
-                            // --- ДОДАЄМО ЧЕРВОНУ РАМКУ, ЯКЩО ПІДПИСКА ЗЛАМАНА ---
+                            // --- ДОДАЄМО РАМКУ З ТЕМИ, ЯКЩО ПІДПИСКА ЗЛАМАНА ---
                             border: isBroken
                                 ? Border.all(
-                                    color: Colors.red.withValues(alpha: 0.5),
+                                    color: colors.expense.withValues(
+                                      alpha: 0.5,
+                                    ), // ЗМІНЕНО
                                     width: 1.5,
                                   )
                                 : null,
@@ -193,10 +212,11 @@ class SubscriptionsScreen extends StatelessWidget {
                                             children: [
                                               Text(
                                                 sub.name,
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Colors.black87,
+                                                  color: colors
+                                                      .textMain, // ЗМІНЕНО
                                                 ),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
@@ -208,8 +228,10 @@ class SubscriptionsScreen extends StatelessWidget {
                                                     Icons.event,
                                                     size: 14,
                                                     color: isDue
-                                                        ? Colors.red
-                                                        : Colors.grey,
+                                                        ? colors
+                                                              .expense // ЗМІНЕНО
+                                                        : colors
+                                                              .textSecondary, // ЗМІНЕНО
                                                   ),
                                                   const SizedBox(width: 4),
                                                   Text(
@@ -223,10 +245,10 @@ class SubscriptionsScreen extends StatelessWidget {
                                                       fontWeight:
                                                           FontWeight.w500,
                                                       color: isDue
-                                                          ? Colors.red
-                                                          : Colors
-                                                                .grey
-                                                                .shade600,
+                                                          ? colors
+                                                                .expense // ЗМІНЕНО
+                                                          : colors
+                                                                .textSecondary, // ЗМІНЕНО
                                                     ),
                                                   ),
                                                 ],
@@ -242,10 +264,11 @@ class SubscriptionsScreen extends StatelessWidget {
                                           children: [
                                             Text(
                                               "-${CurrencyFormatter.format(sub.amount)} ₴",
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.w900,
-                                                color: Color(0xFFE05252),
+                                                color:
+                                                    colors.expense, // ЗМІНЕНО
                                               ),
                                             ),
                                           ],
@@ -262,34 +285,36 @@ class SubscriptionsScreen extends StatelessWidget {
                                           vertical: 8,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.red.withValues(
+                                          color: colors.expense.withValues(
                                             alpha: 0.05,
-                                          ),
+                                          ), // ЗМІНЕНО
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
                                           border: Border.all(
-                                            color: Colors.red.withValues(
+                                            color: colors.expense.withValues(
                                               alpha: 0.2,
-                                            ),
+                                            ), // ЗМІНЕНО
                                           ),
                                         ),
                                         child: Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.spaceBetween,
                                           children: [
-                                            const Row(
+                                            Row(
                                               children: [
                                                 Icon(
                                                   Icons.warning_amber_rounded,
-                                                  color: Colors.red,
+                                                  color:
+                                                      colors.expense, // ЗМІНЕНО
                                                   size: 18,
                                                 ),
-                                                SizedBox(width: 6),
+                                                const SizedBox(width: 6),
                                                 Text(
-                                                  "Потребує оплати",
+                                                  'needs_payment'.tr(),
                                                   style: TextStyle(
-                                                    color: Colors.red,
+                                                    color: colors
+                                                        .expense, // ЗМІНЕНО
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 13,
                                                   ),
@@ -304,7 +329,8 @@ class SubscriptionsScreen extends StatelessWidget {
                                                       const EdgeInsets.symmetric(
                                                         horizontal: 16,
                                                       ),
-                                                  backgroundColor: Colors.red,
+                                                  backgroundColor: colors
+                                                      .expense, // ЗМІНЕНО: Залишаємо виділеним кольором витрати
                                                   foregroundColor: Colors.white,
                                                   elevation: 0,
                                                   shape: RoundedRectangleBorder(
@@ -330,8 +356,8 @@ class SubscriptionsScreen extends StatelessWidget {
                                                     context,
                                                   ).showSnackBar(
                                                     SnackBar(
-                                                      backgroundColor:
-                                                          Colors.white,
+                                                      backgroundColor: colors
+                                                          .cardBg, // ЗМІНЕНО
                                                       behavior: SnackBarBehavior
                                                           .floating,
                                                       margin:
@@ -348,12 +374,14 @@ class SubscriptionsScreen extends StatelessWidget {
                                                             ),
                                                         side: BorderSide(
                                                           color: success
-                                                              ? Colors.green
+                                                              ? colors
+                                                                    .income // ЗМІНЕНО
                                                                     .withValues(
                                                                       alpha:
                                                                           0.5,
                                                                     )
-                                                              : Colors.red
+                                                              : colors
+                                                                    .expense // ЗМІНЕНО
                                                                     .withValues(
                                                                       alpha:
                                                                           0.5,
@@ -369,12 +397,14 @@ class SubscriptionsScreen extends StatelessWidget {
                                                                 ),
                                                             decoration: BoxDecoration(
                                                               color: success
-                                                                  ? Colors.green
+                                                                  ? colors
+                                                                        .income // ЗМІНЕНО
                                                                         .withValues(
                                                                           alpha:
                                                                               0.1,
                                                                         )
-                                                                  : Colors.red
+                                                                  : colors
+                                                                        .expense // ЗМІНЕНО
                                                                         .withValues(
                                                                           alpha:
                                                                               0.1,
@@ -389,8 +419,10 @@ class SubscriptionsScreen extends StatelessWidget {
                                                                   : Icons
                                                                         .error_outline,
                                                               color: success
-                                                                  ? Colors.green
-                                                                  : Colors.red,
+                                                                  ? colors
+                                                                        .income // ЗМІНЕНО
+                                                                  : colors
+                                                                        .expense, // ЗМІНЕНО
                                                             ),
                                                           ),
                                                           const SizedBox(
@@ -399,9 +431,9 @@ class SubscriptionsScreen extends StatelessWidget {
                                                           Expanded(
                                                             child: Text(
                                                               message,
-                                                              style: const TextStyle(
-                                                                color: Colors
-                                                                    .black87,
+                                                              style: TextStyle(
+                                                                color: colors
+                                                                    .textMain, // ЗМІНЕНО
                                                                 fontWeight:
                                                                     FontWeight
                                                                         .w600,
@@ -413,9 +445,9 @@ class SubscriptionsScreen extends StatelessWidget {
                                                     ),
                                                   );
                                                 },
-                                                child: const Text(
-                                                  "Сплатити",
-                                                  style: TextStyle(
+                                                child: Text(
+                                                  'pay'.tr(),
+                                                  style: const TextStyle(
                                                     fontSize: 13,
                                                     fontWeight: FontWeight.bold,
                                                   ),

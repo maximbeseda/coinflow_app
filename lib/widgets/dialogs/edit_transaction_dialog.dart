@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../models/transaction_model.dart';
 import 'custom_calendar_dialog.dart';
+import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
 
 class EditTransactionDialog extends StatefulWidget {
   final Transaction transaction;
@@ -45,6 +47,9 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // ДОДАНО: Отримуємо кольори теми
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     // Прибрали shape, backgroundColor тощо — все береться з Theme!
     return Dialog(
       child: Padding(
@@ -53,9 +58,13 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                "Редагувати операцію",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                'edit_transaction'.tr(),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colors.textMain, // ЗМІНЕНО
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -72,18 +81,21 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                     RegExp(r'^\d*[.,]?\d{0,2}'),
                   ),
                 ],
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
+                  color: colors.textMain, // ЗМІНЕНО
                 ),
                 decoration: InputDecoration(
-                  labelText: "Сума",
+                  labelText: 'amount'.tr(),
                   suffixText: "₴",
-                  suffixStyle: const TextStyle(
+                  suffixStyle: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.black54,
+                    color: colors.textSecondary, // ЗМІНЕНО: Був Colors.black54
                   ),
-                  errorText: _hasError ? 'Введіть коректну суму' : null,
+                  errorText: _hasError
+                      ? 'invalid_amount'.tr()
+                      : null, // Заміни 'invalid_amount' на свій ключ, якщо він інакший, або залиш 'enter_amount'
                 ),
               ),
               const SizedBox(height: 12),
@@ -96,22 +108,23 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                     vertical: 16,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: colors.iconBg, // ЗМІНЕНО: Був Colors.grey.shade100
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.calendar_today,
                         size: 20,
-                        color: Colors.black54,
+                        color: colors.textSecondary, // ЗМІНЕНО
                       ),
                       const SizedBox(width: 12),
                       Text(
                         "${_newDate.day.toString().padLeft(2, '0')}.${_newDate.month.toString().padLeft(2, '0')}.${_newDate.year}",
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
+                          color: colors.textMain, // ЗМІНЕНО
                         ),
                       ),
                     ],
@@ -126,9 +139,9 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                     // Прибрали гігантські налаштування style
                     child: TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        "Скасувати",
-                        style: TextStyle(
+                      child: Text(
+                        'cancel'.tr(),
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -152,9 +165,9 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                           setState(() => _hasError = true);
                         }
                       },
-                      child: const Text(
-                        "Зберегти",
-                        style: TextStyle(
+                      child: Text(
+                        'save'.tr(),
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),

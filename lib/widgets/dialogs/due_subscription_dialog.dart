@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../../models/subscription_model.dart';
 import '../../providers/finance_provider.dart';
+import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
 
 class DueSubscriptionDialog extends StatelessWidget {
   final Subscription subscription;
@@ -10,6 +12,9 @@ class DueSubscriptionDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ДОДАНО: Отримуємо кольори теми
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
     // Всі стилі Dialog підтягуються з глобальної теми!
     return Dialog(
       child: Stack(
@@ -22,33 +27,43 @@ class DueSubscriptionDialog extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
+                    color: colors.income.withValues(
+                      alpha: 0.1,
+                    ), // ЗМІНЕНО: зелений з теми
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.account_balance_wallet_rounded,
-                    color: Colors.green,
+                    color: colors.income, // ЗМІНЕНО: зелений з теми
                     size: 36,
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Регулярний платіж 💸',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                Text(
+                  'regular_payment_title'.tr(),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: colors.textMain, // ЗМІНЕНО
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
                 RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
-                    style: const TextStyle(fontSize: 15, color: Colors.black54),
+                    style: TextStyle(
+                      fontSize: 15,
+                      color:
+                          colors.textSecondary, // ЗМІНЕНО: Був Colors.black54
+                    ),
                     children: [
-                      const TextSpan(text: 'Настав час оплатити підписку\n'),
+                      TextSpan(text: 'time_to_pay'.tr()),
                       TextSpan(
                         text: subscription.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Colors.black,
+                          color: colors.textMain, // ЗМІНЕНО: Був Colors.black
                         ),
                       ),
                     ],
@@ -57,10 +72,11 @@ class DueSubscriptionDialog extends StatelessWidget {
                 const SizedBox(height: 16),
                 Text(
                   '${subscription.amount} ₴',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     letterSpacing: -1,
+                    color: colors.textMain, // ЗМІНЕНО
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -78,9 +94,9 @@ class DueSubscriptionDialog extends StatelessWidget {
                             Navigator.pop(context);
                           }
                         },
-                        child: const Text(
-                          "Пропустити",
-                          style: TextStyle(
+                        child: Text(
+                          'skip'.tr(),
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -111,7 +127,7 @@ class DueSubscriptionDialog extends StatelessWidget {
 
                           scaffoldMessenger.showSnackBar(
                             SnackBar(
-                              backgroundColor: Colors.white,
+                              backgroundColor: colors.cardBg, // ЗМІНЕНО
                               behavior: SnackBarBehavior.floating,
                               margin: const EdgeInsets.only(
                                 bottom: 30,
@@ -123,8 +139,12 @@ class DueSubscriptionDialog extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(16),
                                 side: BorderSide(
                                   color: success
-                                      ? Colors.green.withValues(alpha: 0.5)
-                                      : Colors.red.withValues(alpha: 0.5),
+                                      ? colors.income.withValues(
+                                          alpha: 0.5,
+                                        ) // ЗМІНЕНО
+                                      : colors.expense.withValues(
+                                          alpha: 0.5,
+                                        ), // ЗМІНЕНО
                                 ),
                               ),
                               content: Row(
@@ -133,8 +153,12 @@ class DueSubscriptionDialog extends StatelessWidget {
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
                                       color: success
-                                          ? Colors.green.withValues(alpha: 0.1)
-                                          : Colors.red.withValues(alpha: 0.1),
+                                          ? colors.income.withValues(
+                                              alpha: 0.1,
+                                            ) // ЗМІНЕНО
+                                          : colors.expense.withValues(
+                                              alpha: 0.1,
+                                            ), // ЗМІНЕНО
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
@@ -142,16 +166,17 @@ class DueSubscriptionDialog extends StatelessWidget {
                                           ? Icons.check_circle_outline
                                           : Icons.error_outline,
                                       color: success
-                                          ? Colors.green
-                                          : Colors.red,
+                                          ? colors
+                                                .income // ЗМІНЕНО
+                                          : colors.expense, // ЗМІНЕНО
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
                                       message,
-                                      style: const TextStyle(
-                                        color: Colors.black87,
+                                      style: TextStyle(
+                                        color: colors.textMain, // ЗМІНЕНО
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -161,9 +186,9 @@ class DueSubscriptionDialog extends StatelessWidget {
                             ),
                           );
                         },
-                        child: const Text(
-                          "Сплатити",
-                          style: TextStyle(
+                        child: Text(
+                          'pay'.tr(),
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -190,10 +215,14 @@ class DueSubscriptionDialog extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.15),
+                  color: colors.iconBg, // ЗМІНЕНО: Був Colors.grey...
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.close, color: Colors.black87, size: 20),
+                child: Icon(
+                  Icons.close,
+                  color: colors.textMain, // ЗМІНЕНО
+                  size: 20,
+                ),
               ),
             ),
           ),
