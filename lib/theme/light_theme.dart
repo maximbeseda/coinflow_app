@@ -20,8 +20,10 @@ final lightTheme = ThemeData(
       cardBg: Colors.white,
       textMain: const Color(0xFF1C1C1E),
       textSecondary: const Color(0xFF636366),
-      income: const Color(0xFF4CAF50),
-      expense: const Color(0xFFE05252),
+      // ЗМІНЕНО: Яскравий, соковитий зелений
+      income: const Color(0xFF1E8E3E),
+      // ЗМІНЕНО: Яскравий, чистий червоний
+      expense: const Color(0xFFE53935),
       iconBg: Colors.black.withValues(alpha: 0.05),
     ),
   ],

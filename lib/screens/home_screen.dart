@@ -118,6 +118,7 @@ class _HomeScreenState extends State<HomeScreen>
     String title,
     String message,
   ) async {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
     return await showDialog<bool>(
           context: context,
           builder: (ctx) => Dialog(
@@ -129,12 +130,12 @@ class _HomeScreenState extends State<HomeScreen>
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
+                      color: colors.expense.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.warning_amber_rounded,
-                      color: Colors.red,
+                      color: colors.expense,
                       size: 36,
                     ),
                   ),
@@ -172,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen>
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
+                            backgroundColor: colors.expense,
                             foregroundColor: Colors.white,
                           ),
                           onPressed: () => Navigator.pop(ctx, true),

@@ -1,25 +1,24 @@
 import 'package:coin_flow/utils/currency_formatter.dart';
 import 'package:flutter/material.dart';
 import '../../models/category_model.dart';
-import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт нашого контракту кольорів
+import '../../theme/app_colors_extension.dart';
 
 class CoinWidget extends StatelessWidget {
   final Category category;
   final bool isFeedback;
-  final bool isHovered; // ДОДАНО: стан наведення для збільшення
+  final bool isHovered;
   final Widget Function(Widget normalCoin, Widget placeholderCoin)? coinWrapper;
 
   const CoinWidget({
     super.key,
     required this.category,
     this.isFeedback = false,
-    this.isHovered = false, // За замовчуванням false
+    this.isHovered = false,
     this.coinWrapper,
   });
 
   @override
   Widget build(BuildContext context) {
-    // ДОДАНО: Отримуємо кольори поточної теми
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     String displayAmount = CurrencyFormatter.format(category.amount);
@@ -36,7 +35,6 @@ class CoinWidget extends StatelessWidget {
       progress = (amountAbs / category.budget!).clamp(0.0, 1.0);
 
       if (isIncome) {
-        // ЗМІНЕНО: Використовуємо колір доходу з теми замість жорсткого зеленого
         ringColor = progress >= 1.0 ? colors.income : Colors.blueAccent;
       } else if (isExpense) {
         DateTime now = DateTime.now();
@@ -46,7 +44,6 @@ class CoinWidget extends StatelessWidget {
         double expectedPace = (category.budget! / daysInMonth) * currentDay;
 
         if (amountAbs >= category.budget!) {
-          // ЗМІНЕНО: Використовуємо колір витрат з теми замість жорсткого червоного
           ringColor = colors.expense;
         } else if (amountAbs > expectedPace) {
           ringColor = Colors.orange;
@@ -56,6 +53,8 @@ class CoinWidget extends StatelessWidget {
       }
     }
 
+    Color shadowColor = colors.textMain.withValues(alpha: 0.1);
+
     Widget basicCoin = Container(
       width: 55,
       height: 55,
@@ -64,11 +63,13 @@ class CoinWidget extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(
-              alpha: 0.08,
-            ), // Тінь лишаємо чорною завжди
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: shadowColor,
+            blurRadius: 8, // ЗМІНЕНО: Більше розмиття для м'якого ореолу
+            spreadRadius: 1,
+            offset: const Offset(
+              0,
+              0,
+            ), // ЗМІНЕНО: Нульове зміщення = рівномірна тінь з усіх боків!
           ),
         ],
       ),
@@ -94,15 +95,10 @@ class CoinWidget extends StatelessWidget {
     Widget placeholderCoin = Container(
       width: 55,
       height: 55,
-      decoration: BoxDecoration(
-        color: colors.iconBg, // ЗМІНЕНО: Беремо фон для іконок з теми
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: colors.iconBg, shape: BoxShape.circle),
       child: Icon(
         category.icon,
-        color: colors.textSecondary.withValues(
-          alpha: 0.3,
-        ), // ЗМІНЕНО: Адаптивний колір
+        color: colors.textSecondary.withValues(alpha: 0.3),
         size: 24,
       ),
     );
@@ -128,7 +124,6 @@ class CoinWidget extends StatelessWidget {
               child: CircularProgressIndicator(
                 value: progress,
                 strokeWidth: 3,
-                // ЗМІНЕНО: Адаптивне тло прогрес-бару (буде білим у темній, чорним у світлій)
                 backgroundColor: colors.textMain.withValues(alpha: 0.1),
                 valueColor: AlwaysStoppedAnimation<Color>(ringColor),
               ),
@@ -138,7 +133,6 @@ class CoinWidget extends StatelessWidget {
       ),
     );
 
-    // ГОЛОВНА ЗМІНА: Анімація збільшення застосовується ТІЛЬКИ до монетки з бюджетом
     Widget scaledCoin = AnimatedScale(
       scale: isHovered ? 1.15 : 1.0,
       duration: const Duration(milliseconds: 150),
@@ -160,12 +154,12 @@ class CoinWidget extends StatelessWidget {
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: colors.textSecondary, // ЗМІНЕНО: Колір назви категорії
+              color: colors.textSecondary,
             ),
           ),
         ),
         const SizedBox(height: 2),
-        scaledCoin, // Вставляємо анімовану монетку
+        scaledCoin,
         const SizedBox(height: 2),
         SizedBox(
           width: 75,
@@ -190,7 +184,7 @@ class CoinWidget extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: colors.textMain, // ЗМІНЕНО: Колір суми
+                  color: colors.textMain,
                 ),
               ),
             ),

@@ -226,6 +226,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: amountColor,
+                                  fontSize: 14, // ДОДАНО: Уніфікований розмір
                                 ),
                               ),
                               const SizedBox(width: 4),

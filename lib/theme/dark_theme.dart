@@ -20,8 +20,10 @@ final darkTheme = ThemeData(
       cardBg: const Color(0xFF3A3A3C),
       textMain: Colors.white,
       textSecondary: Colors.white70,
-      income: const Color(0xFF81C784),
-      expense: const Color(0xFFE57373),
+      // ЗМІНЕНО: Ідентичний яскравий зелений зі світлої теми
+      income: const Color(0xFF1E8E3E),
+      // ЗМІНЕНО: Ідентичний яскравий червоний зі світлої теми
+      expense: const Color(0xFFE53935),
       iconBg: Colors.white.withValues(alpha: 0.1),
     ),
   ],

@@ -124,6 +124,7 @@ class DueSubscriptionDialog extends StatelessWidget {
                           if (success) {
                             navigator.pop();
                           }
+                          scaffoldMessenger.clearSnackBars();
 
                           scaffoldMessenger.showSnackBar(
                             SnackBar(

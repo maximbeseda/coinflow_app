@@ -41,14 +41,14 @@ class SummaryHeader extends StatelessWidget {
               colors,
             ),
             _item(
-              Icons.arrow_downward_rounded,
+              Icons.north_east,
               totalIncomes,
-              Colors.green,
+              colors.income,
               onIncomesTap,
               colors,
             ),
             _item(
-              Icons.arrow_upward_rounded,
+              Icons.south_east,
               totalExpenses,
               colors.expense,
               onExpensesTap,
@@ -58,12 +58,12 @@ class SummaryHeader extends StatelessWidget {
             GestureDetector(
               onTap: onSettingsTap,
               behavior: HitTestBehavior.opaque,
-              child: const SizedBox(
+              child: SizedBox(
                 width: 24,
                 child: Icon(
                   Icons.settings_outlined,
                   size: 20,
-                  color: Colors.black38,
+                  color: colors.textSecondary,
                 ),
               ),
             ),

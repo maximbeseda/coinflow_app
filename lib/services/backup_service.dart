@@ -25,6 +25,8 @@ class BackupService {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final accentColor = isSuccess ? colors.income : colors.expense;
 
+    ScaffoldMessenger.of(context).clearSnackBars();
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: colors.cardBg, // ЗМІНЕНО: Фон SnackBar адаптивний

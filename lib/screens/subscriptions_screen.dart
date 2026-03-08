@@ -351,6 +351,9 @@ class SubscriptionsScreen extends StatelessWidget {
                                                       );
 
                                                   if (!context.mounted) return;
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).clearSnackBars();
 
                                                   ScaffoldMessenger.of(
                                                     context,

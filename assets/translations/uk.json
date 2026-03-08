@@ -53,7 +53,7 @@
   "delete_category_title": "Видалити категорію?",
   "delete_category_message": "Ви впевнені, що хочете видалити '{}'?",
   "history_balance": "Історія: Баланс",
-  "history_incomes": "Історія доходів",
+  "history_incomes": "Історія: Доходи",
   "history_expenses": "Історія: Витрати",
   "history_category": "Історія: {}",
   "no_transactions_yet": "Операцій ще не було",

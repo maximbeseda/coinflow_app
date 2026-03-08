@@ -4,7 +4,7 @@ import '../models/category_model.dart';
 class CategoryDefaults {
   static const Color incomeBg = Colors.black;
   static const Color accountBg = Color(0xFF1E3A5F);
-  static const Color expenseBg = Color(0xFFE5E5EA);
+  static const Color expenseBg = Color(0xFFE0DFE8);
 
   static Color getBgColor(CategoryType type) {
     switch (type) {

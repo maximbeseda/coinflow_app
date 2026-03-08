@@ -165,7 +165,8 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               color: colors.textMain,
-                              fontSize: 15,
+                              // ЗМІНЕНО: Уніфікований розмір шрифту
+                              fontSize: 14,
                             ),
                           ),
                           subtitle: Text(
@@ -183,6 +184,7 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: amountColor,
+                                  // ЗМІНЕНО: Уніфікований розмір шрифту сум
                                   fontSize: 14,
                                 ),
                               ),
