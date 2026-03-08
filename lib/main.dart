@@ -9,9 +9,10 @@ import 'dart:ui';
 
 import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
-import 'providers/finance_provider.dart';
+import 'providers/category_provider.dart';
+import 'providers/transaction_provider.dart';
+import 'providers/subscription_provider.dart';
 import 'providers/theme_provider.dart';
-import 'models/subscription_model.dart';
 import 'theme/app_theme.dart';
 import 'services/storage_service.dart';
 
@@ -31,10 +32,8 @@ void main() async {
   // 4. Ініціалізуємо базу даних Hive
   await Hive.initFlutter();
 
-  // Реєструємо адаптери (важливо для складних об'єктів як підписки)
-  if (!Hive.isAdapterRegistered(2)) {
-    Hive.registerAdapter(SubscriptionAdapter());
-  }
+  // Реєструємо всі адаптери через наш сервіс
+  StorageService.registerAdapters();
 
   // Відкриваємо всі необхідні бокси
   await Future.wait([
@@ -68,10 +67,28 @@ void main() async {
       fallbackLocale: const Locale('uk'),
       child: MultiProvider(
         providers: [
-          ChangeNotifierProvider(create: (_) => FinanceProvider()),
-          ChangeNotifierProvider(
-            create: (_) => ThemeProvider(),
-          ), // Провайдер тем
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
+
+          // 1. Провайдер категорій (незалежний)
+          ChangeNotifierProvider(create: (_) => CategoryProvider()),
+
+          // 2. Провайдер транзакцій (слідкує за категоріями, щоб оновлювати їх баланси)
+          ChangeNotifierProxyProvider<CategoryProvider, TransactionProvider>(
+            create: (_) => TransactionProvider(),
+            update: (_, catProv, txProv) =>
+                txProv!..updateDependencies(catProv),
+          ),
+
+          // 3. Провайдер підписок (слідкує за обома попередніми)
+          ChangeNotifierProxyProvider2<
+            CategoryProvider,
+            TransactionProvider,
+            SubscriptionProvider
+          >(
+            create: (_) => SubscriptionProvider(),
+            update: (_, catProv, txProv, subProv) =>
+                subProv!..updateDependencies(catProv, txProv),
+          ),
         ],
         child: DevicePreview(
           enabled: !kReleaseMode && showPreview,

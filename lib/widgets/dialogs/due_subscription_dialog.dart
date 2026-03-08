@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../models/subscription_model.dart';
-import '../../providers/finance_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../theme/app_colors_extension.dart';
 
 class DueSubscriptionDialog extends StatelessWidget {
@@ -91,8 +91,9 @@ class DueSubscriptionDialog extends StatelessWidget {
                     Expanded(
                       child: TextButton(
                         onPressed: () async {
+                          // ВИПРАВЛЕНО: SubscriptionProvider замість FinanceProvider
                           await context
-                              .read<FinanceProvider>()
+                              .read<SubscriptionProvider>()
                               .skipSubscriptionPayment(subscription);
                           if (context.mounted) {
                             Navigator.pop(context);
@@ -118,8 +119,9 @@ class DueSubscriptionDialog extends StatelessWidget {
                           );
                           final navigator = Navigator.of(context);
 
+                          // ВИПРАВЛЕНО: SubscriptionProvider замість FinanceProvider
                           final (success, message) = await context
-                              .read<FinanceProvider>()
+                              .read<SubscriptionProvider>()
                               .confirmSubscriptionPayment(
                                 subscription,
                                 subscription.amount,
@@ -133,10 +135,9 @@ class DueSubscriptionDialog extends StatelessWidget {
                           scaffoldMessenger.showSnackBar(
                             SnackBar(
                               behavior: SnackBarBehavior.floating,
-                              backgroundColor: colors.cardBg, // Світлий фон
+                              backgroundColor: colors.cardBg,
                               elevation: 4,
                               margin: const EdgeInsets.all(20),
-                              // ВИПРАВЛЕНО: Тонка рамка (червона або зелена)
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
@@ -197,9 +198,9 @@ class DueSubscriptionDialog extends StatelessWidget {
             top: 16,
             child: GestureDetector(
               onTap: () {
-                context.read<FinanceProvider>().ignoreSubscriptionForSession(
-                  subscription.id,
-                );
+                context
+                    .read<SubscriptionProvider>()
+                    .ignoreSubscriptionForSession(subscription.id);
                 Navigator.pop(context);
               },
               child: Container(

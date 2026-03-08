@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../../providers/finance_provider.dart';
+import '../../providers/category_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../models/subscription_model.dart';
 import '../../utils/app_constants.dart';
 import 'custom_calendar_dialog.dart';
@@ -34,17 +35,17 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
   void initState() {
     super.initState();
     final sub = widget.subscription;
-    final provider = Provider.of<FinanceProvider>(context, listen: false);
+    final catProv = Provider.of<CategoryProvider>(context, listen: false);
 
     _nameController = TextEditingController(text: sub?.name ?? '');
     _amountController = TextEditingController(
       text: sub != null ? sub.amount.toString() : '',
     );
 
-    bool accountExists = provider.accounts.any((c) => c.id == sub?.accountId);
+    bool accountExists = catProv.accounts.any((c) => c.id == sub?.accountId);
     _selectedAccountId = accountExists ? sub?.accountId : null;
 
-    bool expenseExists = provider.expenses.any((c) => c.id == sub?.categoryId);
+    bool expenseExists = catProv.expenses.any((c) => c.id == sub?.categoryId);
     _selectedExpenseId = expenseExists ? sub?.categoryId : null;
 
     _selectedPeriodicity = sub?.periodicity ?? 'monthly';
@@ -72,7 +73,8 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
       return;
     }
 
-    final provider = Provider.of<FinanceProvider>(context, listen: false);
+    // ВИПРАВЛЕНО: Використовуємо SubscriptionProvider замість FinanceProvider
+    final subProv = Provider.of<SubscriptionProvider>(context, listen: false);
 
     final newSub = Subscription(
       id:
@@ -89,9 +91,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
     );
 
     if (widget.subscription == null) {
-      provider.addSubscription(newSub);
+      subProv.addSubscription(newSub);
     } else {
-      provider.updateSubscription(newSub);
+      subProv.updateSubscription(newSub);
     }
 
     Navigator.pop(context);
@@ -155,7 +157,6 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
-                            // ДОДАНО: Захист від довгого тексту
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -174,7 +175,6 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                             ),
                           ),
                           onPressed: () => Navigator.pop(ctx, true),
-                          // ЗМІНЕНО: Прибрали FittedBox, додали Ellipsis
                           child: Text(
                             'delete'.tr(),
                             style: const TextStyle(
@@ -197,8 +197,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
 
     if (!mounted) return;
     if (confirmed) {
-      final provider = Provider.of<FinanceProvider>(context, listen: false);
-      provider.deleteSubscription(widget.subscription!.id);
+      // ВИПРАВЛЕНО: Використовуємо SubscriptionProvider замість FinanceProvider
+      final subProv = Provider.of<SubscriptionProvider>(context, listen: false);
+      subProv.deleteSubscription(widget.subscription!.id);
       Navigator.pop(context);
     }
   }
@@ -344,7 +345,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<FinanceProvider>(context, listen: false);
+    // ВИПРАВЛЕНО: Використовуємо CategoryProvider для отримання категорій
+    final catProv = Provider.of<CategoryProvider>(context, listen: false);
+
     final isEditing = widget.subscription != null;
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
@@ -359,7 +362,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
       );
       if (_selectedExpenseId != null) {
         try {
-          final cat = provider.expenses.firstWhere(
+          final cat = catProv.expenses.firstWhere(
             (c) => c.id == _selectedExpenseId,
           );
           displayColor = cat.bgColor;
@@ -368,7 +371,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
       }
     } else if (_selectedExpenseId != null) {
       try {
-        final cat = provider.expenses.firstWhere(
+        final cat = catProv.expenses.firstWhere(
           (c) => c.id == _selectedExpenseId,
         );
         displayIcon = cat.icon;
@@ -634,7 +637,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                 ),
               ),
               onTap: () => FocusScope.of(context).unfocus(),
-              items: provider.accounts.map((cat) {
+              items: catProv.accounts.map((cat) {
                 return DropdownMenuItem(
                   value: cat.id,
                   child: Row(
@@ -692,7 +695,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                 ),
               ),
               onTap: () => FocusScope.of(context).unfocus(),
-              items: provider.expenses.map((cat) {
+              items: catProv.expenses.map((cat) {
                 return DropdownMenuItem(
                   value: cat.id,
                   child: Row(
@@ -801,7 +804,6 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
 
             ElevatedButton(
               onPressed: _save,
-              // ЗМІНЕНО: Прибрали FittedBox, додали Ellipsis
               child: Text(
                 'save'.tr(),
                 style: const TextStyle(

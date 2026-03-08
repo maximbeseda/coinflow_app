@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../providers/finance_provider.dart';
+import '../providers/category_provider.dart';
+import '../providers/subscription_provider.dart';
 import '../models/subscription_model.dart';
 import '../models/category_model.dart';
 import '../utils/currency_formatter.dart';
@@ -23,7 +24,8 @@ class SubscriptionsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<FinanceProvider>(context);
+    final subProv = context.watch<SubscriptionProvider>();
+    final catProv = context.watch<CategoryProvider>();
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Container(
@@ -86,7 +88,7 @@ class SubscriptionsScreen extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: provider.subscriptions.isEmpty
+              child: subProv.subscriptions.isEmpty
                   ? Center(
                       child: Text(
                         'no_subscriptions'.tr(),
@@ -97,22 +99,22 @@ class SubscriptionsScreen extends StatelessWidget {
                       ),
                     )
                   : ListView.builder(
-                      itemCount: provider.subscriptions.length,
+                      itemCount: subProv.subscriptions.length,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 8,
                       ),
                       itemBuilder: (context, index) {
-                        final sub = provider.subscriptions[index];
-                        final bool accountExists = provider.accounts.any(
+                        final sub = subProv.subscriptions[index];
+                        final bool accountExists = catProv.accounts.any(
                           (c) => c.id == sub.accountId,
                         );
-                        final bool expenseExists = provider.expenses.any(
+                        final bool expenseExists = catProv.expenses.any(
                           (c) => c.id == sub.categoryId,
                         );
                         final bool isBroken = !accountExists || !expenseExists;
 
-                        final category = provider.expenses.firstWhere(
+                        final category = catProv.expenses.firstWhere(
                           (c) => c.id == sub.categoryId,
                           orElse: () => Category(
                             id: '',
@@ -331,19 +333,17 @@ class SubscriptionsScreen extends StatelessWidget {
                                                     final (
                                                       success,
                                                       message,
-                                                    ) = await provider
+                                                    ) = await subProv
                                                         .confirmSubscriptionPayment(
                                                           sub,
                                                           sub.amount,
                                                         );
-
                                                     if (!context.mounted) {
                                                       return;
                                                     }
                                                     ScaffoldMessenger.of(
                                                       context,
                                                     ).clearSnackBars();
-
                                                     ScaffoldMessenger.of(
                                                       context,
                                                     ).showSnackBar(
@@ -358,7 +358,6 @@ class SubscriptionsScreen extends StatelessWidget {
                                                             const EdgeInsets.all(
                                                               20,
                                                             ),
-                                                        // ВИПРАВЛЕНО: Стиль снекбару з рамкою
                                                         shape: RoundedRectangleBorder(
                                                           borderRadius:
                                                               BorderRadius.circular(

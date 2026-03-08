@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../../providers/finance_provider.dart';
 import '../../screens/stats_screen.dart';
 import '../../screens/subscriptions_screen.dart';
 import '../../services/backup_service.dart';
@@ -136,7 +134,6 @@ class SettingsDrawer extends StatelessWidget {
               ),
               onTap: () {
                 final safeContext = Navigator.of(context).context;
-                final provider = safeContext.read<FinanceProvider>();
 
                 Navigator.pop(context);
 
@@ -208,7 +205,7 @@ class SettingsDrawer extends StatelessWidget {
                             ),
                             onTap: () {
                               Navigator.pop(ctx);
-                              BackupService.exportData(provider, safeContext);
+                              BackupService.exportData(safeContext);
                             },
                           ),
                           ListTile(
@@ -234,7 +231,7 @@ class SettingsDrawer extends StatelessWidget {
                             ),
                             onTap: () {
                               Navigator.pop(ctx);
-                              BackupService.importData(provider, safeContext);
+                              BackupService.importData(safeContext);
                             },
                           ),
                           const SizedBox(height: 20),

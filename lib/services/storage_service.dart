@@ -4,6 +4,7 @@ import '../models/transaction_model.dart';
 import '../models/category_model.dart';
 import '../models/subscription_model.dart';
 import '../theme/category_defaults.dart'; // ДОДАНО: Для авто-синхронізації
+import '../utils/hive_adapters.dart';
 
 class StorageService {
   static const String _historyBox = 'transactions';
@@ -12,6 +13,20 @@ class StorageService {
   static const String _settingsBox = 'settings';
 
   static const String _themeKey = 'current_theme_id';
+
+  // ==========================================
+  // РЕЄСТРАЦІЯ АДАПТЕРІВ
+  // ==========================================
+  static void registerAdapters() {
+    Hive.registerAdapter(ColorAdapter());
+    Hive.registerAdapter(IconDataAdapter());
+    Hive.registerAdapter(CategoryTypeAdapter());
+    Hive.registerAdapter(CategoryAdapter());
+    Hive.registerAdapter(TransactionAdapter());
+    if (!Hive.isAdapterRegistered(2)) {
+      Hive.registerAdapter(SubscriptionAdapter());
+    }
+  }
 
   // ==========================================
   // 1. СТРУКТУРНІ МІГРАЦІЇ (Тільки для нових полів у моделях)
@@ -84,16 +99,16 @@ class StorageService {
   }
 
   // --- ІСТОРІЯ ТРАНЗАКЦІЙ ---
-  static Future<void> saveHistory(List<Transaction> history) async {
+  static Future<void> saveHistory(List<Transaction> transactions) async {
     final box = Hive.box(_historyBox);
     await box.clear();
-    final map = {for (var t in history) t.id: t.toJson()};
+    final map = {for (var t in transactions) t.id: t};
     await box.putAll(map);
   }
 
-  static Future<void> saveTransaction(Transaction t) async {
+  static Future<void> saveTransaction(Transaction transaction) async {
     final box = Hive.box(_historyBox);
-    await box.put(t.id, t.toJson());
+    await box.put(transaction.id, transaction);
   }
 
   static Future<void> removeTransaction(String id) async {
@@ -106,11 +121,24 @@ class StorageService {
       final box = Hive.box(_historyBox);
       if (box.isEmpty) return [];
 
-      return box.values
-          .map(
-            (dynamic i) => Transaction.fromJson(Map<String, dynamic>.from(i)),
-          )
-          .toList();
+      // БЕЗШОВНА МІГРАЦІЯ
+      if (box.getAt(0) is Map) {
+        debugPrint(
+          "Виявлено старий формат транзакцій. Мігруємо на TypeAdapter...",
+        );
+        final oldList = box.values
+            .map(
+              (dynamic i) => Transaction.fromJson(Map<String, dynamic>.from(i)),
+            )
+            .toList();
+        await box.clear();
+        for (var t in oldList) {
+          await box.put(t.id, t);
+        }
+        return oldList;
+      }
+
+      return box.values.cast<Transaction>().toList();
     } catch (e) {
       debugPrint("Помилка завантаження історії з Hive: $e");
       return [];
@@ -121,13 +149,15 @@ class StorageService {
   static Future<void> saveCategories(List<Category> categories) async {
     final box = Hive.box(_categoriesBox);
     await box.clear();
-    final map = {for (var c in categories) c.id: c.toJson()};
+    final map = {
+      for (var c in categories) c.id: c,
+    }; // Більше не викликаємо .toJson()
     await box.putAll(map);
   }
 
   static Future<void> saveCategory(Category category) async {
     final box = Hive.box(_categoriesBox);
-    await box.put(category.id, category.toJson());
+    await box.put(category.id, category); // Більше не викликаємо .toJson()
   }
 
   static Future<void> removeCategory(String id) async {
@@ -140,9 +170,23 @@ class StorageService {
       final box = Hive.box(_categoriesBox);
       if (box.isEmpty) return [];
 
-      return box.values
-          .map((dynamic i) => Category.fromJson(Map<String, dynamic>.from(i)))
-          .toList();
+      // БЕЗШОВНА МІГРАЦІЯ: Якщо дані лежать у старому форматі JSON (Map)
+      if (box.getAt(0) is Map) {
+        debugPrint(
+          "Виявлено старий формат категорій. Мігруємо на TypeAdapter...",
+        );
+        final oldList = box.values
+            .map((dynamic i) => Category.fromJson(Map<String, dynamic>.from(i)))
+            .toList();
+        await box.clear();
+        for (var c in oldList) {
+          await box.put(c.id, c);
+        }
+        return oldList;
+      }
+
+      // Якщо формат вже новий (TypeAdapter)
+      return box.values.cast<Category>().toList();
     } catch (e) {
       debugPrint("Помилка завантаження категорій з Hive: $e");
       return [];

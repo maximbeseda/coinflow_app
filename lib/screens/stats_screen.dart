@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../providers/finance_provider.dart';
+import '../providers/category_provider.dart';
+import '../providers/transaction_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../widgets/dialogs/month_picker_dialog.dart';
 import '../models/category_model.dart';
@@ -45,10 +46,10 @@ class _StatsScreenState extends State<StatsScreen> {
     const Color(0xFFE91E63),
   ];
 
-  Color _getUniqueColor(String id, FinanceProvider provider) {
+  Color _getUniqueColor(String id, CategoryProvider catProv) {
     List<String> allIds = [
-      ...provider.expenses.map((e) => e.id),
-      ...provider.incomes.map((e) => e.id),
+      ...catProv.expenses.map((e) => e.id),
+      ...catProv.incomes.map((e) => e.id),
     ];
     allIds.sort();
     int index = allIds.indexOf(id);
@@ -65,21 +66,22 @@ class _StatsScreenState extends State<StatsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<FinanceProvider>();
+    final catProv = context.watch<CategoryProvider>();
+    final txProv = context.watch<TransactionProvider>();
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    final monthHistory = provider.history
+    final monthHistory = txProv.history
         .where(
           (t) =>
-              t.date.year == provider.selectedMonth.year &&
-              t.date.month == provider.selectedMonth.month,
+              t.date.year == txProv.selectedMonth.year &&
+              t.date.month == txProv.selectedMonth.month,
         )
         .toList();
 
     final allCategories = [
-      ...provider.incomes,
-      ...provider.accounts,
-      ...provider.expenses,
+      ...catProv.incomes,
+      ...catProv.accounts,
+      ...catProv.expenses,
     ];
     final Map<String, Category> categoryMap = {
       for (var c in allCategories) c.id: c,
@@ -99,21 +101,11 @@ class _StatsScreenState extends State<StatsScreen> {
       }
     }
 
-    final activeExpenses = provider.expenses
+    final activeExpenses = catProv.expenses
         .where(
           (c) => expenseTotals.containsKey(c.id) && expenseTotals[c.id]! > 0,
         )
-        .map(
-          (c) => Category(
-            id: c.id,
-            type: c.type,
-            name: c.name,
-            icon: c.icon,
-            bgColor: c.bgColor,
-            iconColor: c.iconColor,
-            amount: expenseTotals[c.id]!,
-          ),
-        )
+        .map((c) => c.copyWith(amount: expenseTotals[c.id]!))
         .toList();
     activeExpenses.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
     double totalExpenses = activeExpenses.fold(
@@ -121,19 +113,9 @@ class _StatsScreenState extends State<StatsScreen> {
       (sum, item) => sum + item.amount.abs(),
     );
 
-    final activeIncomes = provider.incomes
+    final activeIncomes = catProv.incomes
         .where((c) => incomeTotals.containsKey(c.id) && incomeTotals[c.id]! > 0)
-        .map(
-          (c) => Category(
-            id: c.id,
-            type: c.type,
-            name: c.name,
-            icon: c.icon,
-            bgColor: c.bgColor,
-            iconColor: c.iconColor,
-            amount: incomeTotals[c.id]!,
-          ),
-        )
+        .map((c) => c.copyWith(amount: incomeTotals[c.id]!))
         .toList();
     activeIncomes.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
     double totalIncomes = activeIncomes.fold(
@@ -158,7 +140,6 @@ class _StatsScreenState extends State<StatsScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // --- ШАПКА ---
               Padding(
                 padding: const EdgeInsets.only(left: 8.0, top: 4.0, right: 8.0),
                 child: Row(
@@ -176,7 +157,6 @@ class _StatsScreenState extends State<StatsScreen> {
                           fontWeight: FontWeight.bold,
                           color: colors.textMain,
                         ),
-                        // ЗМІНЕНО: Захист заголовка від overflow
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -185,8 +165,6 @@ class _StatsScreenState extends State<StatsScreen> {
                   ],
                 ),
               ),
-
-              // --- ПЕРЕМИКАЧ МІСЯЦІВ ---
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
@@ -194,18 +172,18 @@ class _StatsScreenState extends State<StatsScreen> {
                   children: [
                     IconButton(
                       icon: Icon(Icons.chevron_left, color: colors.textMain),
-                      onPressed: () => provider.changeMonth(-1),
+                      onPressed: () => txProv.changeMonth(-1),
                     ),
                     GestureDetector(
                       onTap: () async {
                         final pickedDate = await showDialog<DateTime>(
                           context: context,
                           builder: (ctx) => MonthPickerDialog(
-                            initialDate: provider.selectedMonth,
+                            initialDate: txProv.selectedMonth,
                           ),
                         );
                         if (pickedDate != null && mounted) {
-                          provider.setMonth(pickedDate);
+                          txProv.setMonth(pickedDate);
                         }
                       },
                       child: Container(
@@ -232,7 +210,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            _getMonthName(provider.selectedMonth, context),
+                            _getMonthName(txProv.selectedMonth, context),
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -244,13 +222,11 @@ class _StatsScreenState extends State<StatsScreen> {
                     ),
                     IconButton(
                       icon: Icon(Icons.chevron_right, color: colors.textMain),
-                      onPressed: () => provider.changeMonth(1),
+                      onPressed: () => txProv.changeMonth(1),
                     ),
                   ],
                 ),
               ),
-
-              // --- СЛАЙДЕР ВИТРАТИ / ДОХОДИ ---
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24.0,
@@ -291,7 +267,6 @@ class _StatsScreenState extends State<StatsScreen> {
                       ),
                       Row(
                         children: [
-                          // БЛОК ВИТРАТ
                           Expanded(
                             child: GestureDetector(
                               onTap: () => setState(() => _showExpenses = true),
@@ -312,7 +287,6 @@ class _StatsScreenState extends State<StatsScreen> {
                                             : colors.textSecondary,
                                         fontWeight: FontWeight.w700,
                                       ),
-                                      // ВИПРАВЛЕНО: Обрізання тексту
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -327,7 +301,6 @@ class _StatsScreenState extends State<StatsScreen> {
                                                 80,
                                               ),
                                       ),
-                                      // ВИПРАВЛЕНО: Обрізання суми
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -336,7 +309,6 @@ class _StatsScreenState extends State<StatsScreen> {
                               ),
                             ),
                           ),
-                          // БЛОК ДОХОДІВ
                           Expanded(
                             child: GestureDetector(
                               onTap: () =>
@@ -358,7 +330,6 @@ class _StatsScreenState extends State<StatsScreen> {
                                             : colors.textSecondary,
                                         fontWeight: FontWeight.w700,
                                       ),
-                                      // ВИПРАВЛЕНО: Обрізання тексту
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -373,7 +344,6 @@ class _StatsScreenState extends State<StatsScreen> {
                                                 80,
                                               ),
                                       ),
-                                      // ВИПРАВЛЕНО: Обрізання суми
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -388,8 +358,6 @@ class _StatsScreenState extends State<StatsScreen> {
                   ),
                 ),
               ),
-
-              // --- КРУГОВИЙ ГРАФІК ТА ЛЕГЕНДА ---
               Expanded(
                 child: Container(
                   width: double.infinity,
@@ -433,7 +401,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                         (value / activeTotal) * 100;
                                     final sliceColor = _getUniqueColor(
                                       cat.id,
-                                      provider,
+                                      catProv,
                                     );
                                     final bool showTitle = percentage >= 5.0;
 
@@ -466,7 +434,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                       (cat.amount.abs() / activeTotal) * 100;
                                   final rowColor = _getUniqueColor(
                                     cat.id,
-                                    provider,
+                                    catProv,
                                   );
 
                                   return Padding(

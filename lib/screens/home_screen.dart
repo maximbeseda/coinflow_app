@@ -16,7 +16,9 @@ import '../widgets/dialogs/category_dialog.dart';
 import '../widgets/dialogs/edit_transaction_dialog.dart';
 import '../widgets/dialogs/due_subscription_dialog.dart';
 import '../utils/currency_formatter.dart';
-import '../providers/finance_provider.dart';
+import '../providers/category_provider.dart';
+import '../providers/transaction_provider.dart';
+import '../providers/subscription_provider.dart';
 import '../theme/app_colors_extension.dart';
 
 String formatCurrency(double amount) => CurrencyFormatter.format(amount);
@@ -49,20 +51,18 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final financeProvider = context.read<FinanceProvider>();
-      financeProvider.addListener(_checkDueSubscriptions);
+      final subProv = context.read<SubscriptionProvider>();
+      subProv.addListener(_checkDueSubscriptions);
       _checkDueSubscriptions();
     });
   }
 
   void _checkDueSubscriptions() {
     if (!mounted) return;
-    final provider = context.read<FinanceProvider>();
+    final subProv = context.read<SubscriptionProvider>();
 
-    if (provider.dueSubscriptions.isNotEmpty &&
-        !provider.isLoading &&
-        !_isShowingDueDialog) {
-      _showDueSubscriptionDialog(provider.dueSubscriptions.first);
+    if (subProv.dueSubscriptions.isNotEmpty && !_isShowingDueDialog) {
+      _showDueSubscriptionDialog(subProv.dueSubscriptions.first);
     }
   }
 
@@ -83,9 +83,10 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     try {
-      context.read<FinanceProvider>().removeListener(_checkDueSubscriptions);
+      context.read<SubscriptionProvider>().removeListener(
+        _checkDueSubscriptions,
+      );
     } catch (_) {}
-
     _jiggleController.dispose();
     for (var ctrl in _pageControllers.values) {
       ctrl.dispose();
@@ -99,12 +100,13 @@ class _HomeScreenState extends State<HomeScreen>
         (s.type == CategoryType.income && t.type == CategoryType.expense)) {
       return;
     }
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => TransferDialog(source: s, target: t),
     );
     if (result != null && mounted) {
-      context.read<FinanceProvider>().addTransfer(
+      context.read<TransactionProvider>().addTransfer(
         s,
         t,
         result['amount'],
@@ -141,7 +143,6 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // ЗАХИСТ: Заголовок діалогу
                   Text(
                     title,
                     style: TextStyle(
@@ -150,16 +151,15 @@ class _HomeScreenState extends State<HomeScreen>
                       color: colors.textMain,
                     ),
                     textAlign: TextAlign.center,
-                    maxLines: 1, // Тільки один рядок
-                    overflow: TextOverflow.ellipsis, // Трикрапка в кінці
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 12),
-                  // ЗАХИСТ: Текст повідомлення
                   Text(
                     message,
                     style: TextStyle(fontSize: 14, color: colors.textSecondary),
                     textAlign: TextAlign.center,
-                    maxLines: 3, // Максимум 3 рядки
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 32),
@@ -174,7 +174,6 @@ class _HomeScreenState extends State<HomeScreen>
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
-                            // ЗАХИСТ: Кнопка "Скасувати"
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -197,7 +196,6 @@ class _HomeScreenState extends State<HomeScreen>
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
-                            // ЗАХИСТ: Кнопка "Видалити"
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -227,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     if (!mounted || result == null) return;
-    final provider = context.read<FinanceProvider>();
+    final catProv = context.read<CategoryProvider>();
 
     if (result == 'delete' && c != null) {
       bool confirmed = await _confirmDeletion(
@@ -239,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen>
         if (!mounted) return;
         setState(() => deletingIds.add(c.id));
         await Future.delayed(const Duration(milliseconds: 350));
-        provider.deleteCategory(c);
+        catProv.deleteCategory(c);
         if (mounted) setState(() => deletingIds.remove(c.id));
       }
       return;
@@ -250,7 +248,6 @@ class _HomeScreenState extends State<HomeScreen>
         final prefix = type == CategoryType.income
             ? "inc"
             : (type == CategoryType.account ? "acc" : "exp");
-
         final n = Category(
           id: "${prefix}_${DateTime.now().millisecondsSinceEpoch}",
           type: type,
@@ -261,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen>
           bgColor: CategoryDefaults.getBgColor(type),
           iconColor: CategoryDefaults.getIconColor(type),
         );
-        provider.addOrUpdateCategory(n);
+        catProv.addOrUpdateCategory(n);
       } else {
         final updatedCategory = c.copyWith(
           name: result['name'],
@@ -271,24 +268,14 @@ class _HomeScreenState extends State<HomeScreen>
               ? (result['amount'] ?? c.amount)
               : c.amount,
         );
-
-        provider.addOrUpdateCategory(updatedCategory);
+        catProv.addOrUpdateCategory(updatedCategory);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<FinanceProvider>(context);
-    final _ = context.locale;
-
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-
-    if (provider.dueSubscriptions.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showDueSubscriptionDialog(provider.dueSubscriptions.first);
-      });
-    }
 
     return Scaffold(
       key: _scaffoldKey,
@@ -304,23 +291,26 @@ class _HomeScreenState extends State<HomeScreen>
             });
           }
         },
-        child: Consumer<FinanceProvider>(
-          builder: (context, provider, child) {
-            if (provider.isLoading) {
+        child: Builder(
+          builder: (context) {
+            final catProv = context.watch<CategoryProvider>();
+            final txProv = context.watch<TransactionProvider>();
+
+            if (catProv.isLoading || txProv.isLoading) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            double totalBalance = provider.accounts.fold(
+            double totalBalance = catProv.accounts.fold(
               0,
               (sum, item) => sum + item.amount,
             );
-            double totalIncomes = provider.allCategoriesList
+            double totalIncomes = catProv.allCategoriesList
                 .where((c) => c.type == CategoryType.income)
                 .fold(0, (sum, item) => sum + item.amount.abs());
-            double totalExpenses = provider.allCategoriesList
+            double totalExpenses = catProv.allCategoriesList
                 .where((c) => c.type == CategoryType.expense)
                 .fold(0, (sum, item) => sum + item.amount.abs());
-            final allCategories = provider.allCategoriesList;
+            final allCategories = catProv.allCategoriesList;
 
             return Container(
               width: double.infinity,
@@ -338,10 +328,8 @@ class _HomeScreenState extends State<HomeScreen>
                   children: [
                     SummaryHeader(
                       totalBalance: totalBalance,
-                      totalIncomes: totalIncomes, // Наші нові доходи
+                      totalIncomes: totalIncomes,
                       totalExpenses: totalExpenses,
-
-                      // --- БАЛАНС ---
                       onBalanceTap: () {
                         if (isEditMode) {
                           setState(() {
@@ -357,13 +345,14 @@ class _HomeScreenState extends State<HomeScreen>
                           builder: (_) => GeneralHistoryBottomSheet(
                             title: 'history_balance'.tr(),
                             filterType: CategoryType.account,
-                            transactions: provider.history,
+                            transactions: txProv.history,
                             allCategories: allCategories,
                             onDelete: (t) => context
-                                .read<FinanceProvider>()
+                                .read<TransactionProvider>()
                                 .deleteTransaction(t),
                             onEdit: (t) async {
-                              final finance = context.read<FinanceProvider>();
+                              final finance = context
+                                  .read<TransactionProvider>();
                               final result =
                                   await showDialog<Map<String, dynamic>>(
                                     context: context,
@@ -381,8 +370,6 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         );
                       },
-
-                      // --- ДОХОДИ ---
                       onIncomesTap: () {
                         if (isEditMode) {
                           setState(() {
@@ -396,16 +383,16 @@ class _HomeScreenState extends State<HomeScreen>
                           isScrollControlled: true,
                           backgroundColor: Colors.transparent,
                           builder: (_) => GeneralHistoryBottomSheet(
-                            title: 'history_incomes'
-                                .tr(), // Не забудь додати цей ключ у переклади!
+                            title: 'history_incomes'.tr(),
                             filterType: CategoryType.income,
-                            transactions: provider.history,
+                            transactions: txProv.history,
                             allCategories: allCategories,
                             onDelete: (t) => context
-                                .read<FinanceProvider>()
+                                .read<TransactionProvider>()
                                 .deleteTransaction(t),
                             onEdit: (t) async {
-                              final finance = context.read<FinanceProvider>();
+                              final finance = context
+                                  .read<TransactionProvider>();
                               final result =
                                   await showDialog<Map<String, dynamic>>(
                                     context: context,
@@ -423,8 +410,6 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         );
                       },
-
-                      // --- ВИТРАТИ ---
                       onExpensesTap: () {
                         if (isEditMode) {
                           setState(() {
@@ -440,13 +425,14 @@ class _HomeScreenState extends State<HomeScreen>
                           builder: (_) => GeneralHistoryBottomSheet(
                             title: 'history_expenses'.tr(),
                             filterType: CategoryType.expense,
-                            transactions: provider.history,
+                            transactions: txProv.history,
                             allCategories: allCategories,
                             onDelete: (t) => context
-                                .read<FinanceProvider>()
+                                .read<TransactionProvider>()
                                 .deleteTransaction(t),
                             onEdit: (t) async {
-                              final finance = context.read<FinanceProvider>();
+                              final finance = context
+                                  .read<TransactionProvider>();
                               final result =
                                   await showDialog<Map<String, dynamic>>(
                                     context: context,
@@ -464,8 +450,6 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         );
                       },
-
-                      // --- НАЛАШТУВАННЯ ---
                       onSettingsTap: () {
                         if (isEditMode) {
                           setState(() {
@@ -477,15 +461,15 @@ class _HomeScreenState extends State<HomeScreen>
                         _scaffoldKey.currentState?.openEndDrawer();
                       },
                     ),
-                    _buildSection(provider.incomes, CategoryType.income),
+                    _buildSection(catProv.incomes, CategoryType.income),
                     _buildSection(
-                      provider.accounts,
+                      catProv.accounts,
                       CategoryType.account,
                       isTarget: true,
                     ),
                     Expanded(
                       child: _buildSection(
-                        provider.expenses,
+                        catProv.expenses,
                         CategoryType.expense,
                         isTarget: true,
                         isGrid: true,
@@ -508,7 +492,6 @@ class _HomeScreenState extends State<HomeScreen>
     bool isGrid = false,
   }) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-
     String typeKey = type.name;
     if (!_pageControllers.containsKey(typeKey)) {
       _pageControllers[typeKey] = PageController();
@@ -523,7 +506,7 @@ class _HomeScreenState extends State<HomeScreen>
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withAlpha(10),
             blurRadius: 10,
             spreadRadius: 1,
             offset: const Offset(0, 4),
@@ -539,11 +522,9 @@ class _HomeScreenState extends State<HomeScreen>
           ];
 
           Widget pageView;
-
           if (!isGrid) {
             int perPage = crossAxisCount;
             double itemWidth = (constraints.maxWidth / perPage) - 0.01;
-
             pageView = SizedBox(
               height: 105,
               child: PageView.builder(
@@ -587,7 +568,6 @@ class _HomeScreenState extends State<HomeScreen>
                     .skip(p * perPage)
                     .take(perPage)
                     .toList();
-
                 return SizedBox(
                   width: constraints.maxWidth,
                   height: constraints.maxHeight,
@@ -661,10 +641,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildCoin(Category c, bool isTarget) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-
     bool isDeleting = deletingIds.contains(c.id);
-    final provider = context.read<FinanceProvider>();
-
     bool isBeingDragged = draggedCategoryId == c.id;
 
     Widget dragFeedback = Material(
@@ -677,7 +654,6 @@ class _HomeScreenState extends State<HomeScreen>
       Widget placeholderCoin,
     ) {
       if (isEditMode || c.type == CategoryType.expense) return normalCoin;
-
       return Draggable<Category>(
         data: c,
         maxSimultaneousDrags: 1,
@@ -702,20 +678,27 @@ class _HomeScreenState extends State<HomeScreen>
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => HistoryBottomSheet(
-          category: c,
-          transactions: provider.history,
-          allCategories: provider.allCategoriesList,
-          onDelete: (t) => context.read<FinanceProvider>().deleteTransaction(t),
-          onEdit: (t) async {
-            final finance = context.read<FinanceProvider>();
-            final result = await showDialog<Map<String, dynamic>>(
-              context: context,
-              builder: (ctx) => EditTransactionDialog(transaction: t),
+        builder: (_) => Builder(
+          builder: (ctx) {
+            final catProv = context.watch<CategoryProvider>();
+            final txProv = context.watch<TransactionProvider>();
+            return HistoryBottomSheet(
+              category: c,
+              transactions: txProv.history,
+              allCategories: catProv.allCategoriesList,
+              onDelete: (t) =>
+                  context.read<TransactionProvider>().deleteTransaction(t),
+              onEdit: (t) async {
+                final finance = context.read<TransactionProvider>();
+                final result = await showDialog<Map<String, dynamic>>(
+                  context: context,
+                  builder: (ctx) => EditTransactionDialog(transaction: t),
+                );
+                if (result != null) {
+                  finance.editTransaction(t, result['amount'], result['date']);
+                }
+              },
             );
-            if (result != null) {
-              finance.editTransaction(t, result['amount'], result['date']);
-            }
           },
         ),
       );
@@ -771,14 +754,12 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ],
         );
-
         coin = AnimatedBuilder(
           animation: _jiggleController,
-          builder: (context, child) {
-            final angle =
-                math.sin(_jiggleController.value * math.pi * 2) * 0.04;
-            return Transform.rotate(angle: angle, child: child);
-          },
+          builder: (context, child) => Transform.rotate(
+            angle: math.sin(_jiggleController.value * math.pi * 2) * 0.04,
+            child: child,
+          ),
           child: coin,
         );
       }
@@ -789,10 +770,8 @@ class _HomeScreenState extends State<HomeScreen>
         child: CoinWidget(category: c),
       );
 
-      Widget interactiveCoin;
-
       if (isEditMode) {
-        interactiveCoin = GestureDetector(
+        return GestureDetector(
           onTap: openHistory,
           child: Draggable<Category>(
             data: c,
@@ -807,15 +786,14 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
       } else if (c.type == CategoryType.expense) {
-        interactiveCoin = GestureDetector(
+        return GestureDetector(
           onTap: openHistory,
           child: LongPressDraggable<Category>(
             data: c,
             maxSimultaneousDrags: 1,
             delay: const Duration(milliseconds: 250),
             onDragStarted: () async {
-              bool? hasVibrator = await Vibration.hasVibrator();
-              if (hasVibrator == true) {
+              if (await Vibration.hasVibrator() == true) {
                 Vibration.vibrate(duration: 15, amplitude: 40);
               }
               setState(() {
@@ -833,11 +811,10 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
       } else {
-        interactiveCoin = GestureDetector(
+        return GestureDetector(
           onTap: openHistory,
           onLongPress: () async {
-            bool? hasVibrator = await Vibration.hasVibrator();
-            if (hasVibrator == true) {
+            if (await Vibration.hasVibrator() == true) {
               Vibration.vibrate(duration: 15, amplitude: 40);
             }
             setState(() {
@@ -848,8 +825,6 @@ class _HomeScreenState extends State<HomeScreen>
           child: coin,
         );
       }
-
-      return interactiveCoin;
     }
 
     return KeyedSubtree(
@@ -859,12 +834,10 @@ class _HomeScreenState extends State<HomeScreen>
               onWillAcceptWithDetails: (details) {
                 final source = details.data;
                 if (source.id == c.id) return false;
-
                 bool isSameGroup = source.type == c.type;
-
                 if (isEditMode) {
                   if (isSameGroup) {
-                    context.read<FinanceProvider>().reorderCategories(
+                    context.read<CategoryProvider>().reorderCategories(
                       source,
                       c,
                     );
@@ -872,10 +845,7 @@ class _HomeScreenState extends State<HomeScreen>
                   }
                   return false;
                 } else {
-                  if (isSameGroup) {
-                    if (source.type == CategoryType.account) return true;
-                    return false;
-                  }
+                  if (isSameGroup) return source.type == CategoryType.account;
                   if (source.type == CategoryType.income &&
                       c.type == CategoryType.expense) {
                     return false;
@@ -887,17 +857,15 @@ class _HomeScreenState extends State<HomeScreen>
               onAcceptWithDetails: (d) {
                 if (!isEditMode) {
                   final source = d.data;
-                  bool isSameGroup = source.type == c.type;
-                  if (isSameGroup && source.type != CategoryType.account) {
+                  if (source.type == c.type &&
+                      source.type != CategoryType.account) {
                     return;
                   }
                   _handleTransfer(source, c);
                 }
               },
-              builder: (_, candidateData, _) {
-                bool isHovered = candidateData.isNotEmpty;
-                return buildContent(isHovered);
-              },
+              builder: (_, candidateData, _) =>
+                  buildContent(candidateData.isNotEmpty),
             )
           : buildContent(false),
     );
@@ -905,7 +873,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildAddBtn(CategoryType type) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-
     return GestureDetector(
       onTap: () {
         if (isEditMode) {

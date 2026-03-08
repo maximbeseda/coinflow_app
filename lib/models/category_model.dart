@@ -1,16 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 
-enum CategoryType { income, account, expense }
+// Цей рядок ОБОВ'ЯЗКОВИЙ.
+part 'category_model.g.dart';
 
-class Category {
+@HiveType(typeId: 3)
+enum CategoryType {
+  @HiveField(0)
+  income,
+  @HiveField(1)
+  account,
+  @HiveField(2)
+  expense,
+}
+
+@HiveType(typeId: 0)
+class Category extends HiveObject {
+  @HiveField(0)
   final String id;
+
+  @HiveField(1)
   final CategoryType type;
+
+  @HiveField(2)
   final String name;
+
+  @HiveField(3)
   final IconData icon;
+
+  @HiveField(4)
   final Color bgColor;
+
+  @HiveField(5)
   final Color iconColor;
+
+  @HiveField(6)
   final double amount;
+
+  @HiveField(7)
   final double? budget;
+
+  @HiveField(8)
   final bool isArchived;
 
   Category({
@@ -47,6 +77,7 @@ class Category {
     );
   }
 
+  // toJson та fromJson залишаємо для міграції та бекапів
   Map<String, dynamic> toJson() => {
     'id': id,
     'type': type.name,
