@@ -122,6 +122,7 @@ class _HomeScreenState extends State<HomeScreen>
     return await showDialog<bool>(
           context: context,
           builder: (ctx) => Dialog(
+            backgroundColor: colors.cardBg,
             child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(
@@ -140,19 +141,26 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
+                  // ЗАХИСТ: Заголовок діалогу
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
+                      color: colors.textMain,
                     ),
                     textAlign: TextAlign.center,
+                    maxLines: 1, // Тільки один рядок
+                    overflow: TextOverflow.ellipsis, // Трикрапка в кінці
                   ),
                   const SizedBox(height: 12),
+                  // ЗАХИСТ: Текст повідомлення
                   Text(
                     message,
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    style: TextStyle(fontSize: 14, color: colors.textSecondary),
                     textAlign: TextAlign.center,
+                    maxLines: 3, // Максимум 3 рядки
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 32),
                   Row(
@@ -166,6 +174,9 @@ class _HomeScreenState extends State<HomeScreen>
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
+                            // ЗАХИСТ: Кнопка "Скасувати"
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
@@ -175,6 +186,9 @@ class _HomeScreenState extends State<HomeScreen>
                           style: ElevatedButton.styleFrom(
                             backgroundColor: colors.expense,
                             foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
                           onPressed: () => Navigator.pop(ctx, true),
                           child: Text(
@@ -183,6 +197,9 @@ class _HomeScreenState extends State<HomeScreen>
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
+                            // ЗАХИСТ: Кнопка "Видалити"
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),

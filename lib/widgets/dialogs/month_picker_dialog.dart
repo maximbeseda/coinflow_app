@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
+import '../../theme/app_colors_extension.dart';
 
 class MonthPickerDialog extends StatefulWidget {
   final DateTime initialDate;
@@ -12,8 +12,8 @@ class MonthPickerDialog extends StatefulWidget {
 
 class _MonthPickerDialogState extends State<MonthPickerDialog> {
   late int _selectedYear;
+
   String _getShortMonthName(int month, BuildContext context) {
-    // Формат MMM дає коротку назву місяця (Січ, Лют, Jan, Feb)
     String m = DateFormat.MMM(
       context.locale.languageCode,
     ).format(DateTime(2000, month));
@@ -28,10 +28,8 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // ДОДАНО: Отримуємо кольори теми
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // Dialog автоматично візьме shape та backgroundColor з AppTheme
     return Dialog(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -43,10 +41,7 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
-                  icon: Icon(
-                    Icons.chevron_left,
-                    color: colors.textMain,
-                  ), // ЗМІНЕНО
+                  icon: Icon(Icons.chevron_left, color: colors.textMain),
                   onPressed: () => setState(() => _selectedYear--),
                 ),
                 Text(
@@ -54,14 +49,11 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: colors.textMain, // ЗМІНЕНО
+                    color: colors.textMain,
                   ),
                 ),
                 IconButton(
-                  icon: Icon(
-                    Icons.chevron_right,
-                    color: colors.textMain,
-                  ), // ЗМІНЕНО
+                  icon: Icon(Icons.chevron_right, color: colors.textMain),
                   onPressed: () => setState(() => _selectedYear++),
                 ),
               ],
@@ -93,7 +85,6 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
                   },
                   child: Container(
                     decoration: BoxDecoration(
-                      // ЗМІНЕНО: Використовуємо адаптивні кольори
                       color: isSelected ? colors.textMain : colors.iconBg,
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -101,7 +92,6 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
                     child: Text(
                       _getShortMonthName(index + 1, context),
                       style: TextStyle(
-                        // ЗМІНЕНО: Якщо вибрано, інвертуємо колір тексту (робимо його кольором фону)
                         color: isSelected
                             ? Theme.of(context).scaffoldBackgroundColor
                             : colors.textMain,
@@ -117,7 +107,6 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
-              // TextButton тепер автоматично має правильний колір з AppTheme
               child: TextButton(
                 onPressed: () {
                   final now = DateTime.now();
@@ -129,6 +118,9 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
+                  // ВИПРАВЛЕНО: Текст обрізається, якщо не влазить
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ),

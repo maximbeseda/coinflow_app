@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../models/category_model.dart';
 import 'custom_calendar_dialog.dart';
-import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
+import '../../theme/app_colors_extension.dart';
 
 class TransferDialog extends StatefulWidget {
   final Category source;
@@ -39,7 +39,6 @@ class _TransferDialogState extends State<TransferDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // ДОДАНО: Отримуємо кольори теми
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Dialog(
@@ -49,13 +48,16 @@ class _TransferDialogState extends State<TransferDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // ВИПРАВЛЕНО: Захист заголовка
               Text(
                 'amount_and_date'.tr(),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: colors.textMain, // ЗМІНЕНО
+                  color: colors.textMain,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 24),
 
@@ -76,14 +78,14 @@ class _TransferDialogState extends State<TransferDialog> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: colors.textMain, // ЗМІНЕНО
+                  color: colors.textMain,
                 ),
                 decoration: InputDecoration(
                   labelText: 'amount'.tr(),
                   suffixText: "₴",
                   suffixStyle: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: colors.textSecondary, // ЗМІНЕНО: Був Colors.black54
+                    color: colors.textSecondary,
                   ),
                   errorText: _hasError ? 'enter_amount'.tr() : null,
                 ),
@@ -98,7 +100,7 @@ class _TransferDialogState extends State<TransferDialog> {
                     vertical: 16,
                   ),
                   decoration: BoxDecoration(
-                    color: colors.iconBg, // ЗМІНЕНО: Був Colors.grey.shade100
+                    color: colors.iconBg,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
@@ -106,15 +108,20 @@ class _TransferDialogState extends State<TransferDialog> {
                       Icon(
                         Icons.calendar_today,
                         size: 20,
-                        color: colors.textSecondary, // ЗМІНЕНО
+                        color: colors.textSecondary,
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        "${_selectedDate.day.toString().padLeft(2, '0')}.${_selectedDate.month.toString().padLeft(2, '0')}.${_selectedDate.year}",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: colors.textMain, // ЗМІНЕНО
+                      // ВИПРАВЛЕНО: Захист тексту дати
+                      Expanded(
+                        child: Text(
+                          "${_selectedDate.day.toString().padLeft(2, '0')}.${_selectedDate.month.toString().padLeft(2, '0')}.${_selectedDate.year}",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: colors.textMain,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -134,6 +141,9 @@ class _TransferDialogState extends State<TransferDialog> {
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
+                        // ВИПРАВЛЕНО: Обрізання тексту на кнопці
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -159,6 +169,9 @@ class _TransferDialogState extends State<TransferDialog> {
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
+                        // ВИПРАВЛЕНО: Обрізання тексту на кнопці
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),

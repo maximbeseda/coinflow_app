@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../models/subscription_model.dart';
 import '../../providers/finance_provider.dart';
-import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
+import '../../theme/app_colors_extension.dart';
 
 class DueSubscriptionDialog extends StatelessWidget {
   final Subscription subscription;
@@ -12,10 +12,8 @@ class DueSubscriptionDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ДОДАНО: Отримуємо кольори теми
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // Всі стилі Dialog підтягуються з глобальної теми!
     return Dialog(
       child: Stack(
         children: [
@@ -24,67 +22,73 @@ class DueSubscriptionDialog extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Верхня іконка гаманця
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: colors.income.withValues(
-                      alpha: 0.1,
-                    ), // ЗМІНЕНО: зелений з теми
+                    color: colors.income.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.account_balance_wallet_rounded,
-                    color: colors.income, // ЗМІНЕНО: зелений з теми
+                    color: colors.income,
                     size: 36,
                   ),
                 ),
                 const SizedBox(height: 20),
+
+                // ЗАХИСТ: Заголовок
                 Text(
                   'regular_payment_title'.tr(),
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: colors.textMain, // ЗМІНЕНО
+                    color: colors.textMain,
                   ),
                   textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 12),
+
+                // ЗАХИСТ: Опис підписки
                 RichText(
                   textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   text: TextSpan(
-                    style: TextStyle(
-                      fontSize: 15,
-                      color:
-                          colors.textSecondary, // ЗМІНЕНО: Був Colors.black54
-                    ),
+                    style: TextStyle(fontSize: 15, color: colors.textSecondary),
                     children: [
                       TextSpan(text: 'time_to_pay'.tr()),
                       TextSpan(
                         text: subscription.name,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: colors.textMain, // ЗМІНЕНО: Був Colors.black
+                          color: colors.textMain,
                         ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // ЗАХИСТ: Велика сума
                 Text(
                   '${subscription.amount} ₴',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     letterSpacing: -1,
-                    color: colors.textMain, // ЗМІНЕНО
+                    color: colors.textMain,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 32),
 
                 Row(
                   children: [
                     Expanded(
-                      // Глобальний стиль для TextButton (сіра кнопка)
                       child: TextButton(
                         onPressed: () async {
                           await context
@@ -100,13 +104,13 @@ class DueSubscriptionDialog extends StatelessWidget {
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
-
                     Expanded(
-                      // Глобальний стиль для ElevatedButton (чорна кнопка)
                       child: ElevatedButton(
                         onPressed: () async {
                           final scaffoldMessenger = ScaffoldMessenger.of(
@@ -124,62 +128,45 @@ class DueSubscriptionDialog extends StatelessWidget {
                           if (success) {
                             navigator.pop();
                           }
-                          scaffoldMessenger.clearSnackBars();
 
+                          scaffoldMessenger.clearSnackBars();
                           scaffoldMessenger.showSnackBar(
                             SnackBar(
-                              backgroundColor: colors.cardBg, // ЗМІНЕНО
                               behavior: SnackBarBehavior.floating,
-                              margin: const EdgeInsets.only(
-                                bottom: 30,
-                                left: 20,
-                                right: 20,
-                              ),
-                              elevation: 10,
+                              backgroundColor: colors.cardBg, // Світлий фон
+                              elevation: 4,
+                              margin: const EdgeInsets.all(20),
+                              // ВИПРАВЛЕНО: Тонка рамка (червона або зелена)
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
                                   color: success
-                                      ? colors.income.withValues(
-                                          alpha: 0.5,
-                                        ) // ЗМІНЕНО
-                                      : colors.expense.withValues(
-                                          alpha: 0.5,
-                                        ), // ЗМІНЕНО
+                                      ? colors.income
+                                      : colors.expense,
+                                  width: 1.0,
                                 ),
                               ),
                               content: Row(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: success
-                                          ? colors.income.withValues(
-                                              alpha: 0.1,
-                                            ) // ЗМІНЕНО
-                                          : colors.expense.withValues(
-                                              alpha: 0.1,
-                                            ), // ЗМІНЕНО
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      success
-                                          ? Icons.check_circle_outline
-                                          : Icons.error_outline,
-                                      color: success
-                                          ? colors
-                                                .income // ЗМІНЕНО
-                                          : colors.expense, // ЗМІНЕНО
-                                    ),
+                                  Icon(
+                                    success
+                                        ? Icons.check_circle_outline
+                                        : Icons.error_outline,
+                                    color: success
+                                        ? colors.income
+                                        : colors.expense,
+                                    size: 20,
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
                                       message,
                                       style: TextStyle(
-                                        color: colors.textMain, // ЗМІНЕНО
-                                        fontWeight: FontWeight.w600,
+                                        color: colors.textMain,
+                                        fontWeight: FontWeight.w500,
                                       ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],
@@ -193,6 +180,8 @@ class DueSubscriptionDialog extends StatelessWidget {
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
@@ -202,7 +191,7 @@ class DueSubscriptionDialog extends StatelessWidget {
             ),
           ),
 
-          // --- Хрестик закриття ---
+          // Хрестик закриття
           Positioned(
             right: 16,
             top: 16,
@@ -216,14 +205,10 @@ class DueSubscriptionDialog extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: colors.iconBg, // ЗМІНЕНО: Був Colors.grey...
+                  color: colors.iconBg,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.close,
-                  color: colors.textMain, // ЗМІНЕНО
-                  size: 20,
-                ),
+                child: Icon(Icons.close, color: colors.textMain, size: 20),
               ),
             ),
           ),

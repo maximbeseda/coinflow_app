@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../models/transaction_model.dart';
 import 'custom_calendar_dialog.dart';
-import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
+import '../../theme/app_colors_extension.dart';
 
 class EditTransactionDialog extends StatefulWidget {
   final Transaction transaction;
@@ -47,10 +47,8 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // ДОДАНО: Отримуємо кольори теми
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // Прибрали shape, backgroundColor тощо — все береться з Theme!
     return Dialog(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -58,13 +56,16 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // ВИПРАВЛЕНО: Захист заголовка від overflow
               Text(
                 'edit_transaction'.tr(),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: colors.textMain, // ЗМІНЕНО
+                  color: colors.textMain,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 24),
 
@@ -84,18 +85,16 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: colors.textMain, // ЗМІНЕНО
+                  color: colors.textMain,
                 ),
                 decoration: InputDecoration(
                   labelText: 'amount'.tr(),
                   suffixText: "₴",
                   suffixStyle: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: colors.textSecondary, // ЗМІНЕНО: Був Colors.black54
+                    color: colors.textSecondary,
                   ),
-                  errorText: _hasError
-                      ? 'invalid_amount'.tr()
-                      : null, // Заміни 'invalid_amount' на свій ключ, якщо він інакший, або залиш 'enter_amount'
+                  errorText: _hasError ? 'invalid_amount'.tr() : null,
                 ),
               ),
               const SizedBox(height: 12),
@@ -108,7 +107,7 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                     vertical: 16,
                   ),
                   decoration: BoxDecoration(
-                    color: colors.iconBg, // ЗМІНЕНО: Був Colors.grey.shade100
+                    color: colors.iconBg,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
@@ -116,15 +115,20 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                       Icon(
                         Icons.calendar_today,
                         size: 20,
-                        color: colors.textSecondary, // ЗМІНЕНО
+                        color: colors.textSecondary,
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        "${_newDate.day.toString().padLeft(2, '0')}.${_newDate.month.toString().padLeft(2, '0')}.${_newDate.year}",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: colors.textMain, // ЗМІНЕНО
+                      // ВИПРАВЛЕНО: Захист дати
+                      Expanded(
+                        child: Text(
+                          "${_newDate.day.toString().padLeft(2, '0')}.${_newDate.month.toString().padLeft(2, '0')}.${_newDate.year}",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: colors.textMain,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -136,7 +140,6 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
               Row(
                 children: [
                   Expanded(
-                    // Прибрали гігантські налаштування style
                     child: TextButton(
                       onPressed: () => Navigator.pop(context),
                       child: Text(
@@ -145,12 +148,14 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
+                        // ВИПРАВЛЕНО: Обрізання тексту кнопки "Скасувати"
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    // Прибрали гігантські налаштування style
                     child: ElevatedButton(
                       onPressed: () {
                         double? val = double.tryParse(
@@ -171,6 +176,9 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
+                        // ВИПРАВЛЕНО: Обрізання тексту кнопки "Зберегти"
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),

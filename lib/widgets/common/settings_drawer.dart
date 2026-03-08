@@ -6,46 +6,53 @@ import '../../screens/stats_screen.dart';
 import '../../screens/subscriptions_screen.dart';
 import '../../services/backup_service.dart';
 import '../../screens/profile_screen.dart';
-import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
+import '../../theme/app_colors_extension.dart';
 
 class SettingsDrawer extends StatelessWidget {
   const SettingsDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // ДОДАНО: Отримуємо кольори теми
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Drawer(
-      backgroundColor: colors.cardBg, // ЗМІНЕНО: Був жорсткий Color(0xFFF5F5F7)
+      backgroundColor: colors.cardBg,
+      // ЗМІНЕНО: Огортаємо все в ListView, щоб меню можна було прокручувати (фікс Bottom Overflow)
       child: SafeArea(
-        child: Column(
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
+            // --- ШАПКА ---
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Row(
                 children: [
-                  Text(
-                    'settings'.tr(),
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: colors.textMain, // ЗМІНЕНО
+                  // ЗМІНЕНО: Expanded + ellipsis для захисту заголовка від вильоту вправо
+                  Expanded(
+                    child: Text(
+                      'settings'.tr(),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: colors.textMain,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: colors.iconBg, // ЗМІНЕНО: Фон кнопки закриття
+                        color: colors.iconBg,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.close,
                         size: 20,
-                        color: colors.textMain, // ЗМІНЕНО
+                        color: colors.textMain,
                       ),
                     ),
                   ),
@@ -55,27 +62,24 @@ class SettingsDrawer extends StatelessWidget {
 
             Divider(
               height: 1,
-              color: colors.textSecondary.withValues(
-                alpha: 0.2,
-              ), // ЗМІНЕНО: Адаптивний розділювач
+              color: colors.textSecondary.withValues(alpha: 0.2),
             ),
             const SizedBox(height: 10),
 
             // КНОПКА ПРОФІЛЮ
             ListTile(
-              leading: Icon(
-                Icons.person_outline,
-                color: colors.textMain,
-              ), // ЗМІНЕНО
+              leading: Icon(Icons.person_outline, color: colors.textMain),
               title: Text(
                 'profile'.tr(),
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  color: colors.textMain, // ЗМІНЕНО
+                  color: colors.textMain,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               onTap: () {
-                Navigator.pop(context); // Закриваємо меню
+                Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -87,29 +91,24 @@ class SettingsDrawer extends StatelessWidget {
 
             // КНОПКА СТАТИСТИКИ
             ListTile(
-              leading: Icon(
-                Icons.pie_chart_outline,
-                color: colors.textMain, // ЗМІНЕНО
-              ),
+              leading: Icon(Icons.pie_chart_outline, color: colors.textMain),
               title: Text(
                 'statistics'.tr(),
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  color: colors.textMain, // ЗМІНЕНО
+                  color: colors.textMain,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
                 'stats_subtitle'.tr(),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.textSecondary, // ЗМІНЕНО
-                ),
+                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
               onTap: () async {
-                // 1. Закриваємо меню
                 Navigator.pop(context);
-
-                // 2. Відкриваємо екран статистики і чекаємо, поки користувач з нього вийде
                 await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const StatsScreen()),
@@ -119,46 +118,41 @@ class SettingsDrawer extends StatelessWidget {
 
             // КНОПКА БЕКАПУ
             ListTile(
-              leading: Icon(
-                Icons.backup_outlined,
-                color: colors.textMain,
-              ), // ЗМІНЕНО
+              leading: Icon(Icons.backup_outlined, color: colors.textMain),
               title: Text(
                 'backup'.tr(),
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  color: colors.textMain, // ЗМІНЕНО
+                  color: colors.textMain,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
                 'backup_subtitle'.tr(),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.textSecondary, // ЗМІНЕНО
-                ),
+                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
               onTap: () {
-                // МАГІЯ: Отримуємо безпечний контекст Навігатора та Провайдер
-                // ДО того, як закриємо бокове меню. Цей контекст ніколи не "вмирає".
                 final safeContext = Navigator.of(context).context;
                 final provider = safeContext.read<FinanceProvider>();
 
-                // Тепер безпечно закриваємо бокове меню
                 Navigator.pop(context);
 
                 showModalBottomSheet(
-                  context: safeContext, // Використовуємо живий контекст
-                  backgroundColor: colors.cardBg, // ЗМІНЕНО: Фон панелі бекапу
+                  context: safeContext,
+                  backgroundColor: colors.cardBg,
+                  isScrollControlled: true, // Дозволяємо адаптивну висоту
                   shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(20),
                     ),
                   ),
                   builder: (ctx) {
-                    final sheetColors = Theme.of(ctx)
-                        .extension<
-                          AppColorsExtension
-                        >()!; // Кольори всередині діалогу
+                    final sheetColors = Theme.of(
+                      ctx,
+                    ).extension<AppColorsExtension>()!;
 
                     return SafeArea(
                       child: Column(
@@ -171,17 +165,21 @@ class SettingsDrawer extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: sheetColors.textSecondary.withValues(
                                 alpha: 0.2,
-                              ), // ЗМІНЕНО: Повзунок
+                              ),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
                           const SizedBox(height: 20),
-                          Text(
-                            'backup_title'.tr(),
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: sheetColors.textMain, // ЗМІНЕНО
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Text(
+                              'backup_title'.tr(),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: sheetColors.textMain,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -189,28 +187,27 @@ class SettingsDrawer extends StatelessWidget {
                             leading: CircleAvatar(
                               backgroundColor: sheetColors.income.withValues(
                                 alpha: 0.1,
-                              ), // ЗМІНЕНО: Фон як у доходів
+                              ),
                               child: Icon(
                                 Icons.upload_file,
                                 color: sheetColors.income,
-                              ), // ЗМІНЕНО
+                              ),
                             ),
                             title: Text(
                               'export'.tr(),
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
-                                color: sheetColors.textMain, // ЗМІНЕНО
+                                color: sheetColors.textMain,
                               ),
                             ),
                             subtitle: Text(
                               'export_subtitle'.tr(),
                               style: TextStyle(
                                 color: sheetColors.textSecondary,
-                              ), // ЗМІНЕНО
+                              ),
                             ),
                             onTap: () {
                               Navigator.pop(ctx);
-                              // Використовуємо живі provider та safeContext
                               BackupService.exportData(provider, safeContext);
                             },
                           ),
@@ -218,28 +215,25 @@ class SettingsDrawer extends StatelessWidget {
                             leading: CircleAvatar(
                               backgroundColor: sheetColors.expense.withValues(
                                 alpha: 0.1,
-                              ), // ЗМІНЕНО: Фон як у витрат
+                              ),
                               child: Icon(
                                 Icons.settings_backup_restore,
-                                color: sheetColors.expense, // ЗМІНЕНО
+                                color: sheetColors.expense,
                               ),
                             ),
                             title: Text(
                               'import'.tr(),
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
-                                color: sheetColors.textMain, // ЗМІНЕНО
+                                color: sheetColors.textMain,
                               ),
                             ),
                             subtitle: Text(
                               'warning_overwrite'.tr(),
-                              style: TextStyle(
-                                color: sheetColors.expense,
-                              ), // ЗМІНЕНО
+                              style: TextStyle(color: sheetColors.expense),
                             ),
                             onTap: () {
                               Navigator.pop(ctx);
-                              // Використовуємо живі provider та safeContext
                               BackupService.importData(provider, safeContext);
                             },
                           ),
@@ -252,21 +246,21 @@ class SettingsDrawer extends StatelessWidget {
               },
             ),
 
-            // ДОДАЄМО КНОПКУ ПІДПИСОК
+            // КНОПКА ПІДПИСОК
             ListTile(
-              leading: Icon(Icons.autorenew, color: colors.textMain), // ЗМІНЕНО
+              leading: Icon(Icons.autorenew, color: colors.textMain),
               title: Text(
                 'regular_payments'.tr(),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: colors.textMain, // ЗМІНЕНО
+                  color: colors.textMain,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               onTap: () {
-                // Спочатку закриваємо бокове меню
                 Navigator.pop(context);
-                // Потім відкриваємо наш новий екран
                 Navigator.push(
                   context,
                   MaterialPageRoute(

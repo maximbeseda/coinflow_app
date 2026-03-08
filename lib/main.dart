@@ -59,7 +59,7 @@ void main() async {
   // 5. Ініціалізуємо формати дат
   await initializeDateFormatting('uk_UA', null);
 
-  const bool showPreview = false;
+  const bool showPreview = true;
 
   runApp(
     EasyLocalization(

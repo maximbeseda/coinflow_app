@@ -6,7 +6,7 @@ import '../models/subscription_model.dart';
 import '../models/category_model.dart';
 import '../utils/currency_formatter.dart';
 import '../widgets/dialogs/subscription_form_dialog.dart';
-import '../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт контракту кольорів
+import '../theme/app_colors_extension.dart';
 
 class SubscriptionsScreen extends StatelessWidget {
   const SubscriptionsScreen({super.key});
@@ -24,38 +24,32 @@ class SubscriptionsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<FinanceProvider>(context);
-    // ДОДАНО: Отримуємо кольори поточної теми!
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // ОБГОРТАЄМО SCAFFOLD У КОНТЕЙНЕР З ГРАДІЄНТОМ
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            colors.bgGradientStart, // ЗМІНЕНО: Градієнт теми
-            colors.bgGradientEnd,
-          ],
+          colors: [colors.bgGradientStart, colors.bgGradientEnd],
         ),
       ),
       child: Scaffold(
-        backgroundColor:
-            Colors.transparent, // Робимо фон прозорим, щоб бачити градієнт
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
-          iconTheme: IconThemeData(
-            color: colors.textMain,
-          ), // Колір кнопки "Назад"
+          iconTheme: IconThemeData(color: colors.textMain),
           title: Text(
             'regular_payments'.tr(),
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: colors.textMain, // ЗМІНЕНО
+              color: colors.textMain,
             ),
           ),
           centerTitle: true,
           backgroundColor: Colors.transparent,
-          elevation: 0, // Прибираємо тінь від шапки
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
         ),
         body: Column(
           children: [
@@ -65,28 +59,26 @@ class SubscriptionsScreen extends StatelessWidget {
                 onPressed: () => _showSubscriptionDialog(context),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 56),
-                  // ЗМІНЕНО: Прибрали backgroundColor: Colors.black,
-                  // Тепер кнопка бере колір з ThemeData.elevatedButtonTheme!
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 4,
-                  shadowColor: Colors.black.withValues(
-                    alpha: 0.2,
-                  ), // Тінь можемо лишити чорною
+                  shadowColor: Colors.black.withValues(alpha: 0.2),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.add_circle_outline,
-                    ), // ЗМІНЕНО: Прибрали жорсткий білий колір
+                    const Icon(Icons.add_circle_outline),
                     const SizedBox(width: 8),
-                    Text(
-                      'add_subscription'.tr(),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        'add_subscription'.tr(),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -99,7 +91,7 @@ class SubscriptionsScreen extends StatelessWidget {
                       child: Text(
                         'no_subscriptions'.tr(),
                         style: TextStyle(
-                          color: colors.textSecondary, // ЗМІНЕНО
+                          color: colors.textSecondary,
                           fontSize: 16,
                         ),
                       ),
@@ -112,7 +104,6 @@ class SubscriptionsScreen extends StatelessWidget {
                       ),
                       itemBuilder: (context, index) {
                         final sub = provider.subscriptions[index];
-                        // --- ДОДАЄМО ПЕРЕВІРКУ НА "ЗЛАМАНІСТЬ" ---
                         final bool accountExists = provider.accounts.any(
                           (c) => c.id == sub.accountId,
                         );
@@ -120,7 +111,6 @@ class SubscriptionsScreen extends StatelessWidget {
                           (c) => c.id == sub.categoryId,
                         );
                         final bool isBroken = !accountExists || !expenseExists;
-                        // ------------------------------------------
 
                         final category = provider.expenses.firstWhere(
                           (c) => c.id == sub.categoryId,
@@ -129,8 +119,8 @@ class SubscriptionsScreen extends StatelessWidget {
                             type: CategoryType.expense,
                             name: 'unknown'.tr(),
                             icon: Icons.help_outline,
-                            bgColor: colors.iconBg, // ЗМІНЕНО
-                            iconColor: colors.textSecondary, // ЗМІНЕНО
+                            bgColor: colors.iconBg,
+                            iconColor: colors.textSecondary,
                           ),
                         );
 
@@ -141,7 +131,6 @@ class SubscriptionsScreen extends StatelessWidget {
                               )
                             : category.icon;
 
-                        // --- Перевіряємо, чи підписка прострочена ---
                         final now = DateTime.now();
                         final today = DateTime(now.year, now.month, now.day);
                         final paymentDate = DateTime(
@@ -152,23 +141,20 @@ class SubscriptionsScreen extends StatelessWidget {
                         final isDue =
                             paymentDate.isBefore(today) ||
                             paymentDate.isAtSameMomentAs(today);
-                        // --------------------------------------------------------
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
-                            color: colors.cardBg, // ЗМІНЕНО
+                            color: colors.cardBg,
                             borderRadius: BorderRadius.circular(24),
-                            // --- ДОДАЄМО РАМКУ З ТЕМИ, ЯКЩО ПІДПИСКА ЗЛАМАНА ---
                             border: isBroken
                                 ? Border.all(
                                     color: colors.expense.withValues(
                                       alpha: 0.5,
-                                    ), // ЗМІНЕНО
+                                    ),
                                     width: 1.5,
                                   )
                                 : null,
-                            // ----------------------------------------------------
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.05),
@@ -215,8 +201,7 @@ class SubscriptionsScreen extends StatelessWidget {
                                                 style: TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.bold,
-                                                  color: colors
-                                                      .textMain, // ЗМІНЕНО
+                                                  color: colors.textMain,
                                                 ),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
@@ -228,27 +213,29 @@ class SubscriptionsScreen extends StatelessWidget {
                                                     Icons.event,
                                                     size: 14,
                                                     color: isDue
-                                                        ? colors
-                                                              .expense // ЗМІНЕНО
-                                                        : colors
-                                                              .textSecondary, // ЗМІНЕНО
+                                                        ? colors.expense
+                                                        : colors.textSecondary,
                                                   ),
                                                   const SizedBox(width: 4),
-                                                  Text(
-                                                    DateFormat(
-                                                      'dd.MM.yyyy',
-                                                    ).format(
-                                                      sub.nextPaymentDate,
-                                                    ),
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      color: isDue
-                                                          ? colors
-                                                                .expense // ЗМІНЕНО
-                                                          : colors
-                                                                .textSecondary, // ЗМІНЕНО
+                                                  Flexible(
+                                                    child: Text(
+                                                      DateFormat(
+                                                        'dd.MM.yyyy',
+                                                      ).format(
+                                                        sub.nextPaymentDate,
+                                                      ),
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                        color: isDue
+                                                            ? colors.expense
+                                                            : colors
+                                                                  .textSecondary,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
                                                     ),
                                                   ),
                                                 ],
@@ -256,27 +243,17 @@ class SubscriptionsScreen extends StatelessWidget {
                                             ],
                                           ),
                                         ),
-                                        Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              "-${CurrencyFormatter.format(sub.amount)} ₴",
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w900,
-                                                color:
-                                                    colors.expense, // ЗМІНЕНО
-                                              ),
-                                            ),
-                                          ],
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          "-${CurrencyFormatter.format(sub.amount)} ₴",
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w900,
+                                            color: colors.expense,
+                                          ),
                                         ),
                                       ],
                                     ),
-
-                                    // --- Кнопка ручної оплати, якщо прострочено ---
                                     if (isDue) ...[
                                       const SizedBox(height: 12),
                                       Container(
@@ -287,135 +264,117 @@ class SubscriptionsScreen extends StatelessWidget {
                                         decoration: BoxDecoration(
                                           color: colors.expense.withValues(
                                             alpha: 0.05,
-                                          ), // ЗМІНЕНО
+                                          ),
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
                                           border: Border.all(
                                             color: colors.expense.withValues(
                                               alpha: 0.2,
-                                            ), // ЗМІНЕНО
+                                            ),
                                           ),
                                         ),
                                         child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
                                           children: [
-                                            Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.warning_amber_rounded,
-                                                  color:
-                                                      colors.expense, // ЗМІНЕНО
-                                                  size: 18,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  'needs_payment'.tr(),
-                                                  style: TextStyle(
-                                                    color: colors
-                                                        .expense, // ЗМІНЕНО
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 13,
+                                            Expanded(
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.warning_amber_rounded,
+                                                    color: colors.expense,
+                                                    size: 18,
                                                   ),
-                                                ),
-                                              ],
+                                                  const SizedBox(width: 6),
+                                                  Flexible(
+                                                    child: Text(
+                                                      'needs_payment'.tr(),
+                                                      style: TextStyle(
+                                                        color: colors.expense,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 13,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                            SizedBox(
-                                              height: 32,
-                                              child: ElevatedButton(
-                                                style: ElevatedButton.styleFrom(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 16,
-                                                      ),
-                                                  backgroundColor: colors
-                                                      .expense, // ЗМІНЕНО: Залишаємо виділеним кольором витрати
-                                                  foregroundColor: Colors.white,
-                                                  elevation: 0,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
+                                            const SizedBox(width: 12),
+                                            ConstrainedBox(
+                                              constraints: const BoxConstraints(
+                                                maxWidth: 100,
+                                              ),
+                                              child: SizedBox(
+                                                height: 32,
+                                                child: ElevatedButton(
+                                                  style: ElevatedButton.styleFrom(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 12,
                                                         ),
-                                                  ),
-                                                ),
-                                                onPressed: () async {
-                                                  final (
-                                                    success,
-                                                    message,
-                                                  ) = await provider
-                                                      .confirmSubscriptionPayment(
-                                                        sub,
-                                                        sub.amount,
-                                                      );
-
-                                                  if (!context.mounted) return;
-                                                  ScaffoldMessenger.of(
-                                                    context,
-                                                  ).clearSnackBars();
-
-                                                  ScaffoldMessenger.of(
-                                                    context,
-                                                  ).showSnackBar(
-                                                    SnackBar(
-                                                      backgroundColor: colors
-                                                          .cardBg, // ЗМІНЕНО
-                                                      behavior: SnackBarBehavior
-                                                          .floating,
-                                                      margin:
-                                                          const EdgeInsets.only(
-                                                            bottom: 30,
-                                                            left: 20,
-                                                            right: 20,
+                                                    backgroundColor:
+                                                        colors.expense,
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                    elevation: 0,
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
                                                           ),
-                                                      elevation: 10,
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              16,
+                                                    ),
+                                                  ),
+                                                  onPressed: () async {
+                                                    final (
+                                                      success,
+                                                      message,
+                                                    ) = await provider
+                                                        .confirmSubscriptionPayment(
+                                                          sub,
+                                                          sub.amount,
+                                                        );
+
+                                                    if (!context.mounted) {
+                                                      return;
+                                                    }
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).clearSnackBars();
+
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      SnackBar(
+                                                        behavior:
+                                                            SnackBarBehavior
+                                                                .floating,
+                                                        backgroundColor:
+                                                            colors.cardBg,
+                                                        elevation: 4,
+                                                        margin:
+                                                            const EdgeInsets.all(
+                                                              20,
                                                             ),
-                                                        side: BorderSide(
-                                                          color: success
-                                                              ? colors
-                                                                    .income // ЗМІНЕНО
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.5,
-                                                                    )
-                                                              : colors
-                                                                    .expense // ЗМІНЕНО
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.5,
-                                                                    ),
+                                                        // ВИПРАВЛЕНО: Стиль снекбару з рамкою
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                12,
+                                                              ),
+                                                          side: BorderSide(
+                                                            color: success
+                                                                ? colors.income
+                                                                : colors
+                                                                      .expense,
+                                                            width: 1.0,
+                                                          ),
                                                         ),
-                                                      ),
-                                                      content: Row(
-                                                        children: [
-                                                          Container(
-                                                            padding:
-                                                                const EdgeInsets.all(
-                                                                  8,
-                                                                ),
-                                                            decoration: BoxDecoration(
-                                                              color: success
-                                                                  ? colors
-                                                                        .income // ЗМІНЕНО
-                                                                        .withValues(
-                                                                          alpha:
-                                                                              0.1,
-                                                                        )
-                                                                  : colors
-                                                                        .expense // ЗМІНЕНО
-                                                                        .withValues(
-                                                                          alpha:
-                                                                              0.1,
-                                                                        ),
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                            ),
-                                                            child: Icon(
+                                                        content: Row(
+                                                          children: [
+                                                            Icon(
                                                               success
                                                                   ? Icons
                                                                         .check_circle_outline
@@ -423,36 +382,45 @@ class SubscriptionsScreen extends StatelessWidget {
                                                                         .error_outline,
                                                               color: success
                                                                   ? colors
-                                                                        .income // ЗМІНЕНО
+                                                                        .income
                                                                   : colors
-                                                                        .expense, // ЗМІНЕНО
+                                                                        .expense,
+                                                              size: 20,
                                                             ),
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 12,
-                                                          ),
-                                                          Expanded(
-                                                            child: Text(
-                                                              message,
-                                                              style: TextStyle(
-                                                                color: colors
-                                                                    .textMain, // ЗМІНЕНО
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
+                                                            const SizedBox(
+                                                              width: 12,
+                                                            ),
+                                                            Expanded(
+                                                              child: Text(
+                                                                message,
+                                                                style: TextStyle(
+                                                                  color: colors
+                                                                      .textMain,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                ),
+                                                                maxLines: 2,
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
                                                               ),
                                                             ),
-                                                          ),
-                                                        ],
+                                                          ],
+                                                        ),
                                                       ),
+                                                    );
+                                                  },
+                                                  child: Text(
+                                                    'pay'.tr(),
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                     ),
-                                                  );
-                                                },
-                                                child: Text(
-                                                  'pay'.tr(),
-                                                  style: const TextStyle(
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.bold,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                               ),
@@ -461,7 +429,6 @@ class SubscriptionsScreen extends StatelessWidget {
                                         ),
                                       ),
                                     ],
-                                    // ---------------------------------------------------------
                                   ],
                                 ),
                               ),

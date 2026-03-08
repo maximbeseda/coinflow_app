@@ -4,7 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../../models/category_model.dart';
 import '../../utils/app_constants.dart';
 import '../../theme/app_colors_extension.dart';
-import '../../theme/category_defaults.dart'; // ДОДАНО: Імпорт нашого контракту кольорів
+import '../../theme/category_defaults.dart';
 
 class CategoryDialog extends StatefulWidget {
   final Category? category;
@@ -162,7 +162,6 @@ class _CategoryDialogState extends State<CategoryDialog> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // ЗМІНЕНО: Тепер ми беремо кольори прев'ю безпосередньо з нашої централізованої системи!
     Color previewBgColor = CategoryDefaults.getBgColor(widget.type);
     Color previewIconColor = CategoryDefaults.getIconColor(widget.type);
 
@@ -176,14 +175,22 @@ class _CategoryDialogState extends State<CategoryDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    widget.category == null ? 'new_category'.tr() : 'edit'.tr(),
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: colors.textMain,
+                  // ЗАХИСТ: Заголовок вікна
+                  Expanded(
+                    child: Text(
+                      widget.category == null
+                          ? 'new_category'.tr()
+                          : 'edit'.tr(),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: colors.textMain,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -267,6 +274,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 ),
               ),
               const SizedBox(height: 8),
+              // ЗАХИСТ: Превью назви під іконкою
               Text(
                 _nameCtrl.text.isEmpty ? 'name_hint'.tr() : _nameCtrl.text,
                 style: TextStyle(
@@ -336,12 +344,15 @@ class _CategoryDialogState extends State<CategoryDialog> {
                       });
                     }
                   },
+                  // ВИПРАВЛЕНО: Прибрано FittedBox, додано ellipsis
                   child: Text(
                     widget.category == null ? 'create'.tr() : 'save'.tr(),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -372,8 +383,10 @@ class _CategoryDialogState extends State<CategoryDialog> {
           ? [FilteringTextInputFormatter.allow(RegExp(r'^\d*[.,]?\d{0,2}'))]
           : null,
       textCapitalization: TextCapitalization.sentences,
+      style: TextStyle(color: colors.textMain),
       decoration: InputDecoration(
-        labelText: label,
+        // ЗАХИСТ: Label у полях вводу теж може бути довгим
+        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         hintText: hintText,
         counterText: "",
         suffixText: suffix,

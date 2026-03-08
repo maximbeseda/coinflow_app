@@ -6,7 +6,7 @@ import '../providers/finance_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../widgets/dialogs/month_picker_dialog.dart';
 import '../models/category_model.dart';
-import '../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт нашого контракту кольорів
+import '../theme/app_colors_extension.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
@@ -50,21 +50,15 @@ class _StatsScreenState extends State<StatsScreen> {
       ...provider.expenses.map((e) => e.id),
       ...provider.incomes.map((e) => e.id),
     ];
-
     allIds.sort();
-
     int index = allIds.indexOf(id);
     if (index == -1) index = 0;
-
     return _appCustomPalette[index % _appCustomPalette.length];
   }
 
-  // ЗМІНЕНО: Тепер місяці автоматично перекладаються завдяки пакету intl
   String _getMonthName(DateTime date, BuildContext context) {
     final languageCode = context.locale.languageCode;
-    // Отримуємо назву місяця поточною мовою (напр. "січень" або "january")
     String month = DateFormat.MMMM(languageCode).format(date);
-    // Робимо першу літеру великою
     month = month[0].toUpperCase() + month.substring(1);
     return "$month ${date.year}";
   }
@@ -72,7 +66,6 @@ class _StatsScreenState extends State<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<FinanceProvider>();
-    // ДОДАНО: Отримуємо кольори поточної теми!
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     final monthHistory = provider.history
@@ -98,7 +91,6 @@ class _StatsScreenState extends State<StatsScreen> {
     for (var t in monthHistory) {
       final fromCat = categoryMap[t.fromId];
       final toCat = categoryMap[t.toId];
-
       if (toCat != null && toCat.type == CategoryType.expense) {
         expenseTotals[t.toId] = (expenseTotals[t.toId] ?? 0) + t.amount;
       }
@@ -160,7 +152,6 @@ class _StatsScreenState extends State<StatsScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            // ЗМІНЕНО: Використовуємо градієнт з поточної теми
             colors: [colors.bgGradientStart, colors.bgGradientEnd],
           ),
         ),
@@ -173,10 +164,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(
-                        Icons.arrow_back,
-                        color: colors.textMain,
-                      ), // ЗМІНЕНО
+                      icon: Icon(Icons.arrow_back, color: colors.textMain),
                       onPressed: () => Navigator.pop(context),
                     ),
                     Expanded(
@@ -186,8 +174,11 @@ class _StatsScreenState extends State<StatsScreen> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: colors.textMain, // ЗМІНЕНО
+                          color: colors.textMain,
                         ),
+                        // ЗМІНЕНО: Захист заголовка від overflow
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 48),
@@ -197,15 +188,12 @@ class _StatsScreenState extends State<StatsScreen> {
 
               // --- ПЕРЕМИКАЧ МІСЯЦІВ ---
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 0.0),
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     IconButton(
-                      icon: Icon(
-                        Icons.chevron_left,
-                        color: colors.textMain, // ЗМІНЕНО
-                      ),
+                      icon: Icon(Icons.chevron_left, color: colors.textMain),
                       onPressed: () => provider.changeMonth(-1),
                     ),
                     GestureDetector(
@@ -230,13 +218,11 @@ class _StatsScreenState extends State<StatsScreen> {
                           horizontal: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: colors.cardBg, // ЗМІНЕНО
+                          color: colors.cardBg,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withAlpha(
-                                10,
-                              ), // Залишаємо чорну тінь
+                              color: Colors.black.withAlpha(10),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -250,17 +236,14 @@ class _StatsScreenState extends State<StatsScreen> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: colors.textMain, // ЗМІНЕНО
+                              color: colors.textMain,
                             ),
                           ),
                         ),
                       ),
                     ),
                     IconButton(
-                      icon: Icon(
-                        Icons.chevron_right,
-                        color: colors.textMain, // ЗМІНЕНО
-                      ),
+                      icon: Icon(Icons.chevron_right, color: colors.textMain),
                       onPressed: () => provider.changeMonth(1),
                     ),
                   ],
@@ -277,7 +260,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   height: 60,
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: colors.cardBg, // ЗМІНЕНО
+                    color: colors.cardBg,
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
@@ -300,7 +283,7 @@ class _StatsScreenState extends State<StatsScreen> {
                           heightFactor: 1.0,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: colors.iconBg, // ЗМІНЕНО
+                              color: colors.iconBg,
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
@@ -308,74 +291,94 @@ class _StatsScreenState extends State<StatsScreen> {
                       ),
                       Row(
                         children: [
+                          // БЛОК ВИТРАТ
                           Expanded(
                             child: GestureDetector(
                               onTap: () => setState(() => _showExpenses = true),
                               behavior: HitTestBehavior.opaque,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'stats_expenses'.tr(),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: _showExpenses
-                                          ? colors
-                                                .textMain // ЗМІНЕНО
-                                          : colors.textSecondary, // ЗМІНЕНО
-                                      fontWeight: FontWeight.w700,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'stats_expenses'.tr(),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: _showExpenses
+                                            ? colors.textMain
+                                            : colors.textSecondary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      // ВИПРАВЛЕНО: Обрізання тексту
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                  Text(
-                                    "${CurrencyFormatter.format(totalExpenses)} ₴",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w900,
-                                      color: _showExpenses
-                                          ? colors
-                                                .expense // ЗМІНЕНО
-                                          : colors.textSecondary.withAlpha(
-                                              80,
-                                            ), // ЗМІНЕНО
+                                    Text(
+                                      "${CurrencyFormatter.format(totalExpenses)} ₴",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        color: _showExpenses
+                                            ? colors.expense
+                                            : colors.textSecondary.withAlpha(
+                                                80,
+                                              ),
+                                      ),
+                                      // ВИПРАВЛЕНО: Обрізання суми
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
+                          // БЛОК ДОХОДІВ
                           Expanded(
                             child: GestureDetector(
                               onTap: () =>
                                   setState(() => _showExpenses = false),
                               behavior: HitTestBehavior.opaque,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'income'.tr(),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: !_showExpenses
-                                          ? colors
-                                                .textMain // ЗМІНЕНО
-                                          : colors.textSecondary, // ЗМІНЕНО
-                                      fontWeight: FontWeight.w700,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'income'.tr(),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: !_showExpenses
+                                            ? colors.textMain
+                                            : colors.textSecondary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      // ВИПРАВЛЕНО: Обрізання тексту
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                  Text(
-                                    "${CurrencyFormatter.format(totalIncomes)} ₴",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w900,
-                                      color: !_showExpenses
-                                          ? colors
-                                                .income // ЗМІНЕНО
-                                          : colors.textSecondary.withAlpha(
-                                              80,
-                                            ), // ЗМІНЕНО
+                                    Text(
+                                      "${CurrencyFormatter.format(totalIncomes)} ₴",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        color: !_showExpenses
+                                            ? colors.income
+                                            : colors.textSecondary.withAlpha(
+                                                80,
+                                              ),
+                                      ),
+                                      // ВИПРАВЛЕНО: Обрізання суми
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -386,19 +389,14 @@ class _StatsScreenState extends State<StatsScreen> {
                 ),
               ),
 
-              // --- КРУГОВИЙ ГРАФІК ---
+              // --- КРУГОВИЙ ГРАФІК ТА ЛЕГЕНДА ---
               Expanded(
                 child: Container(
                   width: double.infinity,
-                  margin: const EdgeInsets.only(
-                    left: 24,
-                    right: 24,
-                    bottom: 16,
-                    top: 4,
-                  ),
+                  margin: const EdgeInsets.fromLTRB(24, 4, 24, 16),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: colors.cardBg, // ЗМІНЕНО
+                    color: colors.cardBg,
                     borderRadius: BorderRadius.circular(32),
                     boxShadow: [
                       BoxShadow(
@@ -416,7 +414,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                 : 'no_incomes_month'.tr(),
                             style: TextStyle(
                               fontSize: 16,
-                              color: colors.textSecondary, // ЗМІНЕНО
+                              color: colors.textSecondary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -437,7 +435,6 @@ class _StatsScreenState extends State<StatsScreen> {
                                       cat.id,
                                       provider,
                                     );
-
                                     final bool showTitle = percentage >= 5.0;
 
                                     return PieChartSectionData(
@@ -451,8 +448,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                       titleStyle: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w800,
-                                        color: Colors
-                                            .white, // Цей колір залишаємо білим, бо він на кольорових секторах
+                                        color: Colors.white,
                                       ),
                                     );
                                   }).toList(),
@@ -460,7 +456,6 @@ class _StatsScreenState extends State<StatsScreen> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            // --- ЛЕГЕНДА ---
                             Expanded(
                               flex: 7,
                               child: ListView.builder(
@@ -498,17 +493,17 @@ class _StatsScreenState extends State<StatsScreen> {
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
                                               fontSize: 14,
-                                              color: colors.textMain, // ЗМІНЕНО
+                                              color: colors.textMain,
                                             ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
+                                        const SizedBox(width: 8),
                                         Text(
                                           "${percentage.toStringAsFixed(1)}%",
                                           style: TextStyle(
-                                            color:
-                                                colors.textSecondary, // ЗМІНЕНО
+                                            color: colors.textSecondary,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 13,
                                           ),
@@ -519,7 +514,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                           style: TextStyle(
                                             fontWeight: FontWeight.w800,
                                             fontSize: 14,
-                                            color: colors.textMain, // ЗМІНЕНО
+                                            color: colors.textMain,
                                           ),
                                         ),
                                       ],
