@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // ДОДАНО: Для доступу до провайдерів
 import '../../utils/currency_formatter.dart';
 import 'rolling_digit.dart';
 import '../../theme/app_colors_extension.dart';
+import '../../providers/subscription_provider.dart'; // ДОДАНО: Для перевірки підписок
 
 class SummaryHeader extends StatelessWidget {
   final double totalBalance;
@@ -26,6 +28,11 @@ class SummaryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    // ДОДАНО: Перевіряємо, чи є відкладені/прострочені платежі
+    final hasPendingSubscriptions = context
+        .watch<SubscriptionProvider>()
+        .hasPendingPayments;
 
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
@@ -55,15 +62,43 @@ class SummaryHeader extends StatelessWidget {
               colors,
             ),
 
+            // ЗМІНЕНО: Кнопка налаштувань тепер зі Stack для відображення індикатора
             GestureDetector(
               onTap: onSettingsTap,
               behavior: HitTestBehavior.opaque,
-              child: SizedBox(
+              child: Container(
                 width: 24,
-                child: Icon(
-                  Icons.settings_outlined,
-                  size: 20,
-                  color: colors.textSecondary,
+                alignment: Alignment.center,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(
+                      Icons.settings_outlined,
+                      size: 20,
+                      color: colors.textSecondary,
+                    ),
+                    // ДОДАНО: Червона крапка (badge), якщо є борги
+                    if (hasPendingSubscriptions)
+                      Positioned(
+                        top: -2,
+                        right: -2,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: colors.expense,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: colors.expense.withValues(alpha: 0.4),
+                                blurRadius: 3,
+                                spreadRadius: 0.5,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -87,7 +122,7 @@ class SummaryHeader extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.start, // СТРОГО ПО ЛІВОМУ КРАЮ
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
             Icon(icon, size: 14, color: colors.textSecondary),
             const SizedBox(width: 4),

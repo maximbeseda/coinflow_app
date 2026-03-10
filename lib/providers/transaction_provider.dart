@@ -7,6 +7,9 @@ import 'category_provider.dart';
 class TransactionProvider extends ChangeNotifier {
   CategoryProvider? _catProv; // Посилання на провайдер категорій
 
+  // ДОДАНО: Прапорець для синхронізації при старті додатку
+  bool _isInitialRecalculationDone = false;
+
   List<Transaction> history = [];
   DateTime selectedMonth = DateTime(
     DateTime.now().year,
@@ -19,9 +22,15 @@ class TransactionProvider extends ChangeNotifier {
     loadHistory();
   }
 
-  // Цей метод автоматично викликатиметься Proxy-провайдером
+  // ВИПРАВЛЕНО: Синхронізація з CategoryProvider
   void updateDependencies(CategoryProvider catProv) {
     _catProv = catProv;
+
+    // Перевіряємо, чи обидва провайдери завантажили дані, щоб зробити перший перерахунок
+    if (!isLoading && !catProv.isLoading && !_isInitialRecalculationDone) {
+      _isInitialRecalculationDone = true;
+      _catProv?.recalculateMonthTotals(history, selectedMonth);
+    }
   }
 
   bool get isCurrentMonth {
@@ -29,10 +38,20 @@ class TransactionProvider extends ChangeNotifier {
     return selectedMonth.year == now.year && selectedMonth.month == now.month;
   }
 
+  // ВИПРАВЛЕНО: Перевірка на завершення завантаження
   Future<void> loadHistory() async {
     history = await StorageService.loadHistory();
     history.sort((a, b) => b.date.compareTo(a.date));
     isLoading = false;
+
+    // Якщо категоріям вдалося завантажитися швидше за історію
+    if (_catProv != null &&
+        !_catProv!.isLoading &&
+        !_isInitialRecalculationDone) {
+      _isInitialRecalculationDone = true;
+      _catProv?.recalculateMonthTotals(history, selectedMonth);
+    }
+
     notifyListeners();
   }
 
@@ -50,6 +69,18 @@ class TransactionProvider extends ChangeNotifier {
     selectedMonth = DateTime(newMonth.year, newMonth.month, 1);
     _catProv?.recalculateMonthTotals(history, selectedMonth);
     notifyListeners();
+  }
+
+  // ДОДАНО: Безпечний метод, який оновлює постійний баланс у Hive ТІЛЬКИ для Рахунків
+  void _updateAccountBalance(String categoryId, double delta) {
+    if (_catProv == null) return;
+    final category = _catProv!.allCategoriesList
+        .where((c) => c.id == categoryId)
+        .firstOrNull;
+
+    if (category != null && category.type == CategoryType.account) {
+      _catProv!.updateCategoryAmount(categoryId, delta);
+    }
   }
 
   void addTransfer(
@@ -77,15 +108,19 @@ class TransactionProvider extends ChangeNotifier {
     addTransactionDirectly(newTx);
   }
 
+  // ВИПРАВЛЕНО: Використання безпечного методу _updateAccountBalance
   void editTransaction(Transaction oldT, double newAmount, DateTime newDate) {
-    _catProv?.updateCategoryAmount(oldT.fromId, oldT.amount);
-    _catProv?.updateCategoryAmount(oldT.toId, -oldT.amount);
+    // Скасовуємо стару транзакцію (ТІЛЬКИ для рахунків)
+    _updateAccountBalance(oldT.fromId, oldT.amount);
+    _updateAccountBalance(oldT.toId, -oldT.amount);
 
+    // Оновлюємо дані транзакції
     oldT.amount = newAmount;
     oldT.date = newDate;
 
-    _catProv?.updateCategoryAmount(oldT.fromId, -oldT.amount);
-    _catProv?.updateCategoryAmount(oldT.toId, oldT.amount);
+    // Застосовуємо нові дані (ТІЛЬКИ для рахунків)
+    _updateAccountBalance(oldT.fromId, -oldT.amount);
+    _updateAccountBalance(oldT.toId, oldT.amount);
 
     StorageService.saveTransaction(oldT);
     history.sort((a, b) => b.date.compareTo(a.date));
@@ -93,9 +128,11 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ВИПРАВЛЕНО: Використання безпечного методу _updateAccountBalance
   void deleteTransaction(Transaction t) {
-    _catProv?.updateCategoryAmount(t.fromId, t.amount);
-    _catProv?.updateCategoryAmount(t.toId, -t.amount);
+    // Скасовуємо вплив транзакції на баланс (ТІЛЬКИ для рахунків)
+    _updateAccountBalance(t.fromId, t.amount);
+    _updateAccountBalance(t.toId, -t.amount);
 
     history.removeWhere((item) => item.id == t.id);
     StorageService.removeTransaction(t.id);

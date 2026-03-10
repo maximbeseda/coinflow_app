@@ -84,6 +84,7 @@
   "time_to_pay": "It's time to pay for subscription\n",
   "skip": "Skip",
   "pay": "Pay",
+  "pay_later": "Later",
   "needs_payment": "Needs payment",
   "delete_subscription_title": "Delete subscription?",
   "delete_subscription_message": "Are you sure you want to delete '{}'? This will stop tracking regular payments.",

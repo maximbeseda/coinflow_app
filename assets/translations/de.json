@@ -84,6 +84,7 @@
   "time_to_pay": "Es ist Zeit, Ihr Abonnement zu bezahlen\n",
   "skip": "Überspringen",
   "pay": "Bezahlen",
+  "pay_later": "Später",
   "needs_payment": "Zahlung fällig",
   "delete_subscription_title": "Abonnement löschen?",
   "delete_subscription_message": "Möchten Sie '{}' wirklich löschen? Die Verfolgung regelmäßiger Zahlungen wird beendet.",

@@ -213,4 +213,15 @@ class StorageService {
     await Hive.box(_categoriesBox).clear();
     await Hive.box(_subscriptionsBox).clear();
   }
+
+  // ДОДАНО: Збереження та завантаження списку проігнорованих підписок
+  static List<String> getIgnoredSubscriptions() {
+    final box = Hive.box(_settingsBox);
+    final data = box.get('ignored_subs', defaultValue: []);
+    return (data as List).cast<String>();
+  }
+
+  static Future<void> saveIgnoredSubscriptions(List<String> ids) async {
+    await Hive.box(_settingsBox).put('ignored_subs', ids);
+  }
 }

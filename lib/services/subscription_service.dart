@@ -33,4 +33,27 @@ class SubscriptionService {
     sub.nextPaymentDate = nextDate;
     await StorageService.saveSubscription(sub);
   }
+
+  // ДОДАНО: Метод для зсуву дати рівно на 1 період (для покрокової автооплати)
+  static Future<void> advanceOnePeriod(Subscription sub) async {
+    DateTime nextDate = sub.nextPaymentDate;
+
+    if (sub.periodicity == 'monthly') {
+      int nextMonth = nextDate.month == 12 ? 1 : nextDate.month + 1;
+      int nextYear = nextDate.month == 12 ? nextDate.year + 1 : nextDate.year;
+
+      int nextDay = sub.nextPaymentDate.day;
+      final lastDayOfNextMonth = DateTime(nextYear, nextMonth + 1, 0).day;
+      if (nextDay > lastDayOfNextMonth) nextDay = lastDayOfNextMonth;
+
+      nextDate = DateTime(nextYear, nextMonth, nextDay);
+    } else if (sub.periodicity == 'yearly') {
+      nextDate = DateTime(nextDate.year + 1, nextDate.month, nextDate.day);
+    } else if (sub.periodicity == 'weekly') {
+      nextDate = nextDate.add(const Duration(days: 7));
+    }
+
+    sub.nextPaymentDate = nextDate;
+    await StorageService.saveSubscription(sub);
+  }
 }

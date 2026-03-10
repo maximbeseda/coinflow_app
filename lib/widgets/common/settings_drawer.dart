@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // ДОДАНО
 import 'package:easy_localization/easy_localization.dart';
 import '../../screens/stats_screen.dart';
 import '../../screens/subscriptions_screen.dart';
 import '../../services/backup_service.dart';
 import '../../screens/profile_screen.dart';
 import '../../theme/app_colors_extension.dart';
+import '../../providers/subscription_provider.dart'; // ДОДАНО
 
 class SettingsDrawer extends StatelessWidget {
   const SettingsDrawer({super.key});
@@ -13,9 +15,13 @@ class SettingsDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
+    // ДОДАНО: Слухаємо провайдер, щоб знати, чи є відкладені платежі
+    final hasPendingSubscriptions = context
+        .watch<SubscriptionProvider>()
+        .hasPendingPayments;
+
     return Drawer(
       backgroundColor: colors.cardBg,
-      // ЗМІНЕНО: Огортаємо все в ListView, щоб меню можна було прокручувати (фікс Bottom Overflow)
       child: SafeArea(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -25,7 +31,6 @@ class SettingsDrawer extends StatelessWidget {
               padding: const EdgeInsets.all(20.0),
               child: Row(
                 children: [
-                  // ЗМІНЕНО: Expanded + ellipsis для захисту заголовка від вильоту вправо
                   Expanded(
                     child: Text(
                       'settings'.tr(),
@@ -38,31 +43,11 @@ class SettingsDrawer extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: colors.iconBg,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.close,
-                        size: 20,
-                        color: colors.textMain,
-                      ),
-                    ),
-                  ),
+                  Icon(Icons.settings_outlined, color: colors.textSecondary),
                 ],
               ),
             ),
-
-            Divider(
-              height: 1,
-              color: colors.textSecondary.withValues(alpha: 0.2),
-            ),
-            const SizedBox(height: 10),
+            Divider(color: colors.iconBg, height: 1),
 
             // КНОПКА ПРОФІЛЮ
             ListTile(
@@ -70,7 +55,8 @@ class SettingsDrawer extends StatelessWidget {
               title: Text(
                 'profile'.tr(),
                 style: TextStyle(
-                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
                   color: colors.textMain,
                 ),
                 maxLines: 1,
@@ -93,21 +79,16 @@ class SettingsDrawer extends StatelessWidget {
               title: Text(
                 'statistics'.tr(),
                 style: TextStyle(
-                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
                   color: colors.textMain,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              subtitle: Text(
-                'stats_subtitle'.tr(),
-                style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onTap: () async {
+              onTap: () {
                 Navigator.pop(context);
-                await Navigator.push(
+                Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const StatsScreen()),
                 );
@@ -116,84 +97,57 @@ class SettingsDrawer extends StatelessWidget {
 
             // КНОПКА БЕКАПУ
             ListTile(
-              leading: Icon(Icons.backup_outlined, color: colors.textMain),
+              leading: Icon(Icons.save_alt_rounded, color: colors.textMain),
               title: Text(
-                'backup'.tr(),
+                'backup_title'.tr(),
                 style: TextStyle(
-                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
                   color: colors.textMain,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              subtitle: Text(
-                'backup_subtitle'.tr(),
-                style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
               onTap: () {
-                final safeContext = Navigator.of(context).context;
-
-                Navigator.pop(context);
+                final safeContext = context;
+                final sheetColors = Theme.of(
+                  context,
+                ).extension<AppColorsExtension>()!;
 
                 showModalBottomSheet(
-                  context: safeContext,
-                  backgroundColor: colors.cardBg,
-                  isScrollControlled: true, // Дозволяємо адаптивну висоту
+                  context: context,
+                  backgroundColor: sheetColors.cardBg,
                   shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(20),
                     ),
                   ),
                   builder: (ctx) {
-                    final sheetColors = Theme.of(
-                      ctx,
-                    ).extension<AppColorsExtension>()!;
-
                     return SafeArea(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           Container(
                             width: 40,
                             height: 4,
                             decoration: BoxDecoration(
                               color: sheetColors.textSecondary.withValues(
-                                alpha: 0.2,
+                                alpha: 0.3,
                               ),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Text(
-                              'backup_title'.tr(),
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: sheetColors.textMain,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 16),
                           ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: sheetColors.income.withValues(
-                                alpha: 0.1,
-                              ),
-                              child: Icon(
-                                Icons.upload_file,
-                                color: sheetColors.income,
-                              ),
+                            leading: Icon(
+                              Icons.upload_file,
+                              color: sheetColors.textMain,
                             ),
                             title: Text(
                               'export'.tr(),
                               style: TextStyle(
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.bold,
                                 color: sheetColors.textMain,
                               ),
                             ),
@@ -209,19 +163,14 @@ class SettingsDrawer extends StatelessWidget {
                             },
                           ),
                           ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: sheetColors.expense.withValues(
-                                alpha: 0.1,
-                              ),
-                              child: Icon(
-                                Icons.settings_backup_restore,
-                                color: sheetColors.expense,
-                              ),
+                            leading: Icon(
+                              Icons.download,
+                              color: sheetColors.expense,
                             ),
                             title: Text(
                               'import'.tr(),
                               style: TextStyle(
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.bold,
                                 color: sheetColors.textMain,
                               ),
                             ),
@@ -243,7 +192,7 @@ class SettingsDrawer extends StatelessWidget {
               },
             ),
 
-            // КНОПКА ПІДПИСОК
+            // КНОПКА ПІДПИСОК (З ІНДИКАТОРОМ)
             ListTile(
               leading: Icon(Icons.autorenew, color: colors.textMain),
               title: Text(
@@ -256,6 +205,24 @@ class SettingsDrawer extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+              // ДОДАНО: Червона крапочка, якщо є борги
+              trailing: hasPendingSubscriptions
+                  ? Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: colors.expense,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.expense.withValues(alpha: 0.4),
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    )
+                  : null,
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(

@@ -30,8 +30,9 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+// ДОДАНО: WidgetsBindingObserver через кому
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<String> deletingIds = [];
@@ -45,6 +46,9 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    // ДОДАНО: Реєструємо спостерігача за станом додатку
+    WidgetsBinding.instance.addObserver(this);
+
     _jiggleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 250),
@@ -55,6 +59,17 @@ class _HomeScreenState extends State<HomeScreen>
       subProv.addListener(_checkDueSubscriptions);
       _checkDueSubscriptions();
     });
+  }
+
+  // ДОДАНО: Метод, що ловить розгортання додатку з фону
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (mounted) {
+        // Коли додаток розгортається, просимо перевірити прострочені платежі
+        context.read<SubscriptionProvider>().refreshOnAppResume();
+      }
+    }
   }
 
   void _checkDueSubscriptions() {
@@ -82,6 +97,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    // ДОДАНО: Видаляємо спостерігача, щоб не було витоку пам'яті
+    WidgetsBinding.instance.removeObserver(this);
+
     try {
       context.read<SubscriptionProvider>().removeListener(
         _checkDueSubscriptions,

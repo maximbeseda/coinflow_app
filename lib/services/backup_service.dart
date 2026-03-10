@@ -149,7 +149,7 @@ class BackupService {
 
         await catProv.loadCategories();
         await txProv.loadHistory();
-        subProv.updateDependencies(catProv, txProv);
+        await subProv.loadSubscriptions();
 
         // ДРУГА ПЕРЕВІРКА: перед тим як показувати SnackBar (бо вище були await)
         if (!context.mounted) return;

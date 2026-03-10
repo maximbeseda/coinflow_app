@@ -47,10 +47,15 @@ class _StatsScreenState extends State<StatsScreen> {
   ];
 
   Color _getUniqueColor(String id, CategoryProvider catProv) {
-    List<String> allIds = [
-      ...catProv.expenses.map((e) => e.id),
-      ...catProv.incomes.map((e) => e.id),
-    ];
+    // ВИПРАВЛЕНО: Використовуємо всі категорії для генерації кольору
+    List<String> allIds = catProv.allCategoriesList
+        .where(
+          (c) =>
+              c.type == CategoryType.expense || c.type == CategoryType.income,
+        )
+        .map((e) => e.id)
+        .toList();
+
     allIds.sort();
     int index = allIds.indexOf(id);
     if (index == -1) index = 0;
@@ -78,11 +83,9 @@ class _StatsScreenState extends State<StatsScreen> {
         )
         .toList();
 
-    final allCategories = [
-      ...catProv.incomes,
-      ...catProv.accounts,
-      ...catProv.expenses,
-    ];
+    // ВИПРАВЛЕНО: Тепер ми беремо ВСІ категорії, включаючи архівні
+    final allCategories = catProv.allCategoriesList;
+
     final Map<String, Category> categoryMap = {
       for (var c in allCategories) c.id: c,
     };
@@ -101,22 +104,34 @@ class _StatsScreenState extends State<StatsScreen> {
       }
     }
 
-    final activeExpenses = catProv.expenses
+    // ВИПРАВЛЕНО: Збираємо список витрат із ВСІХ категорій
+    final activeExpenses = catProv.allCategoriesList
         .where(
-          (c) => expenseTotals.containsKey(c.id) && expenseTotals[c.id]! > 0,
+          (c) =>
+              c.type == CategoryType.expense &&
+              expenseTotals.containsKey(c.id) &&
+              expenseTotals[c.id]! > 0,
         )
         .map((c) => c.copyWith(amount: expenseTotals[c.id]!))
         .toList();
+
     activeExpenses.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
     double totalExpenses = activeExpenses.fold(
       0,
       (sum, item) => sum + item.amount.abs(),
     );
 
-    final activeIncomes = catProv.incomes
-        .where((c) => incomeTotals.containsKey(c.id) && incomeTotals[c.id]! > 0)
+    // ВИПРАВЛЕНО: Збираємо список доходів із ВСІХ категорій
+    final activeIncomes = catProv.allCategoriesList
+        .where(
+          (c) =>
+              c.type == CategoryType.income &&
+              incomeTotals.containsKey(c.id) &&
+              incomeTotals[c.id]! > 0,
+        )
         .map((c) => c.copyWith(amount: incomeTotals[c.id]!))
         .toList();
+
     activeIncomes.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
     double totalIncomes = activeIncomes.fold(
       0,
