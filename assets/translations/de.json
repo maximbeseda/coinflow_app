@@ -104,5 +104,13 @@
   "icons_entertainment": "Unterhaltung & Hobbys",
   "icons_subscriptions": "Abos & Dienste",
   "icons_family": "Familie & Tiere",
-  "icons_other": "Sonstiges"
+  "icons_other": "Sonstiges",
+
+  "exchange_rates": "Wechselkurse",
+  "add_currency": "Währung hinzufügen",
+  "all_currencies_added": "Alle verfügbaren Währungen hinzugefügt",
+  "updating_rates": "Kurse werden aktualisiert...",
+  "last_update": "Letztes Update",
+  "base_currency": "Basiswährung",
+  "loading": "Wird geladen..."
 }

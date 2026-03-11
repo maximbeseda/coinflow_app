@@ -104,5 +104,13 @@
   "icons_entertainment": "Розваги та Хобі",
   "icons_subscriptions": "Підписки та Сервіси",
   "icons_family": "Сім'я та Тварини",
-  "icons_other": "Інше"
+  "icons_other": "Інше",
+
+  "exchange_rates": "Курси валют",
+  "add_currency": "Додати валюту",
+  "all_currencies_added": "Всі доступні валюти вже додано",
+  "updating_rates": "Оновлюємо курси...",
+  "last_update": "Останнє оновлення",
+  "base_currency": "Базова валюта",
+  "loading": "Завантаження..."
 }

@@ -104,5 +104,13 @@
   "icons_entertainment": "Entertainment & Hobbies",
   "icons_subscriptions": "Subscriptions & Services",
   "icons_family": "Family & Pets",
-  "icons_other": "Other"
+  "icons_other": "Other",
+
+  "exchange_rates": "Exchange Rates",
+  "add_currency": "Add Currency",
+  "all_currencies_added": "All available currencies added",
+  "updating_rates": "Updating rates...",
+  "last_update": "Last update",
+  "base_currency": "Base currency",
+  "loading": "Loading..."
 }

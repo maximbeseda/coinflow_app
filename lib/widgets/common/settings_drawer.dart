@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // ДОДАНО
+import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../screens/stats_screen.dart';
 import '../../screens/subscriptions_screen.dart';
 import '../../services/backup_service.dart';
 import '../../screens/profile_screen.dart';
+import '../../screens/currencies_screen.dart';
 import '../../theme/app_colors_extension.dart';
-import '../../providers/subscription_provider.dart'; // ДОДАНО
+import '../../providers/subscription_provider.dart';
 
 class SettingsDrawer extends StatelessWidget {
   const SettingsDrawer({super.key});
@@ -91,6 +92,28 @@ class SettingsDrawer extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const StatsScreen()),
+                );
+              },
+            ),
+
+            // КНОПКА КУРСИ ВАЛЮТ
+            ListTile(
+              leading: Icon(Icons.currency_exchange, color: colors.textMain),
+              title: Text(
+                'exchange_rates'.tr(),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: colors.textMain,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CurrenciesScreen(),
+                  ),
                 );
               },
             ),

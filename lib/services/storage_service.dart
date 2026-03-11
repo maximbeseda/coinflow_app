@@ -3,7 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/transaction_model.dart';
 import '../models/category_model.dart';
 import '../models/subscription_model.dart';
-import '../theme/category_defaults.dart'; // ДОДАНО: Для авто-синхронізації
+import '../theme/category_defaults.dart';
 import '../utils/hive_adapters.dart';
 
 class StorageService {
@@ -29,11 +29,10 @@ class StorageService {
   }
 
   // ==========================================
-  // 1. СТРУКТУРНІ МІГРАЦІЇ (Тільки для нових полів у моделях)
+  // 1. СТРУКТУРНІ МІГРАЦІЇ
   // ==========================================
   static const String _dbVersionKey = 'db_version';
-  static const int currentDbVersion =
-      1; // Піднімати ТІЛЬКИ якщо зміниш поля в моделях!
+  static const int currentDbVersion = 1;
 
   static Future<void> runMigrationsIfNeeded() async {
     final box = Hive.box(_settingsBox);
@@ -43,17 +42,13 @@ class StorageService {
       debugPrint(
         "Починаємо структурну міграцію DB з версії $savedVersion на $currentDbVersion...",
       );
-
-      // Тут у майбутньому ти писатимеш міграції для нових полів
-      // if (savedVersion < 2) { await _migrateToV2(); }
-
       await box.put(_dbVersionKey, currentDbVersion);
       debugPrint("Структурну міграцію успішно завершено!");
     }
   }
 
   // ==========================================
-  // 2. АВТО-СИНХРОНІЗАЦІЯ ДИЗАЙНУ (Працює завжди)
+  // 2. АВТО-СИНХРОНІЗАЦІЯ ДИЗАЙНУ
   // ==========================================
   static Future<void> syncSystemDesign() async {
     final categories = await loadCategories();
@@ -61,24 +56,20 @@ class StorageService {
     List<Category> updatedList = [];
 
     for (var cat in categories) {
-      // Запитуємо еталонні кольори
       final targetBgColor = CategoryDefaults.getBgColor(cat.type);
       final targetIconColor = CategoryDefaults.getIconColor(cat.type);
 
-      // Перевіряємо, чи збігається база з еталоном
       if (cat.bgColor.toARGB32() != targetBgColor.toARGB32() ||
           cat.iconColor.toARGB32() != targetIconColor.toARGB32()) {
-        // Якщо ні — створюємо копію з правильними кольорами
         updatedList.add(
           cat.copyWith(bgColor: targetBgColor, iconColor: targetIconColor),
         );
         needsUpdate = true;
       } else {
-        updatedList.add(cat); // Залишаємо як є
+        updatedList.add(cat);
       }
     }
 
-    // Зберігаємо тільки якщо реально щось перефарбували
     if (needsUpdate) {
       await saveCategories(updatedList);
       debugPrint(
@@ -87,7 +78,7 @@ class StorageService {
     }
   }
 
-  // --- НАЛАШТУВАННЯ (Теми тощо) ---
+  // --- НАЛАШТУВАННЯ (Теми) ---
   static Future<void> saveThemeId(String themeId) async {
     final box = Hive.box(_settingsBox);
     await box.put(_themeKey, themeId);
@@ -97,6 +88,63 @@ class StorageService {
     final box = Hive.box(_settingsBox);
     return box.get(_themeKey, defaultValue: 'light');
   }
+
+  // ==========================================
+  // НОВЕ: НАЛАШТУВАННЯ ВАЛЮТ
+  // ==========================================
+
+  // 1. Базова валюта
+  static String getBaseCurrency() {
+    final box = Hive.box(_settingsBox);
+    return box.get('base_currency', defaultValue: 'UAH');
+  }
+
+  static Future<void> setBaseCurrency(String code) async {
+    await Hive.box(_settingsBox).put('base_currency', code);
+  }
+
+  // 2. Обрані валюти (для екрану курсів та створення рахунків)
+  static List<String> getSelectedCurrencies() {
+    final box = Hive.box(_settingsBox);
+    final data = box.get(
+      'selected_currencies',
+      defaultValue: ['UAH', 'USD', 'EUR'],
+    );
+    return (data as List).cast<String>();
+  }
+
+  static Future<void> setSelectedCurrencies(List<String> codes) async {
+    await Hive.box(_settingsBox).put('selected_currencies', codes);
+  }
+
+  // 3. Кешовані курси (відносно базової валюти)
+  static Map<String, double> getExchangeRates() {
+    final box = Hive.box(_settingsBox);
+    final data = box.get('exchange_rates', defaultValue: {});
+
+    // Hive може зберігати цілі числа як int, тому конвертуємо все в double надійно
+    final map = (data as Map).cast<String, dynamic>();
+    return map.map((key, value) => MapEntry(key, (value as num).toDouble()));
+  }
+
+  static Future<void> saveExchangeRates(Map<String, double> rates) async {
+    await Hive.box(_settingsBox).put('exchange_rates', rates);
+  }
+
+  // 4. Час останнього оновлення курсів
+  static DateTime? getLastRatesUpdateTime() {
+    final ms = Hive.box(_settingsBox).get('last_rates_update');
+    if (ms == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  static Future<void> setLastRatesUpdateTime(DateTime date) async {
+    await Hive.box(
+      _settingsBox,
+    ).put('last_rates_update', date.millisecondsSinceEpoch);
+  }
+
+  // ==========================================
 
   // --- ІСТОРІЯ ТРАНЗАКЦІЙ ---
   static Future<void> saveHistory(List<Transaction> transactions) async {
@@ -121,7 +169,6 @@ class StorageService {
       final box = Hive.box(_historyBox);
       if (box.isEmpty) return [];
 
-      // БЕЗШОВНА МІГРАЦІЯ
       if (box.getAt(0) is Map) {
         debugPrint(
           "Виявлено старий формат транзакцій. Мігруємо на TypeAdapter...",
@@ -149,15 +196,13 @@ class StorageService {
   static Future<void> saveCategories(List<Category> categories) async {
     final box = Hive.box(_categoriesBox);
     await box.clear();
-    final map = {
-      for (var c in categories) c.id: c,
-    }; // Більше не викликаємо .toJson()
+    final map = {for (var c in categories) c.id: c};
     await box.putAll(map);
   }
 
   static Future<void> saveCategory(Category category) async {
     final box = Hive.box(_categoriesBox);
-    await box.put(category.id, category); // Більше не викликаємо .toJson()
+    await box.put(category.id, category);
   }
 
   static Future<void> removeCategory(String id) async {
@@ -170,7 +215,6 @@ class StorageService {
       final box = Hive.box(_categoriesBox);
       if (box.isEmpty) return [];
 
-      // БЕЗШОВНА МІГРАЦІЯ: Якщо дані лежать у старому форматі JSON (Map)
       if (box.getAt(0) is Map) {
         debugPrint(
           "Виявлено старий формат категорій. Мігруємо на TypeAdapter...",
@@ -185,7 +229,6 @@ class StorageService {
         return oldList;
       }
 
-      // Якщо формат вже новий (TypeAdapter)
       return box.values.cast<Category>().toList();
     } catch (e) {
       debugPrint("Помилка завантаження категорій з Hive: $e");
@@ -214,7 +257,7 @@ class StorageService {
     await Hive.box(_subscriptionsBox).clear();
   }
 
-  // ДОДАНО: Збереження та завантаження списку проігнорованих підписок
+  // --- ІГНОРОВАНІ ПІДПИСКИ ---
   static List<String> getIgnoredSubscriptions() {
     final box = Hive.box(_settingsBox);
     final data = box.get('ignored_subs', defaultValue: []);

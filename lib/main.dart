@@ -13,6 +13,7 @@ import 'providers/category_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/settings_provider.dart';
 import 'theme/app_theme.dart';
 import 'services/storage_service.dart';
 
@@ -69,17 +70,20 @@ void main() async {
         providers: [
           ChangeNotifierProvider(create: (_) => ThemeProvider()),
 
-          // 1. Провайдер категорій (незалежний)
+          // 1. Провайдер налаштувань (відповідає за валюти і курси)
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+
+          // 2. Провайдер категорій (незалежний)
           ChangeNotifierProvider(create: (_) => CategoryProvider()),
 
-          // 2. Провайдер транзакцій (слідкує за категоріями, щоб оновлювати їх баланси)
+          // 3. Провайдер транзакцій (слідкує за категоріями, щоб оновлювати їх баланси)
           ChangeNotifierProxyProvider<CategoryProvider, TransactionProvider>(
             create: (_) => TransactionProvider(),
             update: (_, catProv, txProv) =>
                 txProv!..updateDependencies(catProv),
           ),
 
-          // 3. Провайдер підписок (слідкує за обома попередніми)
+          // 4. Провайдер підписок (слідкує за обома попередніми)
           ChangeNotifierProxyProvider2<
             CategoryProvider,
             TransactionProvider,
