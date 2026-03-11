@@ -1,6 +1,7 @@
-import 'package:coin_flow/utils/currency_formatter.dart';
 import 'package:flutter/material.dart';
+import '../../utils/currency_formatter.dart';
 import '../../models/category_model.dart';
+import '../../models/app_currency.dart'; // ДОДАНО: Для отримання символу валюти
 import '../../theme/app_colors_extension.dart';
 
 class CoinWidget extends StatelessWidget {
@@ -22,6 +23,9 @@ class CoinWidget extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     String displayAmount = CurrencyFormatter.format(category.amount);
+
+    // ДОДАНО: Отримуємо символ валюти для цієї конкретної категорії
+    String currencySymbol = AppCurrency.fromCode(category.currency).symbol;
 
     bool isIncome = category.type == CategoryType.income;
     bool isExpense = category.type == CategoryType.expense;
@@ -64,12 +68,9 @@ class CoinWidget extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: shadowColor,
-            blurRadius: 8, // ЗМІНЕНО: Більше розмиття для м'якого ореолу
+            blurRadius: 8,
             spreadRadius: 1,
-            offset: const Offset(
-              0,
-              0,
-            ), // ЗМІНЕНО: Нульове зміщення = рівномірна тінь з усіх боків!
+            offset: const Offset(0, 0),
           ),
         ],
       ),
@@ -176,8 +177,8 @@ class CoinWidget extends StatelessWidget {
                 );
               },
               child: Text(
-                "$displayAmount₴",
-                key: ValueKey<String>(displayAmount),
+                "$displayAmount $currencySymbol", // ЗМІНЕНО: Динамічна валюта замість ₴
+                key: ValueKey<String>("$displayAmount $currencySymbol"),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

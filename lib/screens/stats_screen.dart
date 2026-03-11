@@ -4,6 +4,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../providers/category_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../providers/settings_provider.dart'; // ДОДАНО
+import '../models/app_currency.dart'; // ДОДАНО
 import '../utils/currency_formatter.dart';
 import '../widgets/dialogs/month_picker_dialog.dart';
 import '../models/category_model.dart';
@@ -47,7 +49,6 @@ class _StatsScreenState extends State<StatsScreen> {
   ];
 
   Color _getUniqueColor(String id, CategoryProvider catProv) {
-    // ВИПРАВЛЕНО: Використовуємо всі категорії для генерації кольору
     List<String> allIds = catProv.allCategoriesList
         .where(
           (c) =>
@@ -73,7 +74,13 @@ class _StatsScreenState extends State<StatsScreen> {
   Widget build(BuildContext context) {
     final catProv = context.watch<CategoryProvider>();
     final txProv = context.watch<TransactionProvider>();
+    final settings = context.watch<SettingsProvider>(); // ДОДАНО
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    // Отримуємо символ базової валюти
+    final baseCurrencySymbol = AppCurrency.fromCode(
+      settings.baseCurrency,
+    ).symbol;
 
     final monthHistory = txProv.history
         .where(
@@ -83,7 +90,6 @@ class _StatsScreenState extends State<StatsScreen> {
         )
         .toList();
 
-    // ВИПРАВЛЕНО: Тепер ми беремо ВСІ категорії, включаючи архівні
     final allCategories = catProv.allCategoriesList;
 
     final Map<String, Category> categoryMap = {
@@ -93,18 +99,24 @@ class _StatsScreenState extends State<StatsScreen> {
     final Map<String, double> expenseTotals = {};
     final Map<String, double> incomeTotals = {};
 
+    // МАГІЯ КОНВЕРТАЦІЇ: Рахуємо суми всіх транзакцій у базовій валюті
     for (var t in monthHistory) {
       final fromCat = categoryMap[t.fromId];
       final toCat = categoryMap[t.toId];
+
+      // Конвертуємо суму транзакції в базову валюту (використовуючи історичний курс транзакції, якщо є)
+      // Поки що використовуємо поточний конвертер з SettingsProvider, в наступному етапі ми додамо historicalRate
+      final convertedAmount = settings.convertToBase(t.amount, t.currency);
+
       if (toCat != null && toCat.type == CategoryType.expense) {
-        expenseTotals[t.toId] = (expenseTotals[t.toId] ?? 0) + t.amount;
+        expenseTotals[t.toId] = (expenseTotals[t.toId] ?? 0) + convertedAmount;
       }
       if (fromCat != null && fromCat.type == CategoryType.income) {
-        incomeTotals[t.fromId] = (incomeTotals[t.fromId] ?? 0) + t.amount;
+        incomeTotals[t.fromId] =
+            (incomeTotals[t.fromId] ?? 0) + convertedAmount;
       }
     }
 
-    // ВИПРАВЛЕНО: Збираємо список витрат із ВСІХ категорій
     final activeExpenses = catProv.allCategoriesList
         .where(
           (c) =>
@@ -121,7 +133,6 @@ class _StatsScreenState extends State<StatsScreen> {
       (sum, item) => sum + item.amount.abs(),
     );
 
-    // ВИПРАВЛЕНО: Збираємо список доходів із ВСІХ категорій
     final activeIncomes = catProv.allCategoriesList
         .where(
           (c) =>
@@ -306,7 +317,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
-                                      "${CurrencyFormatter.format(totalExpenses)} ₴",
+                                      "${CurrencyFormatter.format(totalExpenses)} $baseCurrencySymbol", // ЗМІНЕНО
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w900,
@@ -349,7 +360,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
-                                      "${CurrencyFormatter.format(totalIncomes)} ₴",
+                                      "${CurrencyFormatter.format(totalIncomes)} $baseCurrencySymbol", // ЗМІНЕНО
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w900,
@@ -493,7 +504,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                         ),
                                         const SizedBox(width: 12),
                                         Text(
-                                          "${CurrencyFormatter.format(cat.amount.abs())} ₴",
+                                          "${CurrencyFormatter.format(cat.amount.abs())} $baseCurrencySymbol", // ЗМІНЕНО
                                           style: TextStyle(
                                             fontWeight: FontWeight.w800,
                                             fontSize: 14,

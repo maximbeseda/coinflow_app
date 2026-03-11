@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // ДОДАНО: Для доступу до провайдерів
+import 'package:provider/provider.dart';
 import '../../utils/currency_formatter.dart';
 import 'rolling_digit.dart';
 import '../../theme/app_colors_extension.dart';
-import '../../providers/subscription_provider.dart'; // ДОДАНО: Для перевірки підписок
+import '../../providers/subscription_provider.dart';
+import '../../providers/settings_provider.dart'; // ДОДАНО: Для доступу до базової валюти
+import '../../models/app_currency.dart'; // ДОДАНО: Для отримання символу валюти
 
 class SummaryHeader extends StatelessWidget {
   final double totalBalance;
@@ -29,7 +31,12 @@ class SummaryHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // ДОДАНО: Перевіряємо, чи є відкладені/прострочені платежі
+    // Отримуємо поточний символ базової валюти
+    final settings = context.watch<SettingsProvider>();
+    final baseCurrencySymbol = AppCurrency.fromCode(
+      settings.baseCurrency,
+    ).symbol;
+
     final hasPendingSubscriptions = context
         .watch<SubscriptionProvider>()
         .hasPendingPayments;
@@ -46,6 +53,7 @@ class SummaryHeader extends StatelessWidget {
               colors.textMain,
               onBalanceTap,
               colors,
+              baseCurrencySymbol, // Передаємо символ валюти
             ),
             _item(
               Icons.north_east,
@@ -53,6 +61,7 @@ class SummaryHeader extends StatelessWidget {
               colors.income,
               onIncomesTap,
               colors,
+              baseCurrencySymbol, // Передаємо символ валюти
             ),
             _item(
               Icons.south_east,
@@ -60,9 +69,9 @@ class SummaryHeader extends StatelessWidget {
               colors.expense,
               onExpensesTap,
               colors,
+              baseCurrencySymbol, // Передаємо символ валюти
             ),
 
-            // ЗМІНЕНО: Кнопка налаштувань тепер зі Stack для відображення індикатора
             GestureDetector(
               onTap: onSettingsTap,
               behavior: HitTestBehavior.opaque,
@@ -77,7 +86,6 @@ class SummaryHeader extends StatelessWidget {
                       size: 20,
                       color: colors.textSecondary,
                     ),
-                    // ДОДАНО: Червона крапка (badge), якщо є борги
                     if (hasPendingSubscriptions)
                       Positioned(
                         top: -2,
@@ -114,6 +122,7 @@ class SummaryHeader extends StatelessWidget {
     Color color,
     VoidCallback onTap,
     AppColorsExtension colors,
+    String currencySymbol, // ДОДАНО: Приймаємо символ валюти
   ) {
     String formattedAmount = CurrencyFormatter.format(amount, isHeader: true);
 
@@ -145,7 +154,7 @@ class SummaryHeader extends StatelessWidget {
                         ),
                       ),
                     Text(
-                      " ₴",
+                      " $currencySymbol", // ЗМІНЕНО: Динамічний символ валюти замість "₴"
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
