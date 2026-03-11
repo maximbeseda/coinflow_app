@@ -26,13 +26,15 @@ class CategoryAdapter extends TypeAdapter<Category> {
       amount: fields[6] as double,
       budget: fields[7] as double?,
       isArchived: fields[8] as bool,
+      currency: fields[9] == null ? 'UAH' : fields[9] as String,
+      includeInTotal: fields[10] == null ? true : fields[10] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, Category obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -50,7 +52,11 @@ class CategoryAdapter extends TypeAdapter<Category> {
       ..writeByte(7)
       ..write(obj.budget)
       ..writeByte(8)
-      ..write(obj.isArchived);
+      ..write(obj.isArchived)
+      ..writeByte(9)
+      ..write(obj.currency)
+      ..writeByte(10)
+      ..write(obj.includeInTotal);
   }
 
   @override

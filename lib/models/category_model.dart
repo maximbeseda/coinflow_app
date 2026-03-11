@@ -43,6 +43,14 @@ class Category extends HiveObject {
   @HiveField(8)
   final bool isArchived;
 
+  // ДОДАНО: Валюта рахунку (за замовчуванням UAH для зворотної сумісності)
+  @HiveField(9, defaultValue: 'UAH')
+  final String currency;
+
+  // ДОДАНО: Чи включати в загальний баланс (за замовчуванням true)
+  @HiveField(10, defaultValue: true)
+  final bool includeInTotal;
+
   Category({
     required this.id,
     required this.type,
@@ -53,6 +61,8 @@ class Category extends HiveObject {
     this.amount = 0.0,
     this.budget,
     this.isArchived = false,
+    this.currency = 'UAH', // Захист для існуючих рахунків
+    this.includeInTotal = true,
   });
 
   Category copyWith({
@@ -63,6 +73,8 @@ class Category extends HiveObject {
     double? amount,
     double? budget,
     bool? isArchived,
+    String? currency,
+    bool? includeInTotal,
   }) {
     return Category(
       id: id,
@@ -74,10 +86,11 @@ class Category extends HiveObject {
       amount: amount ?? this.amount,
       budget: budget ?? this.budget,
       isArchived: isArchived ?? this.isArchived,
+      currency: currency ?? this.currency,
+      includeInTotal: includeInTotal ?? this.includeInTotal,
     );
   }
 
-  // toJson та fromJson залишаємо для міграції та бекапів
   Map<String, dynamic> toJson() => {
     'id': id,
     'type': type.name,
@@ -88,6 +101,8 @@ class Category extends HiveObject {
     'amount': amount,
     'budget': budget,
     'isArchived': isArchived,
+    'currency': currency, // ДОДАНО в JSON
+    'includeInTotal': includeInTotal, // ДОДАНО в JSON
   };
 
   factory Category.fromJson(Map<String, dynamic> json) {
@@ -115,6 +130,8 @@ class Category extends HiveObject {
       amount: (json['amount'] ?? 0.0).toDouble(),
       budget: json['budget']?.toDouble(),
       isArchived: json['isArchived'] ?? false,
+      currency: json['currency'] ?? 'UAH', // Міграція старого JSON
+      includeInTotal: json['includeInTotal'] ?? true, // Міграція старого JSON
     );
   }
 }

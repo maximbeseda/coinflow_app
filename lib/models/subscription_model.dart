@@ -31,6 +31,10 @@ class Subscription extends HiveObject {
   @HiveField(8)
   bool isAutoPay;
 
+  // ДОДАНО: Валюта підписки (за замовчуванням UAH для зворотної сумісності)
+  @HiveField(9, defaultValue: 'UAH')
+  final String currency;
+
   Subscription({
     required this.id,
     required this.name,
@@ -41,9 +45,9 @@ class Subscription extends HiveObject {
     this.periodicity = 'monthly',
     this.customIconCodePoint,
     this.isAutoPay = false,
+    this.currency = 'UAH', // Захист для існуючих підписок
   });
 
-  // ДОДАНО: copyWith для зручного редагування окремих полів
   Subscription copyWith({
     String? name,
     double? amount,
@@ -53,9 +57,10 @@ class Subscription extends HiveObject {
     String? periodicity,
     int? customIconCodePoint,
     bool? isAutoPay,
+    String? currency,
   }) {
     return Subscription(
-      id: id, // ID ніколи не змінюємо
+      id: id,
       name: name ?? this.name,
       amount: amount ?? this.amount,
       categoryId: categoryId ?? this.categoryId,
@@ -64,6 +69,7 @@ class Subscription extends HiveObject {
       periodicity: periodicity ?? this.periodicity,
       customIconCodePoint: customIconCodePoint ?? this.customIconCodePoint,
       isAutoPay: isAutoPay ?? this.isAutoPay,
+      currency: currency ?? this.currency,
     );
   }
 
@@ -78,6 +84,7 @@ class Subscription extends HiveObject {
       'periodicity': periodicity,
       'customIconCodePoint': customIconCodePoint,
       'isAutoPay': isAutoPay,
+      'currency': currency, // ДОДАНО
     };
   }
 
@@ -85,13 +92,14 @@ class Subscription extends HiveObject {
     return Subscription(
       id: json['id'],
       name: json['name'],
-      amount: (json['amount'] as num).toDouble(), // Захист від int/double
+      amount: (json['amount'] as num).toDouble(),
       categoryId: json['categoryId'],
       accountId: json['accountId'],
       nextPaymentDate: DateTime.parse(json['nextPaymentDate']),
       periodicity: json['periodicity'] ?? 'monthly',
       customIconCodePoint: json['customIconCodePoint'],
       isAutoPay: json['isAutoPay'] ?? false,
+      currency: json['currency'] ?? 'UAH', // Міграція
     );
   }
 }

@@ -26,13 +26,14 @@ class SubscriptionAdapter extends TypeAdapter<Subscription> {
       periodicity: fields[6] as String,
       customIconCodePoint: fields[7] as int?,
       isAutoPay: fields[8] as bool,
+      currency: fields[9] == null ? 'UAH' : fields[9] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, Subscription obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -50,7 +51,9 @@ class SubscriptionAdapter extends TypeAdapter<Subscription> {
       ..writeByte(7)
       ..write(obj.customIconCodePoint)
       ..writeByte(8)
-      ..write(obj.isAutoPay);
+      ..write(obj.isAutoPay)
+      ..writeByte(9)
+      ..write(obj.currency);
   }
 
   @override
