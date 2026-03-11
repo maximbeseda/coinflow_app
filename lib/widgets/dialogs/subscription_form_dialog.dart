@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/subscription_provider.dart';
+import '../../providers/settings_provider.dart'; // ДОДАНО
 import '../../models/subscription_model.dart';
+import '../../models/app_currency.dart'; // ДОДАНО
 import '../../utils/app_constants.dart';
 import 'custom_calendar_dialog.dart';
 import '../../theme/app_colors_extension.dart';
@@ -31,6 +33,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
   bool _isAutoPay = false;
   bool _hasError = false;
 
+  // ДОДАНО: Стан для валюти
+  String? _selectedCurrency;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +59,17 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
     _isAutoPay = sub?.isAutoPay ?? false;
   }
 
+  // ДОДАНО: Ініціалізація валюти
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_selectedCurrency == null) {
+      final settings = context.read<SettingsProvider>();
+      _selectedCurrency =
+          widget.subscription?.currency ?? settings.baseCurrency;
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -73,8 +89,8 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
       return;
     }
 
-    // ВИПРАВЛЕНО: Використовуємо SubscriptionProvider замість FinanceProvider
     final subProv = Provider.of<SubscriptionProvider>(context, listen: false);
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
 
     final newSub = Subscription(
       id:
@@ -88,6 +104,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
       periodicity: _selectedPeriodicity,
       customIconCodePoint: _customIconCodePoint,
       isAutoPay: _isAutoPay,
+      currency: _selectedCurrency ?? settings.baseCurrency, // ДОДАНО
     );
 
     if (widget.subscription == null) {
@@ -197,7 +214,6 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
 
     if (!mounted) return;
     if (confirmed) {
-      // ВИПРАВЛЕНО: Використовуємо SubscriptionProvider замість FinanceProvider
       final subProv = Provider.of<SubscriptionProvider>(context, listen: false);
       subProv.deleteSubscription(widget.subscription!.id);
       Navigator.pop(context);
@@ -345,11 +361,23 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // ВИПРАВЛЕНО: Використовуємо CategoryProvider для отримання категорій
     final catProv = Provider.of<CategoryProvider>(context, listen: false);
+    final settings = context.watch<SettingsProvider>(); // ДОДАНО
 
     final isEditing = widget.subscription != null;
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    // Отримуємо поточний символ валюти
+    final currencySymbol = AppCurrency.fromCode(
+      _selectedCurrency ?? settings.baseCurrency,
+    ).symbol;
+
+    // Список доступних валют
+    List<String> availableCurrencies = List.from(settings.selectedCurrencies);
+    if (_selectedCurrency != null &&
+        !availableCurrencies.contains(_selectedCurrency)) {
+      availableCurrencies.add(_selectedCurrency!);
+    }
 
     IconData displayIcon = Icons.card_giftcard;
     Color displayColor = colors.iconBg;
@@ -511,6 +539,47 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
             ),
             const SizedBox(height: 12),
 
+            // ДОДАНО: ВИБІР ВАЛЮТИ
+            DropdownButtonFormField<String>(
+              value: _selectedCurrency,
+              dropdownColor: colors.cardBg,
+              icon: Icon(
+                Icons.keyboard_arrow_down,
+                color: colors.textSecondary,
+              ),
+              decoration: InputDecoration(
+                label: Text(
+                  'currency'.tr(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                labelStyle: TextStyle(color: colors.textSecondary),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              items: availableCurrencies.map((code) {
+                final curr = AppCurrency.fromCode(code);
+                return DropdownMenuItem(
+                  value: code,
+                  child: Text(
+                    "${curr.code} (${curr.symbol})",
+                    style: TextStyle(
+                      color: colors.textMain,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => _selectedCurrency = val);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+
             Row(
               children: [
                 // ПОЛЕ "СУМА"
@@ -531,7 +600,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      suffixText: '₴',
+                      suffixText: currencySymbol, // ЗМІНЕНО: Динамічний символ
                       suffixStyle: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: colors.textSecondary,

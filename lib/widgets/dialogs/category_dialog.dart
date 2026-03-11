@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:provider/provider.dart'; // ДОДАНО
 import '../../models/category_model.dart';
 import '../../utils/app_constants.dart';
 import '../../theme/app_colors_extension.dart';
 import '../../theme/category_defaults.dart';
+import '../../providers/settings_provider.dart'; // ДОДАНО
+import '../../models/app_currency.dart'; // ДОДАНО
 
 class CategoryDialog extends StatefulWidget {
   final Category? category;
@@ -21,6 +24,10 @@ class _CategoryDialogState extends State<CategoryDialog> {
   late TextEditingController _amountCtrl;
   late TextEditingController _budgetCtrl;
   late IconData _selectedIcon;
+
+  // ДОДАНО: Стан для нових полів
+  String? _selectedCurrency;
+  bool _includeInTotal = true;
 
   @override
   void initState() {
@@ -48,6 +55,18 @@ class _CategoryDialogState extends State<CategoryDialog> {
         : AppConstants.groupedIcons.values.first.first;
 
     _nameCtrl.addListener(() => setState(() {}));
+  }
+
+  // ДОДАНО: Ініціалізуємо валюту з провайдера, коли контекст стає доступним
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_selectedCurrency == null) {
+      final settings = context.read<SettingsProvider>();
+      // Якщо редагуємо - беремо збережену валюту, якщо створюємо нову - беремо базову
+      _selectedCurrency = widget.category?.currency ?? settings.baseCurrency;
+      _includeInTotal = widget.category?.includeInTotal ?? true;
+    }
   }
 
   @override
@@ -161,9 +180,22 @@ class _CategoryDialogState extends State<CategoryDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
+    final settings = context.watch<SettingsProvider>();
 
     Color previewBgColor = CategoryDefaults.getBgColor(widget.type);
     Color previewIconColor = CategoryDefaults.getIconColor(widget.type);
+
+    // Отримуємо поточний символ валюти для суфіксів полів вводу
+    final currencySymbol = AppCurrency.fromCode(
+      _selectedCurrency ?? settings.baseCurrency,
+    ).symbol;
+
+    // Гарантуємо, що обрана валюта є у випадаючому списку (навіть якщо користувач її видалив з налаштувань)
+    List<String> availableCurrencies = List.from(settings.selectedCurrencies);
+    if (_selectedCurrency != null &&
+        !availableCurrencies.contains(_selectedCurrency)) {
+      availableCurrencies.add(_selectedCurrency!);
+    }
 
     return Dialog(
       child: Padding(
@@ -175,7 +207,6 @@ class _CategoryDialogState extends State<CategoryDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // ЗАХИСТ: Заголовок вікна
                   Expanded(
                     child: Text(
                       widget.category == null
@@ -274,7 +305,6 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 ),
               ),
               const SizedBox(height: 8),
-              // ЗАХИСТ: Превью назви під іконкою
               Text(
                 _nameCtrl.text.isEmpty ? 'name_hint'.tr() : _nameCtrl.text,
                 style: TextStyle(
@@ -295,6 +325,44 @@ class _CategoryDialogState extends State<CategoryDialog> {
                 colors: colors,
               ),
 
+              const SizedBox(height: 12),
+
+              // ДОДАНО: Вибір валюти для всіх типів категорій
+              DropdownButtonFormField<String>(
+                initialValue: _selectedCurrency,
+                dropdownColor: colors.cardBg,
+                icon: Icon(
+                  Icons.keyboard_arrow_down,
+                  color: colors.textSecondary,
+                ),
+                decoration: InputDecoration(
+                  label: Text(
+                    'currency'.tr(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  labelStyle: TextStyle(color: colors.textSecondary),
+                ),
+                items: availableCurrencies.map((code) {
+                  final curr = AppCurrency.fromCode(code);
+                  return DropdownMenuItem(
+                    value: code,
+                    child: Text(
+                      "${curr.code} (${curr.symbol})",
+                      style: TextStyle(
+                        color: colors.textMain,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() => _selectedCurrency = val);
+                  }
+                },
+              ),
+
               if (widget.type == CategoryType.account) ...[
                 const SizedBox(height: 12),
                 _buildTextField(
@@ -302,9 +370,46 @@ class _CategoryDialogState extends State<CategoryDialog> {
                   label: widget.category == null
                       ? 'initial_balance'.tr()
                       : 'current_balance'.tr(),
-                  suffix: "₴",
+                  suffix: currencySymbol, // ЗМІНЕНО: Динамічний символ валюти
                   isNumber: true,
                   colors: colors,
+                ),
+
+                // ДОДАНО: Тумблер для рахунків
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: colors.iconBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    title: Text(
+                      'include_in_total'.tr(),
+                      style: TextStyle(
+                        color: colors.textMain,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'include_in_total_desc'.tr(),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    value: _includeInTotal,
+                    activeThumbColor: colors.income,
+                    onChanged: (val) {
+                      setState(() {
+                        _includeInTotal = val;
+                      });
+                    },
+                  ),
                 ),
               ],
 
@@ -314,7 +419,7 @@ class _CategoryDialogState extends State<CategoryDialog> {
                   controller: _budgetCtrl,
                   label: 'monthly_budget'.tr(),
                   hintText: 'enter_amount'.tr(),
-                  suffix: "₴",
+                  suffix: currencySymbol, // ЗМІНЕНО: Динамічний символ валюти
                   isNumber: true,
                   colors: colors,
                 ),
@@ -336,15 +441,18 @@ class _CategoryDialogState extends State<CategoryDialog> {
                       double? budgetAmount = double.tryParse(
                         _budgetCtrl.text.replaceAll(',', '.'),
                       );
+
+                      // ЗМІНЕНО: Повертаємо нові поля
                       Navigator.pop(context, {
                         'name': _nameCtrl.text.trim(),
                         'icon': _selectedIcon,
                         'amount': initialAmount,
                         'budget': budgetAmount,
+                        'currency': _selectedCurrency, // ДОДАНО
+                        'includeInTotal': _includeInTotal, // ДОДАНО
                       });
                     }
                   },
-                  // ВИПРАВЛЕНО: Прибрано FittedBox, додано ellipsis
                   child: Text(
                     widget.category == null ? 'create'.tr() : 'save'.tr(),
                     style: const TextStyle(
@@ -385,7 +493,6 @@ class _CategoryDialogState extends State<CategoryDialog> {
       textCapitalization: TextCapitalization.sentences,
       style: TextStyle(color: colors.textMain),
       decoration: InputDecoration(
-        // ЗАХИСТ: Label у полях вводу теж може бути довгим
         label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         hintText: hintText,
         counterText: "",
