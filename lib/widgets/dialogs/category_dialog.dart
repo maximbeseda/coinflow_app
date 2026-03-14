@@ -190,12 +190,10 @@ class _CategoryDialogState extends State<CategoryDialog> {
       _selectedCurrency ?? settings.baseCurrency,
     ).symbol;
 
-    // Гарантуємо, що обрана валюта є у випадаючому списку (навіть якщо користувач її видалив з налаштувань)
-    List<String> availableCurrencies = List.from(settings.selectedCurrencies);
-    if (_selectedCurrency != null &&
-        !availableCurrencies.contains(_selectedCurrency)) {
-      availableCurrencies.add(_selectedCurrency!);
-    }
+    // Показуємо всі валюти світу
+    List<String> availableCurrencies = AppCurrency.supportedCurrencies
+        .map((c) => c.code)
+        .toList();
 
     return Dialog(
       child: Padding(

@@ -85,6 +85,7 @@ class CategoryProvider extends ChangeNotifier {
     for (var t in currentMonthHistory) {
       int incIdx = incomes.indexWhere((c) => c.id == t.fromId);
       if (incIdx != -1) {
+        // Доходи завжди є джерелом (fromId), тому для них беремо базовий amount
         incomes[incIdx] = incomes[incIdx].copyWith(
           amount: incomes[incIdx].amount + t.amount,
         );
@@ -92,8 +93,9 @@ class CategoryProvider extends ChangeNotifier {
 
       int expIdx = expenses.indexWhere((c) => c.id == t.toId);
       if (expIdx != -1) {
+        // ФІКС: Витрати є ціллю (toId), тому для них беремо targetAmount (якщо він є)
         expenses[expIdx] = expenses[expIdx].copyWith(
-          amount: expenses[expIdx].amount + t.amount,
+          amount: expenses[expIdx].amount + (t.targetAmount ?? t.amount),
         );
       }
     }

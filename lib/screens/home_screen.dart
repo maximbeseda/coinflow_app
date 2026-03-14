@@ -19,6 +19,7 @@ import '../utils/currency_formatter.dart';
 import '../providers/category_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/subscription_provider.dart';
+import '../providers/settings_provider.dart';
 import '../theme/app_colors_extension.dart';
 
 String formatCurrency(double amount) => CurrencyFormatter.format(amount);
@@ -129,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen>
         t,
         result['amount'],
         result['date'],
+        targetAmount: result['targetAmount'], // ДОДАНО ЦЕЙ РЯДОК
       );
     }
   }
@@ -275,6 +277,8 @@ class _HomeScreenState extends State<HomeScreen>
           budget: result['budget'],
           bgColor: CategoryDefaults.getBgColor(type),
           iconColor: CategoryDefaults.getIconColor(type),
+          currency: result['currency'] ?? 'UAH',
+          includeInTotal: result['includeInTotal'] ?? true,
         );
         catProv.addOrUpdateCategory(n);
       } else {
@@ -285,6 +289,8 @@ class _HomeScreenState extends State<HomeScreen>
           amount: type == CategoryType.account
               ? (result['amount'] ?? c.amount)
               : c.amount,
+          currency: result['currency'] ?? c.currency,
+          includeInTotal: result['includeInTotal'] ?? c.includeInTotal,
         );
         catProv.addOrUpdateCategory(updatedCategory);
       }
@@ -318,16 +324,33 @@ class _HomeScreenState extends State<HomeScreen>
               return const Center(child: CircularProgressIndicator());
             }
 
-            double totalBalance = catProv.accounts.fold(
-              0,
-              (sum, item) => sum + item.amount,
-            );
+            final settings = context.watch<SettingsProvider>();
+
+            double totalBalance = catProv.accounts
+                .where((item) => item.includeInTotal)
+                .fold(
+                  0.0,
+                  (sum, item) =>
+                      sum + settings.convertToBase(item.amount, item.currency),
+                );
+
             double totalIncomes = catProv.allCategoriesList
                 .where((c) => c.type == CategoryType.income)
-                .fold(0, (sum, item) => sum + item.amount.abs());
+                .fold(
+                  0.0,
+                  (sum, item) =>
+                      sum +
+                      settings.convertToBase(item.amount.abs(), item.currency),
+                );
+
             double totalExpenses = catProv.allCategoriesList
                 .where((c) => c.type == CategoryType.expense)
-                .fold(0, (sum, item) => sum + item.amount.abs());
+                .fold(
+                  0.0,
+                  (sum, item) =>
+                      sum +
+                      settings.convertToBase(item.amount.abs(), item.currency),
+                );
             final allCategories = catProv.allCategoriesList;
 
             return Container(
@@ -382,6 +405,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   t,
                                   result['amount'],
                                   result['date'],
+                                  newTargetAmount:
+                                      result['targetAmount'], // ОНОВЛЕНО
                                 );
                               }
                             },
@@ -422,6 +447,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   t,
                                   result['amount'],
                                   result['date'],
+                                  newTargetAmount:
+                                      result['targetAmount'], // ОНОВЛЕНО
                                 );
                               }
                             },
@@ -462,6 +489,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   t,
                                   result['amount'],
                                   result['date'],
+                                  newTargetAmount:
+                                      result['targetAmount'], // ОНОВЛЕНО
                                 );
                               }
                             },
@@ -713,7 +742,12 @@ class _HomeScreenState extends State<HomeScreen>
                   builder: (ctx) => EditTransactionDialog(transaction: t),
                 );
                 if (result != null) {
-                  finance.editTransaction(t, result['amount'], result['date']);
+                  finance.editTransaction(
+                    t,
+                    result['amount'],
+                    result['date'],
+                    newTargetAmount: result['targetAmount'], // ОНОВЛЕНО
+                  );
                 }
               },
             );

@@ -112,5 +112,10 @@
   "updating_rates": "Kurse werden aktualisiert...",
   "last_update": "Letztes Update",
   "base_currency": "Basiswährung",
-  "loading": "Wird geladen..."
+  "loading": "Wird geladen...",
+  "currency": "Währung",
+  "include_in_total": "Im Gesamtsaldo",
+  "include_in_total_desc": "Betrag im Kopfbereich auf dem Startbildschirm anzeigen",
+  "loading_rate": "Kurs wird aktualisiert...",
+  "rate_not_found": "Kurs nicht verfügbar"
 }

@@ -5,6 +5,7 @@ import '../providers/category_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../models/subscription_model.dart';
 import '../models/category_model.dart';
+import '../models/app_currency.dart'; // ДОДАНО: Для отримання символу валюти
 import '../utils/currency_formatter.dart';
 import '../widgets/dialogs/subscription_form_dialog.dart';
 import '../theme/app_colors_extension.dart';
@@ -144,6 +145,11 @@ class SubscriptionsScreen extends StatelessWidget {
                             paymentDate.isBefore(today) ||
                             paymentDate.isAtSameMomentAs(today);
 
+                        // ДОДАНО: Отримуємо символ валюти для підписки
+                        final currencySymbol = AppCurrency.fromCode(
+                          sub.currency,
+                        ).symbol;
+
                         return Container(
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
@@ -247,7 +253,7 @@ class SubscriptionsScreen extends StatelessWidget {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          "-${CurrencyFormatter.format(sub.amount)} ₴",
+                                          "-${CurrencyFormatter.format(sub.amount)} $currencySymbol", // ЗМІНЕНО: Динамічний символ
                                           style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w900,

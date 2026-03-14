@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../models/subscription_model.dart';
 import '../../providers/subscription_provider.dart';
-import '../../providers/category_provider.dart'; // ДОДАНО: Для перевірки балансу
+import '../../providers/category_provider.dart';
+import '../../providers/settings_provider.dart'; // ДОДАНО: Для конвертації валют
+import '../../models/app_currency.dart'; // ДОДАНО: Для символу валюти
 import '../../theme/app_colors_extension.dart';
 import '../../utils/currency_formatter.dart';
 
@@ -21,17 +23,33 @@ class DueSubscriptionDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // ДОДАНО: Отримуємо доступ до категорій, щоб перевірити баланс
     final catProv = context.watch<CategoryProvider>();
+    final settings = context.watch<SettingsProvider>(); // ДОДАНО
+
     final account = catProv.allCategoriesList
         .where((c) => c.id == subscription.accountId)
         .firstOrNull;
 
-    // ДОДАНО: Логіка перевірки: чи можемо ми оплатити?
-    final bool canPay =
-        account != null &&
-        !account.isArchived &&
-        account.amount >= subscription.amount;
+    // ДОДАНО: Правильна мультивалютна перевірка балансу
+    bool canPay = false;
+    if (account != null && !account.isArchived) {
+      // Конвертуємо баланс рахунку в базову валюту
+      double accountAmountBase = settings.convertToBase(
+        account.amount,
+        account.currency,
+      );
+      // Конвертуємо вартість підписки в базову валюту
+      double subAmountBase = settings.convertToBase(
+        subscription.amount,
+        subscription.currency,
+      );
+
+      // Порівнюємо їх у спільному еквіваленті
+      canPay = accountAmountBase >= subAmountBase;
+    }
+
+    // ДОДАНО: Отримуємо символ валюти підписки
+    final currencySymbol = AppCurrency.fromCode(subscription.currency).symbol;
 
     return Dialog(
       child: Stack(
@@ -41,7 +59,6 @@ class DueSubscriptionDialog extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // ЗМІНЕНО: Динамічна іконка залежно від наявності грошей
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -60,7 +77,6 @@ class DueSubscriptionDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
 
-                // Заголовок
                 Text(
                   'regular_payment_title'.tr(),
                   style: TextStyle(
@@ -74,7 +90,6 @@ class DueSubscriptionDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // Опис підписки
                 RichText(
                   textAlign: TextAlign.center,
                   maxLines: 2,
@@ -95,7 +110,6 @@ class DueSubscriptionDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // Візуальна плашка з ДАТОЮ ПЛАТЕЖУ
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -131,9 +145,8 @@ class DueSubscriptionDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
 
-                // ЗМІНЕНО: Сума підсвічується червоним, якщо грошей немає
                 Text(
-                  '${CurrencyFormatter.format(subscription.amount)} ₴',
+                  '${CurrencyFormatter.format(subscription.amount)} $currencySymbol', // ЗМІНЕНО: Динамічна валюта замість ₴
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -144,7 +157,6 @@ class DueSubscriptionDialog extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
 
-                // ДОДАНО: Текст попередження про нестачу коштів
                 if (!canPay) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -164,7 +176,6 @@ class DueSubscriptionDialog extends StatelessWidget {
 
                 const SizedBox(height: 32),
 
-                // Кнопки Пропустити / Сплатити
                 Row(
                   children: [
                     Expanded(
@@ -191,7 +202,6 @@ class DueSubscriptionDialog extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        // ЗМІНЕНО: Фарбуємо кнопку в червоний, якщо немає грошей
                         style: canPay
                             ? null
                             : ElevatedButton.styleFrom(
@@ -199,7 +209,6 @@ class DueSubscriptionDialog extends StatelessWidget {
                                 foregroundColor: Colors.white,
                               ),
                         onPressed: () async {
-                          // ДОДАНО: Логіка для кнопки "Сплатити пізніше"
                           if (!canPay) {
                             context
                                 .read<SubscriptionProvider>()
@@ -269,7 +278,6 @@ class DueSubscriptionDialog extends StatelessWidget {
                           );
                         },
                         child: Text(
-                          // ЗМІНЕНО: Змінюємо текст кнопки залежно від балансу
                           canPay ? 'pay'.tr() : 'pay_later'.tr(),
                           style: const TextStyle(
                             fontSize: 16,
@@ -286,7 +294,6 @@ class DueSubscriptionDialog extends StatelessWidget {
             ),
           ),
 
-          // Хрестик закриття (він просто ігнорує для цієї сесії)
           Positioned(
             right: 16,
             top: 16,

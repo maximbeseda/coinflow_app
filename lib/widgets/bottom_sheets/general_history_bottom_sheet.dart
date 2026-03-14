@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../models/category_model.dart';
 import '../../models/transaction_model.dart';
+import '../../models/app_currency.dart'; // ДОДАНО
 import '../../utils/currency_formatter.dart';
-import '../../theme/app_colors_extension.dart'; // ДОДАНО: Імпорт теми
+import '../../theme/app_colors_extension.dart';
 
 class GeneralHistoryBottomSheet extends StatefulWidget {
   final String title;
-  final CategoryType filterType; // ЗМІНЕНО: Тепер використовуємо безпечний Enum
+  final CategoryType filterType;
   final List<Transaction> transactions;
   final List<Category> allCategories;
   final Function(Transaction) onDelete;
@@ -16,7 +17,7 @@ class GeneralHistoryBottomSheet extends StatefulWidget {
   const GeneralHistoryBottomSheet({
     super.key,
     required this.title,
-    required this.filterType, // ЗМІНЕНО
+    required this.filterType,
     required this.transactions,
     required this.allCategories,
     required this.onDelete,
@@ -31,10 +32,8 @@ class GeneralHistoryBottomSheet extends StatefulWidget {
 class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
   @override
   Widget build(BuildContext context) {
-    // ДОДАНО: Отримуємо кольори поточної теми
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // 1. Фільтруємо історію за реальним типом категорії
     final filteredHistory = widget.transactions.where((t) {
       Category? fromCat;
       Category? toCat;
@@ -45,19 +44,17 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
         toCat = widget.allCategories.firstWhere((c) => c.id == t.toId);
       } catch (_) {}
 
-      // Перевіряємо, чи хоча б одна сторона транзакції відповідає нашому фільтру
       return fromCat?.type == widget.filterType ||
           toCat?.type == widget.filterType;
     }).toList();
 
-    // Сортуємо: найновіші зверху
     filteredHistory.sort((a, b) => b.date.compareTo(a.date));
 
     return Container(
       padding: const EdgeInsets.all(20),
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
-        color: colors.cardBg, // ЗМІНЕНО: Фон панелі
+        color: colors.cardBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
       ),
       child: Column(
@@ -66,9 +63,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: colors.textSecondary.withValues(
-                alpha: 0.2,
-              ), // ЗМІНЕНО: Колір повзунка
+              color: colors.textSecondary.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -78,7 +73,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: colors.textMain, // ЗМІНЕНО
+              color: colors.textMain,
             ),
           ),
           const SizedBox(height: 15),
@@ -87,7 +82,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                 ? Center(
                     child: Text(
                       'no_transactions_yet'.tr(),
-                      style: TextStyle(color: colors.textSecondary), // ЗМІНЕНО
+                      style: TextStyle(color: colors.textSecondary),
                     ),
                   )
                 : ListView.builder(
@@ -111,13 +106,38 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                       String fromName = fromCat?.name ?? 'unknown'.tr();
                       String toName = toCat?.name ?? 'unknown'.tr();
 
-                      // 2. Визначаємо тип операції через безпечний Enum
                       bool isIncome = fromCat?.type == CategoryType.income;
                       bool isTransfer =
                           fromCat?.type == CategoryType.account &&
                           toCat?.type == CategoryType.account;
 
-                      // ЗМІНЕНО: Логіка визначення префіксів та кольорів сум
+                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ ЗАЛЕЖНО ВІД ФІЛЬТРУ ---
+                      double displayAmount = t.amount;
+                      String currencyCode = t.currency;
+
+                      // Якщо ми дивимось загальну історію ВИТРАТ, то нас цікавить, скільки було зараховано на категорію витрат
+                      // Якщо це був мультивалютний переказ на витрату (наприклад, з доларів на гривневу категорію), беремо targetAmount
+                      if (widget.filterType == CategoryType.expense &&
+                          toCat?.type == CategoryType.expense) {
+                        displayAmount = t.targetAmount ?? t.amount;
+                        currencyCode = t.targetCurrency ?? t.currency;
+                      }
+                      // Якщо дивимось історію ДОХОДІВ, нас цікавить базова сума і валюта джерела (вона ж t.currency)
+                      else if (widget.filterType == CategoryType.income) {
+                        displayAmount = t.amount;
+                        currencyCode = t.currency;
+                      }
+                      // Для загального списку РАХУНКІВ просто показуємо базову суму списання
+                      else if (widget.filterType == CategoryType.account) {
+                        displayAmount = t.amount;
+                        currencyCode = t.currency;
+                      }
+
+                      String currencySymbol = AppCurrency.fromCode(
+                        currencyCode,
+                      ).symbol;
+
+                      // --- ЛОГІКА ПРЕФІКСІВ ТА КОЛЬОРІВ ---
                       String prefix = "-";
                       Color amountColor = colors.expense;
 
@@ -144,13 +164,10 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                         key: Key(t.id),
                         direction: DismissDirection.endToStart,
                         background: Container(
-                          color: colors.expense, // ЗМІНЕНО: Фон при видаленні
+                          color: colors.expense,
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 20),
-                          child: const Icon(
-                            Icons.delete,
-                            color: Colors.white,
-                          ), // Іконка біла
+                          child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         onDismissed: (_) {
                           widget.onDelete(t);
@@ -162,14 +179,10 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                             if (mounted) setState(() {});
                           },
                           leading: CircleAvatar(
-                            backgroundColor:
-                                toCat?.bgColor ??
-                                colors.iconBg, // ЗМІНЕНО: Запасний фон
+                            backgroundColor: toCat?.bgColor ?? colors.iconBg,
                             child: Icon(
                               toCat?.icon ?? Icons.help_outline,
-                              color:
-                                  toCat?.iconColor ??
-                                  colors.textSecondary, // ЗМІНЕНО
+                              color: toCat?.iconColor ?? colors.textSecondary,
                               size: 20,
                             ),
                           ),
@@ -183,7 +196,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
-                                    color: colors.textMain, // ЗМІНЕНО
+                                    color: colors.textMain,
                                   ),
                                 ),
                               ),
@@ -194,7 +207,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                                 child: Icon(
                                   Icons.arrow_forward,
                                   size: 14,
-                                  color: colors.textSecondary, // ЗМІНЕНО
+                                  color: colors.textSecondary,
                                 ),
                               ),
                               Flexible(
@@ -205,7 +218,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: colors.textMain, // ЗМІНЕНО
+                                    color: colors.textMain,
                                   ),
                                 ),
                               ),
@@ -215,25 +228,25 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                             "${t.date.day.toString().padLeft(2, '0')}.${t.date.month.toString().padLeft(2, '0')}.${t.date.year}",
                             style: TextStyle(
                               fontSize: 12,
-                              color: colors.textSecondary, // ЗМІНЕНО
+                              color: colors.textSecondary,
                             ),
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                "$prefix${CurrencyFormatter.format(t.amount)} ₴",
+                                "$prefix${CurrencyFormatter.format(displayAmount)} $currencySymbol", // ЗМІНЕНО
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: amountColor,
-                                  fontSize: 14, // ДОДАНО: Уніфікований розмір
+                                  fontSize: 14,
                                 ),
                               ),
                               const SizedBox(width: 4),
                               Icon(
                                 Icons.chevron_right,
                                 size: 16,
-                                color: colors.textSecondary, // ЗМІНЕНО
+                                color: colors.textSecondary,
                               ),
                             ],
                           ),

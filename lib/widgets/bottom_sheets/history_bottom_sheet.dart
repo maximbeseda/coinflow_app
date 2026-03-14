@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../models/category_model.dart';
 import '../../models/transaction_model.dart';
+import '../../models/app_currency.dart'; // ДОДАНО: Для отримання символу валюти
 import '../../utils/currency_formatter.dart';
 import '../../theme/app_colors_extension.dart';
 
@@ -90,6 +91,18 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                         otherCat = null;
                       }
 
+                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ ---
+                      // Якщо ми дивимось з боку того, хто ВІДПРАВИВ гроші - показуємо базову суму транзакції
+                      // Якщо ми дивимось з боку того, хто ОТРИМАВ гроші - показуємо targetAmount (або базову, якщо target нема)
+                      double displayAmount = isOut
+                          ? t.amount
+                          : (t.targetAmount ?? t.amount);
+
+                      // Валюта завжди та, яку має категорія, історію якої ми зараз дивимось
+                      String currencySymbol = AppCurrency.fromCode(
+                        widget.category.currency,
+                      ).symbol;
+
                       // --- УНІФІКОВАНА ЛОГІКА КОЛЬОРІВ ТА ПРЕФІКСІВ ---
                       String prefix = "";
                       Color amountColor = colors.textMain;
@@ -165,7 +178,6 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               color: colors.textMain,
-                              // ЗМІНЕНО: Уніфікований розмір шрифту
                               fontSize: 14,
                             ),
                           ),
@@ -180,11 +192,10 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                "$prefix${CurrencyFormatter.format(t.amount)} ₴",
+                                "$prefix${CurrencyFormatter.format(displayAmount)} $currencySymbol", // ЗМІНЕНО: Динамічна сума та валюта
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: amountColor,
-                                  // ЗМІНЕНО: Уніфікований розмір шрифту сум
                                   fontSize: 14,
                                 ),
                               ),

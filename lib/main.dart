@@ -83,15 +83,16 @@ void main() async {
                 txProv!..updateDependencies(catProv),
           ),
 
-          // 4. Провайдер підписок (слідкує за обома попередніми)
-          ChangeNotifierProxyProvider2<
+          // 4. Провайдер підписок (слідкує за налаштуваннями, категоріями та транзакціями)
+          ChangeNotifierProxyProvider3<
             CategoryProvider,
             TransactionProvider,
+            SettingsProvider,
             SubscriptionProvider
           >(
             create: (_) => SubscriptionProvider(),
-            update: (_, catProv, txProv, subProv) =>
-                subProv!..updateDependencies(catProv, txProv),
+            update: (_, catProv, txProv, settingsProv, subProv) =>
+                subProv!..updateDependencies(catProv, txProv, settingsProv),
           ),
         ],
         child: DevicePreview(

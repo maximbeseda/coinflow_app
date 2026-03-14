@@ -7,7 +7,6 @@ import 'category_provider.dart';
 class TransactionProvider extends ChangeNotifier {
   CategoryProvider? _catProv; // Посилання на провайдер категорій
 
-  // ДОДАНО: Прапорець для синхронізації при старті додатку
   bool _isInitialRecalculationDone = false;
 
   List<Transaction> history = [];
@@ -22,11 +21,9 @@ class TransactionProvider extends ChangeNotifier {
     loadHistory();
   }
 
-  // ВИПРАВЛЕНО: Синхронізація з CategoryProvider
   void updateDependencies(CategoryProvider catProv) {
     _catProv = catProv;
 
-    // Перевіряємо, чи обидва провайдери завантажили дані, щоб зробити перший перерахунок
     if (!isLoading && !catProv.isLoading && !_isInitialRecalculationDone) {
       _isInitialRecalculationDone = true;
       _catProv?.recalculateMonthTotals(history, selectedMonth);
@@ -38,13 +35,11 @@ class TransactionProvider extends ChangeNotifier {
     return selectedMonth.year == now.year && selectedMonth.month == now.month;
   }
 
-  // ВИПРАВЛЕНО: Перевірка на завершення завантаження
   Future<void> loadHistory() async {
     history = await StorageService.loadHistory();
     history.sort((a, b) => b.date.compareTo(a.date));
     isLoading = false;
 
-    // Якщо категоріям вдалося завантажитися швидше за історію
     if (_catProv != null &&
         !_catProv!.isLoading &&
         !_isInitialRecalculationDone) {
@@ -71,7 +66,6 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ДОДАНО: Безпечний метод, який оновлює постійний баланс у Hive ТІЛЬКИ для Рахунків
   void _updateAccountBalance(String categoryId, double delta) {
     if (_catProv == null) return;
     final category = _catProv!.allCategoriesList
@@ -87,13 +81,15 @@ class TransactionProvider extends ChangeNotifier {
     Category source,
     Category target,
     double amount,
-    DateTime date,
-  ) {
+    DateTime date, {
+    double? targetAmount, // ДОДАНО: Сума для цільового рахунку
+  }) {
     if (source.type == CategoryType.account) {
       _catProv?.updateCategoryAmount(source.id, -amount);
     }
     if (target.type == CategoryType.account) {
-      _catProv?.updateCategoryAmount(target.id, amount);
+      // ЗМІНЕНО: Використовуємо targetAmount, якщо він є
+      _catProv?.updateCategoryAmount(target.id, targetAmount ?? amount);
     }
 
     final newTx = Transaction(
@@ -103,24 +99,40 @@ class TransactionProvider extends ChangeNotifier {
       title: target.name,
       amount: amount,
       date: date,
+      // ДОДАНО: Зберігаємо дані про валюти у транзакцію
+      currency: source.currency,
+      targetAmount: targetAmount,
+      targetCurrency: targetAmount != null ? target.currency : null,
     );
 
     addTransactionDirectly(newTx);
   }
 
-  // ВИПРАВЛЕНО: Використання безпечного методу _updateAccountBalance
-  void editTransaction(Transaction oldT, double newAmount, DateTime newDate) {
-    // Скасовуємо стару транзакцію (ТІЛЬКИ для рахунків)
+  void editTransaction(
+    Transaction oldT,
+    double newAmount,
+    DateTime newDate, {
+    double? newTargetAmount,
+  }) {
+    // 1. Скасовуємо стару транзакцію
     _updateAccountBalance(oldT.fromId, oldT.amount);
-    _updateAccountBalance(oldT.toId, -oldT.amount);
+    _updateAccountBalance(oldT.toId, -(oldT.targetAmount ?? oldT.amount));
 
-    // Оновлюємо дані транзакції
+    // 2. Оновлюємо дані транзакції
     oldT.amount = newAmount;
     oldT.date = newDate;
 
-    // Застосовуємо нові дані (ТІЛЬКИ для рахунків)
+    // ДОДАНО: Якщо ми передали нову цільову суму (з розумного діалогу) - зберігаємо її
+    if (newTargetAmount != null) {
+      oldT.targetAmount = newTargetAmount;
+    } else if (oldT.targetAmount != null && oldT.amount > 0) {
+      // Резервний варіант: пропорційна зміна (якщо колись викличемо без newTargetAmount)
+      oldT.targetAmount = oldT.targetAmount! * (newAmount / oldT.amount);
+    }
+
+    // 3. Застосовуємо нові дані
     _updateAccountBalance(oldT.fromId, -oldT.amount);
-    _updateAccountBalance(oldT.toId, oldT.amount);
+    _updateAccountBalance(oldT.toId, oldT.targetAmount ?? oldT.amount);
 
     StorageService.saveTransaction(oldT);
     history.sort((a, b) => b.date.compareTo(a.date));
@@ -128,11 +140,11 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ВИПРАВЛЕНО: Використання безпечного методу _updateAccountBalance
   void deleteTransaction(Transaction t) {
-    // Скасовуємо вплив транзакції на баланс (ТІЛЬКИ для рахунків)
+    // Скасовуємо вплив транзакції на баланс
     _updateAccountBalance(t.fromId, t.amount);
-    _updateAccountBalance(t.toId, -t.amount);
+    // ЗМІНЕНО: Скасовуємо правильну цільову суму
+    _updateAccountBalance(t.toId, -(t.targetAmount ?? t.amount));
 
     history.removeWhere((item) => item.id == t.id);
     StorageService.removeTransaction(t.id);
@@ -141,7 +153,6 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Допоміжний метод (також використовується для авто-платежів)
   void addTransactionDirectly(Transaction tx) {
     history.insert(0, tx);
     history.sort((a, b) => b.date.compareTo(a.date));

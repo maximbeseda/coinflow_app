@@ -7,10 +7,12 @@ import '../services/storage_service.dart';
 import '../services/subscription_service.dart';
 import 'category_provider.dart';
 import 'transaction_provider.dart';
+import 'settings_provider.dart';
 
 class SubscriptionProvider extends ChangeNotifier {
   CategoryProvider? _catProv;
   TransactionProvider? _txProv;
+  SettingsProvider? _settingsProv;
 
   List<Subscription> subscriptions = [];
   List<Subscription> dueSubscriptions = [];
@@ -18,7 +20,6 @@ class SubscriptionProvider extends ChangeNotifier {
 
   bool _isLoaded = false;
 
-  // ДОДАНО: Геттер, який повертає true, якщо є хоча б одна прострочена підписка
   bool get hasPendingPayments {
     DateTime now = DateTime.now();
     DateTime today = DateTime(now.year, now.month, now.day);
@@ -36,11 +37,12 @@ class SubscriptionProvider extends ChangeNotifier {
   void updateDependencies(
     CategoryProvider catProv,
     TransactionProvider txProv,
+    SettingsProvider settingsProv,
   ) {
     _catProv = catProv;
     _txProv = txProv;
+    _settingsProv = settingsProv;
 
-    // Завантажуємо підписки тільки коли обидва залежні провайдери готові
     if (!_isLoaded && !catProv.isLoading && !txProv.isLoading) {
       _isLoaded = true;
       loadSubscriptions();
@@ -49,8 +51,6 @@ class SubscriptionProvider extends ChangeNotifier {
 
   Future<void> loadSubscriptions() async {
     subscriptions = StorageService.getSubscriptions();
-
-    // ДОДАНО: Завантажуємо список підписок, які користувач попросив ігнорувати
     _ignoredSubIds = StorageService.getIgnoredSubscriptions().toSet();
 
     await processAutoPayments();
@@ -103,7 +103,7 @@ class SubscriptionProvider extends ChangeNotifier {
     Subscription sub,
     double finalAmount,
   ) async {
-    if (_catProv == null || _txProv == null) {
+    if (_catProv == null || _txProv == null || _settingsProv == null) {
       return (false, 'error_category_not_found'.tr());
     }
 
@@ -125,25 +125,53 @@ class SubscriptionProvider extends ChangeNotifier {
       return (false, 'not_enough_funds'.tr(args: [sourceAccount.name]));
     }
 
+    bool isMultiCurrency = sourceAccount.currency != targetExpense.currency;
+    double? targetAmount;
+
+    if (isMultiCurrency) {
+      double? sRate = await _settingsProv!.getRateForDate(
+        sourceAccount.currency,
+        sub.nextPaymentDate,
+      );
+      double? tRate = await _settingsProv!.getRateForDate(
+        targetExpense.currency,
+        sub.nextPaymentDate,
+      );
+
+      if (sRate != null && tRate != null && sRate > 0) {
+        targetAmount = finalAmount * (tRate / sRate);
+      } else {
+        // ВИПРАВЛЕНО: Беремо останній відомий курс з кешу, якщо API не відповідає
+        double fallbackSRate =
+            _settingsProv!.exchangeRates[sourceAccount.currency] ?? 1.0;
+        double fallbackTRate =
+            _settingsProv!.exchangeRates[targetExpense.currency] ?? 1.0;
+        targetAmount = finalAmount * (fallbackTRate / fallbackSRate);
+      }
+    }
+
     _catProv!.updateCategoryAmount(sourceAccount.id, -finalAmount);
-    _catProv!.updateCategoryAmount(targetExpense.id, finalAmount);
+    _catProv!.updateCategoryAmount(
+      targetExpense.id,
+      targetAmount ?? finalAmount,
+    );
 
     final newTx = Transaction(
-      // ВИПРАВЛЕНО: Додано sub.id для унікальності, щоб уникнути дублів
       id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}",
       fromId: sourceAccount.id,
       toId: targetExpense.id,
       title: sub.name,
       amount: finalAmount,
       date: sub.nextPaymentDate,
+      currency: sourceAccount.currency,
+      targetAmount: targetAmount,
+      targetCurrency: isMultiCurrency ? targetExpense.currency : null,
     );
 
     _txProv!.addTransactionDirectly(newTx);
 
-    // ВИПРАВЛЕНО: Зсуваємо дату рівно на 1 платіжний період
     await SubscriptionService.advanceOnePeriod(sub);
 
-    // ДОДАНО: Якщо ми сплатили борг, прибираємо його зі списку проігнорованих
     _ignoredSubIds.remove(sub.id);
     StorageService.saveIgnoredSubscriptions(_ignoredSubIds.toList());
 
@@ -152,7 +180,6 @@ class SubscriptionProvider extends ChangeNotifier {
     return (true, 'paid_success'.tr(args: [sub.name]));
   }
 
-  // ДОДАНО: Новий метод для перманентного ігнорування
   void ignoreSubscriptionPermanently(String subId) {
     _ignoredSubIds.add(subId);
     StorageService.saveIgnoredSubscriptions(_ignoredSubIds.toList());
@@ -160,9 +187,8 @@ class SubscriptionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ДОДАНО: Метод, який буде викликатися при поверненні додатку з фону
   Future<void> refreshOnAppResume() async {
-    if (!_isLoaded) return; // Якщо ще не завантажились, нічого не робимо
+    if (!_isLoaded) return;
 
     await processAutoPayments();
     _checkDueSubscriptions();
@@ -170,7 +196,7 @@ class SubscriptionProvider extends ChangeNotifier {
   }
 
   Future<void> processAutoPayments() async {
-    if (_catProv == null || _txProv == null) return;
+    if (_catProv == null || _txProv == null || _settingsProv == null) return;
 
     DateTime now = DateTime.now();
     DateTime today = DateTime(now.year, now.month, now.day);
@@ -179,7 +205,6 @@ class SubscriptionProvider extends ChangeNotifier {
     for (var sub in subscriptions) {
       if (!sub.isAutoPay) continue;
 
-      // ДОДАНО: Цикл, який покроково списує борги за всі пропущені періоди
       while (true) {
         DateTime pDate = DateTime(
           sub.nextPaymentDate.year,
@@ -187,7 +212,6 @@ class SubscriptionProvider extends ChangeNotifier {
           sub.nextPaymentDate.day,
         );
 
-        // Якщо дата платежу в майбутньому — виходимо з циклу, боргів немає
         if (pDate.isAfter(today)) break;
 
         final all = _catProv!.allCategoriesList;
@@ -199,28 +223,54 @@ class SubscriptionProvider extends ChangeNotifier {
             account.amount >= sub.amount &&
             !account.isArchived &&
             !expense.isArchived) {
+          bool isMultiCurrency = account.currency != expense.currency;
+          double? targetAmount;
+
+          if (isMultiCurrency) {
+            double? sRate = await _settingsProv!.getRateForDate(
+              account.currency,
+              pDate,
+            );
+            double? tRate = await _settingsProv!.getRateForDate(
+              expense.currency,
+              pDate,
+            );
+
+            if (sRate != null && tRate != null && sRate > 0) {
+              targetAmount = sub.amount * (tRate / sRate);
+            } else {
+              // ВИПРАВЛЕНО: Беремо останній відомий курс з кешу, якщо API не відповідає
+              double fallbackSRate =
+                  _settingsProv!.exchangeRates[account.currency] ?? 1.0;
+              double fallbackTRate =
+                  _settingsProv!.exchangeRates[expense.currency] ?? 1.0;
+              targetAmount = sub.amount * (fallbackTRate / fallbackSRate);
+            }
+          }
+
           _catProv!.updateCategoryAmount(account.id, -sub.amount);
-          _catProv!.updateCategoryAmount(expense.id, sub.amount);
+          _catProv!.updateCategoryAmount(
+            expense.id,
+            targetAmount ?? sub.amount,
+          );
 
           final newTx = Transaction(
-            // ДОДАНО: Унікальний ID, щоб транзакції в одну мілісекунду не перезаписували одна одну
             id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}_${pDate.millisecondsSinceEpoch}",
             fromId: account.id,
             toId: expense.id,
             title: 'auto_payment_marker'.tr(args: [sub.name]),
             amount: sub.amount,
-            // ДОДАНО: Транзакція створюється "заднім числом", саме в той день, коли мала бути оплата
             date: sub.nextPaymentDate,
+            currency: account.currency,
+            targetAmount: targetAmount,
+            targetCurrency: isMultiCurrency ? expense.currency : null,
           );
 
           _txProv!.addTransactionDirectly(newTx);
 
-          // Зсуваємо дату рівно на 1 період вперед і йдемо на наступне коло циклу
           await SubscriptionService.advanceOnePeriod(sub);
           processedAny = true;
         } else {
-          // Якщо грошей не вистачає або категорію видалено — зупиняємо автооплату.
-          // Ця підписка залишиться простроченою і користувач побачить її у вікні DueSubscriptionsDialog.
           break;
         }
       }
@@ -229,7 +279,6 @@ class SubscriptionProvider extends ChangeNotifier {
   }
 
   Future<void> skipSubscriptionPayment(Subscription sub) async {
-    // ВИПРАВЛЕНО: Зсуваємо дату рівно на 1 платіжний період
     await SubscriptionService.advanceOnePeriod(sub);
     _checkDueSubscriptions();
     notifyListeners();

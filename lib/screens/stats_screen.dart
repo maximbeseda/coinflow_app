@@ -74,7 +74,7 @@ class _StatsScreenState extends State<StatsScreen> {
   Widget build(BuildContext context) {
     final catProv = context.watch<CategoryProvider>();
     final txProv = context.watch<TransactionProvider>();
-    final settings = context.watch<SettingsProvider>(); // ДОДАНО
+    final settings = context.watch<SettingsProvider>();
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     // Отримуємо символ базової валюти
@@ -91,61 +91,73 @@ class _StatsScreenState extends State<StatsScreen> {
         .toList();
 
     final allCategories = catProv.allCategoriesList;
-
     final Map<String, Category> categoryMap = {
       for (var c in allCategories) c.id: c,
     };
 
-    final Map<String, double> expenseTotals = {};
-    final Map<String, double> incomeTotals = {};
+    // Збираємо суми в ОРИГІНАЛЬНІЙ валюті кожної категорії
+    final Map<String, double> expenseNativeTotals = {};
+    final Map<String, double> incomeNativeTotals = {};
 
-    // МАГІЯ КОНВЕРТАЦІЇ: Рахуємо суми всіх транзакцій у базовій валюті
     for (var t in monthHistory) {
       final fromCat = categoryMap[t.fromId];
       final toCat = categoryMap[t.toId];
 
-      // Конвертуємо суму транзакції в базову валюту (використовуючи історичний курс транзакції, якщо є)
-      // Поки що використовуємо поточний конвертер з SettingsProvider, в наступному етапі ми додамо historicalRate
-      final convertedAmount = settings.convertToBase(t.amount, t.currency);
-
       if (toCat != null && toCat.type == CategoryType.expense) {
-        expenseTotals[t.toId] = (expenseTotals[t.toId] ?? 0) + convertedAmount;
+        // ФІКС: Для витрат беремо targetAmount (або amount, якщо валюта однакова)
+        expenseNativeTotals[t.toId] =
+            (expenseNativeTotals[t.toId] ?? 0) + (t.targetAmount ?? t.amount);
       }
       if (fromCat != null && fromCat.type == CategoryType.income) {
-        incomeTotals[t.fromId] =
-            (incomeTotals[t.fromId] ?? 0) + convertedAmount;
+        // Для доходів завжди беремо вихідний amount
+        incomeNativeTotals[t.fromId] =
+            (incomeNativeTotals[t.fromId] ?? 0) + t.amount;
       }
     }
 
-    final activeExpenses = catProv.allCategoriesList
+    // Формуємо списки для UI: беремо оригінальну суму і конвертуємо її в базову валюту
+    final activeExpenses = catProv.expenses
         .where(
           (c) =>
-              c.type == CategoryType.expense &&
-              expenseTotals.containsKey(c.id) &&
-              expenseTotals[c.id]! > 0,
+              expenseNativeTotals.containsKey(c.id) &&
+              expenseNativeTotals[c.id]! > 0,
         )
-        .map((c) => c.copyWith(amount: expenseTotals[c.id]!))
+        .map(
+          (c) => c.copyWith(
+            // Конвертуємо фінальну зібрану суму у базову валюту для графіка
+            amount: settings.convertToBase(
+              expenseNativeTotals[c.id]!,
+              c.currency,
+            ),
+          ),
+        )
         .toList();
 
     activeExpenses.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
     double totalExpenses = activeExpenses.fold(
-      0,
+      0.0,
       (sum, item) => sum + item.amount.abs(),
     );
 
-    final activeIncomes = catProv.allCategoriesList
+    final activeIncomes = catProv.incomes
         .where(
           (c) =>
-              c.type == CategoryType.income &&
-              incomeTotals.containsKey(c.id) &&
-              incomeTotals[c.id]! > 0,
+              incomeNativeTotals.containsKey(c.id) &&
+              incomeNativeTotals[c.id]! > 0,
         )
-        .map((c) => c.copyWith(amount: incomeTotals[c.id]!))
+        .map(
+          (c) => c.copyWith(
+            amount: settings.convertToBase(
+              incomeNativeTotals[c.id]!,
+              c.currency,
+            ),
+          ),
+        )
         .toList();
 
     activeIncomes.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
     double totalIncomes = activeIncomes.fold(
-      0,
+      0.0,
       (sum, item) => sum + item.amount.abs(),
     );
 

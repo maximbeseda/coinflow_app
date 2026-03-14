@@ -373,11 +373,9 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
     ).symbol;
 
     // Список доступних валют
-    List<String> availableCurrencies = List.from(settings.selectedCurrencies);
-    if (_selectedCurrency != null &&
-        !availableCurrencies.contains(_selectedCurrency)) {
-      availableCurrencies.add(_selectedCurrency!);
-    }
+    List<String> availableCurrencies = AppCurrency.supportedCurrencies
+        .map((c) => c.code)
+        .toList();
 
     IconData displayIcon = Icons.card_giftcard;
     Color displayColor = colors.iconBg;
@@ -541,7 +539,7 @@ class _SubscriptionFormDialogState extends State<SubscriptionFormDialog> {
 
             // ДОДАНО: ВИБІР ВАЛЮТИ
             DropdownButtonFormField<String>(
-              value: _selectedCurrency,
+              initialValue: _selectedCurrency,
               dropdownColor: colors.cardBg,
               icon: Icon(
                 Icons.keyboard_arrow_down,

@@ -112,5 +112,10 @@
   "updating_rates": "Updating rates...",
   "last_update": "Last update",
   "base_currency": "Base currency",
-  "loading": "Loading..."
+  "loading": "Loading...",
+  "currency": "Currency",
+  "include_in_total": "Include in total",
+  "include_in_total_desc": "Include amount in the header on the main screen",
+  "loading_rate": "Updating rate...",
+  "rate_not_found": "Rate unavailable"
 }

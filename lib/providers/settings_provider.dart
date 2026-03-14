@@ -37,6 +37,34 @@ class SettingsProvider with ChangeNotifier {
     }
   }
 
+  // --- ДОДАНО: Отримання курсу на конкретну дату ---
+  // ЗМІНЕНО: Тепер повертає double? (може бути null, якщо курсу немає)
+  Future<double?> getRateForDate(String currencyCode, DateTime date) async {
+    if (currencyCode == _baseCurrency) return 1.0;
+
+    final now = DateTime.now();
+    // 1. Якщо це майбутня дата або сьогодні — беремо поточний кеш (це норма)
+    if (date.year == now.year &&
+            date.month == now.month &&
+            date.day == now.day ||
+        date.isAfter(now)) {
+      return _exchangeRates[currencyCode] ?? 1.0;
+    }
+
+    // 2. Робимо запит за історичним курсом
+    final historicalRates = await CurrencyService.getHistoricalRates(
+      _baseCurrency,
+      date,
+    );
+
+    if (historicalRates != null && historicalRates.containsKey(currencyCode)) {
+      return historicalRates[currencyCode]!;
+    }
+
+    // 3. Якщо курсу за цю стару дату немає в API — чесно повертаємо null
+    return null;
+  }
+
   // Приватний метод для сортування списку
   void _enforceBaseCurrencyAtTop() {
     _selectedCurrencies.remove(_baseCurrency);
