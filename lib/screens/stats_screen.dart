@@ -4,8 +4,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../providers/category_provider.dart';
 import '../providers/transaction_provider.dart';
-import '../providers/settings_provider.dart'; // ДОДАНО
-import '../models/app_currency.dart'; // ДОДАНО
+import '../providers/settings_provider.dart';
+import '../models/app_currency.dart';
 import '../utils/currency_formatter.dart';
 import '../widgets/dialogs/month_picker_dialog.dart';
 import '../models/category_model.dart';
@@ -20,6 +20,17 @@ class StatsScreen extends StatefulWidget {
 
 class _StatsScreenState extends State<StatsScreen> {
   bool _showExpenses = true;
+
+  // ДОДАНО: Локальний стан місяця тільки для екрану статистики
+  late DateTime _statsMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    // При відкритті екрану встановлюємо поточний місяць
+    final now = DateTime.now();
+    _statsMonth = DateTime(now.year, now.month, 1);
+  }
 
   final List<Color> _appCustomPalette = [
     const Color(0xFF2C3E50),
@@ -77,16 +88,16 @@ class _StatsScreenState extends State<StatsScreen> {
     final settings = context.watch<SettingsProvider>();
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // Отримуємо символ базової валюти
     final baseCurrencySymbol = AppCurrency.fromCode(
       settings.baseCurrency,
     ).symbol;
 
+    // ЗМІНЕНО: Фільтруємо історію по локальній змінній _statsMonth, а не по провайдеру
     final monthHistory = txProv.history
         .where(
           (t) =>
-              t.date.year == txProv.selectedMonth.year &&
-              t.date.month == txProv.selectedMonth.month,
+              t.date.year == _statsMonth.year &&
+              t.date.month == _statsMonth.month,
         )
         .toList();
 
@@ -95,7 +106,6 @@ class _StatsScreenState extends State<StatsScreen> {
       for (var c in allCategories) c.id: c,
     };
 
-    // Збираємо суми в ОРИГІНАЛЬНІЙ валюті кожної категорії
     final Map<String, double> expenseNativeTotals = {};
     final Map<String, double> incomeNativeTotals = {};
 
@@ -104,18 +114,15 @@ class _StatsScreenState extends State<StatsScreen> {
       final toCat = categoryMap[t.toId];
 
       if (toCat != null && toCat.type == CategoryType.expense) {
-        // ФІКС: Для витрат беремо targetAmount (або amount, якщо валюта однакова)
         expenseNativeTotals[t.toId] =
             (expenseNativeTotals[t.toId] ?? 0) + (t.targetAmount ?? t.amount);
       }
       if (fromCat != null && fromCat.type == CategoryType.income) {
-        // Для доходів завжди беремо вихідний amount
         incomeNativeTotals[t.fromId] =
             (incomeNativeTotals[t.fromId] ?? 0) + t.amount;
       }
     }
 
-    // Формуємо списки для UI: беремо оригінальну суму і конвертуємо її в базову валюту
     final activeExpenses = catProv.expenses
         .where(
           (c) =>
@@ -124,7 +131,6 @@ class _StatsScreenState extends State<StatsScreen> {
         )
         .map(
           (c) => c.copyWith(
-            // Конвертуємо фінальну зібрану суму у базову валюту для графіка
             amount: settings.convertToBase(
               expenseNativeTotals[c.id]!,
               c.currency,
@@ -210,18 +216,31 @@ class _StatsScreenState extends State<StatsScreen> {
                   children: [
                     IconButton(
                       icon: Icon(Icons.chevron_left, color: colors.textMain),
-                      onPressed: () => txProv.changeMonth(-1),
+                      onPressed: () {
+                        // ЗМІНЕНО: Оновлюємо локальний стан замість виклику провайдера
+                        setState(() {
+                          _statsMonth = DateTime(
+                            _statsMonth.year,
+                            _statsMonth.month - 1,
+                            1,
+                          );
+                        });
+                      },
                     ),
                     GestureDetector(
                       onTap: () async {
                         final pickedDate = await showDialog<DateTime>(
                           context: context,
                           builder: (ctx) => MonthPickerDialog(
-                            initialDate: txProv.selectedMonth,
+                            // ЗМІНЕНО: Передаємо локальний місяць
+                            initialDate: _statsMonth,
                           ),
                         );
                         if (pickedDate != null && mounted) {
-                          txProv.setMonth(pickedDate);
+                          // ЗМІНЕНО: Оновлюємо локальний стан замість виклику провайдера
+                          setState(() {
+                            _statsMonth = pickedDate;
+                          });
                         }
                       },
                       child: Container(
@@ -248,7 +267,8 @@ class _StatsScreenState extends State<StatsScreen> {
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            _getMonthName(txProv.selectedMonth, context),
+                            // ЗМІНЕНО: Відображаємо локальний місяць
+                            _getMonthName(_statsMonth, context),
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -260,7 +280,16 @@ class _StatsScreenState extends State<StatsScreen> {
                     ),
                     IconButton(
                       icon: Icon(Icons.chevron_right, color: colors.textMain),
-                      onPressed: () => txProv.changeMonth(1),
+                      onPressed: () {
+                        // ЗМІНЕНО: Оновлюємо локальний стан замість виклику провайдера
+                        setState(() {
+                          _statsMonth = DateTime(
+                            _statsMonth.year,
+                            _statsMonth.month + 1,
+                            1,
+                          );
+                        });
+                      },
                     ),
                   ],
                 ),
@@ -329,7 +358,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
-                                      "${CurrencyFormatter.format(totalExpenses)} $baseCurrencySymbol", // ЗМІНЕНО
+                                      "${CurrencyFormatter.format(totalExpenses)} $baseCurrencySymbol",
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w900,
@@ -372,7 +401,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
-                                      "${CurrencyFormatter.format(totalIncomes)} $baseCurrencySymbol", // ЗМІНЕНО
+                                      "${CurrencyFormatter.format(totalIncomes)} $baseCurrencySymbol",
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w900,
@@ -516,7 +545,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                         ),
                                         const SizedBox(width: 12),
                                         Text(
-                                          "${CurrencyFormatter.format(cat.amount.abs())} $baseCurrencySymbol", // ЗМІНЕНО
+                                          "${CurrencyFormatter.format(cat.amount.abs())} $baseCurrencySymbol",
                                           style: TextStyle(
                                             fontWeight: FontWeight.w800,
                                             fontSize: 14,
