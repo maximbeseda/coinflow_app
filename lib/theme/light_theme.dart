@@ -25,6 +25,7 @@ final lightTheme = ThemeData(
       // ЗМІНЕНО: Яскравий, чистий червоний
       expense: const Color(0xFFE53935),
       iconBg: Colors.black.withValues(alpha: 0.05),
+      accent: Color(0xFF4361EE),
     ),
   ],
 

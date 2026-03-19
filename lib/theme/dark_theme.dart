@@ -25,6 +25,7 @@ final darkTheme = ThemeData(
       // ЗМІНЕНО: Ідентичний яскравий червоний зі світлої теми
       expense: const Color(0xFFE53935),
       iconBg: Colors.white.withValues(alpha: 0.1),
+      accent: Color(0xFF4361EE),
     ),
   ],
 

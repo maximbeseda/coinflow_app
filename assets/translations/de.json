@@ -11,6 +11,8 @@
   "amount": "Betrag",
   "name": "Name",
   "name_hint": "Name...",
+  "note": "Notiz",
+  "add_note": "Kommentar schreiben...",
 
   "balance": "KONTOSTAND",
   "expenses": "AUSGABEN",
@@ -66,7 +68,11 @@
   "amount_and_date": "Betrag und Datum",
   "select_date": "Datum wählen",
   "current_month": "Aktueller Monat",
-
+  "transfer": "Überweisung",
+  "today": "Heute",
+  "yesterday": "Gestern",
+  "tomorrow": "Morgen",
+  
   "regular_payments": "Regelmäßige Zahlungen",
   "add_subscription": "Abonnement hinzufügen",
   "no_subscriptions": "Sie haben noch keine regelmäßigen Zahlungen",

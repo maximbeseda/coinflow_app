@@ -5,15 +5,15 @@ import 'package:vibration/vibration.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../models/category_model.dart';
+import '../models/transaction_model.dart';
 import '../models/subscription_model.dart';
 import '../widgets/common/coin_widget.dart';
 import '../widgets/bottom_sheets/history_bottom_sheet.dart';
 import '../widgets/common/summary_header.dart';
 import '../widgets/bottom_sheets/general_history_bottom_sheet.dart';
 import '../widgets/common/settings_drawer.dart';
-import '../widgets/dialogs/transfer_dialog.dart';
+import '../screens/transaction_screen.dart';
 import '../widgets/dialogs/category_dialog.dart';
-import '../widgets/dialogs/edit_transaction_dialog.dart';
 import '../widgets/dialogs/due_subscription_dialog.dart';
 import '../utils/currency_formatter.dart';
 import '../providers/category_provider.dart';
@@ -31,7 +31,6 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-// ДОДАНО: WidgetsBindingObserver через кому
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -47,7 +46,6 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    // ДОДАНО: Реєструємо спостерігача за станом додатку
     WidgetsBinding.instance.addObserver(this);
 
     _jiggleController = AnimationController(
@@ -62,12 +60,10 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  // ДОДАНО: Метод, що ловить розгортання додатку з фону
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       if (mounted) {
-        // Коли додаток розгортається, просимо перевірити прострочені платежі
         context.read<SubscriptionProvider>().refreshOnAppResume();
       }
     }
@@ -98,7 +94,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
-    // ДОДАНО: Видаляємо спостерігача, щоб не було витоку пам'яті
     WidgetsBinding.instance.removeObserver(this);
 
     try {
@@ -113,26 +108,135 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  void _handleTransfer(Category s, Category t) async {
-    if (s == t ||
-        s.type == CategoryType.expense ||
-        (s.type == CategoryType.income && t.type == CategoryType.expense)) {
+  void _handleTransfer(Category source, Category target) async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            TransactionScreen(source: source, target: target),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutQuart;
+
+          var tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
+
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (result != null) {
+      final amount = result['amount'] as double;
+      final targetAmount = result['targetAmount'] as double?;
+      final date = result['date'] as DateTime;
+      final comment = result['comment'] as String;
+
+      if (amount > 0) {
+        final txProv = context.read<TransactionProvider>();
+
+        String txTitle = comment.trim().isNotEmpty
+            ? comment.trim()
+            : '${'transfer'.tr()} ${source.name} ➡️ ${target.name}';
+
+        final newTx = Transaction(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          fromId: source.id,
+          toId: target.id,
+          title: txTitle,
+          amount: amount,
+          date: date,
+          currency: source.currency,
+          targetAmount: targetAmount,
+          targetCurrency: source.currency != target.currency
+              ? target.currency
+              : null,
+        );
+
+        txProv.addTransactionDirectly(newTx);
+      }
+    }
+  }
+
+  // ДОДАНО: Єдиний метод для виклику редагування транзакції через новий екран
+  void _handleEditTransaction(
+    Transaction t,
+    List<Category> allCategories,
+  ) async {
+    Category? sourceCat;
+    Category? targetCat;
+
+    // Шукаємо категорії транзакції
+    try {
+      sourceCat = allCategories.firstWhere((c) => c.id == t.fromId);
+    } catch (_) {}
+    try {
+      targetCat = allCategories.firstWhere((c) => c.id == t.toId);
+    } catch (_) {}
+
+    if (sourceCat == null || targetCat == null) {
+      // Якщо якусь з категорій вже видалено, ми не можемо її редагувати через візуальний екран
       return;
     }
 
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (ctx) => TransferDialog(source: s, target: t),
-    );
-    if (result != null && mounted) {
-      context.read<TransactionProvider>().addTransfer(
-        s,
-        t,
-        result['amount'],
-        result['date'],
-        targetAmount: result['targetAmount'], // ДОДАНО ЦЕЙ РЯДОК
-      );
+    // Якщо назва генерувалась автоматично (містить стрілочку), не виводимо її як нотатку
+    String? initialNote = t.title;
+    if (initialNote.contains('➡️')) {
+      initialNote = '';
     }
+
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            TransactionScreen(
+              source: sourceCat!,
+              target: targetCat!,
+              initialAmount: t.amount,
+              initialTargetAmount: t.targetAmount,
+              initialDate: t.date,
+              initialNote: initialNote,
+            ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutQuart;
+          var tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
+    );
+
+    if (!mounted || result == null) return;
+
+    final finance = context.read<TransactionProvider>();
+
+    // Оновлюємо нотатку/назву
+    final comment = result['comment'] as String;
+    t.title = comment.trim().isNotEmpty
+        ? comment.trim()
+        : '${'transfer'.tr()} ${sourceCat.name} ➡️ ${targetCat.name}';
+
+    finance.editTransaction(
+      t,
+      result['amount'],
+      result['date'],
+      newTargetAmount: result['targetAmount'],
+    );
   }
 
   Future<bool> _confirmDeletion(
@@ -391,25 +495,9 @@ class _HomeScreenState extends State<HomeScreen>
                             onDelete: (t) => context
                                 .read<TransactionProvider>()
                                 .deleteTransaction(t),
-                            onEdit: (t) async {
-                              final finance = context
-                                  .read<TransactionProvider>();
-                              final result =
-                                  await showDialog<Map<String, dynamic>>(
-                                    context: context,
-                                    builder: (ctx) =>
-                                        EditTransactionDialog(transaction: t),
-                                  );
-                              if (result != null) {
-                                finance.editTransaction(
-                                  t,
-                                  result['amount'],
-                                  result['date'],
-                                  newTargetAmount:
-                                      result['targetAmount'], // ОНОВЛЕНО
-                                );
-                              }
-                            },
+                            // ВИПРАВЛЕНО: Виклик нового екрана
+                            onEdit: (t) =>
+                                _handleEditTransaction(t, allCategories),
                           ),
                         );
                       },
@@ -433,25 +521,9 @@ class _HomeScreenState extends State<HomeScreen>
                             onDelete: (t) => context
                                 .read<TransactionProvider>()
                                 .deleteTransaction(t),
-                            onEdit: (t) async {
-                              final finance = context
-                                  .read<TransactionProvider>();
-                              final result =
-                                  await showDialog<Map<String, dynamic>>(
-                                    context: context,
-                                    builder: (ctx) =>
-                                        EditTransactionDialog(transaction: t),
-                                  );
-                              if (result != null) {
-                                finance.editTransaction(
-                                  t,
-                                  result['amount'],
-                                  result['date'],
-                                  newTargetAmount:
-                                      result['targetAmount'], // ОНОВЛЕНО
-                                );
-                              }
-                            },
+                            // ВИПРАВЛЕНО: Виклик нового екрана
+                            onEdit: (t) =>
+                                _handleEditTransaction(t, allCategories),
                           ),
                         );
                       },
@@ -475,25 +547,9 @@ class _HomeScreenState extends State<HomeScreen>
                             onDelete: (t) => context
                                 .read<TransactionProvider>()
                                 .deleteTransaction(t),
-                            onEdit: (t) async {
-                              final finance = context
-                                  .read<TransactionProvider>();
-                              final result =
-                                  await showDialog<Map<String, dynamic>>(
-                                    context: context,
-                                    builder: (ctx) =>
-                                        EditTransactionDialog(transaction: t),
-                                  );
-                              if (result != null) {
-                                finance.editTransaction(
-                                  t,
-                                  result['amount'],
-                                  result['date'],
-                                  newTargetAmount:
-                                      result['targetAmount'], // ОНОВЛЕНО
-                                );
-                              }
-                            },
+                            // ВИПРАВЛЕНО: Виклик нового екрана
+                            onEdit: (t) =>
+                                _handleEditTransaction(t, allCategories),
                           ),
                         );
                       },
@@ -735,21 +791,9 @@ class _HomeScreenState extends State<HomeScreen>
               allCategories: catProv.allCategoriesList,
               onDelete: (t) =>
                   context.read<TransactionProvider>().deleteTransaction(t),
-              onEdit: (t) async {
-                final finance = context.read<TransactionProvider>();
-                final result = await showDialog<Map<String, dynamic>>(
-                  context: context,
-                  builder: (ctx) => EditTransactionDialog(transaction: t),
-                );
-                if (result != null) {
-                  finance.editTransaction(
-                    t,
-                    result['amount'],
-                    result['date'],
-                    newTargetAmount: result['targetAmount'], // ОНОВЛЕНО
-                  );
-                }
-              },
+              // ВИПРАВЛЕНО: Виклик нового екрана
+              onEdit: (t) =>
+                  _handleEditTransaction(t, catProv.allCategoriesList),
             );
           },
         ),

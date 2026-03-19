@@ -11,6 +11,8 @@
   "amount": "Сума",
   "name": "Назва",
   "name_hint": "Назва...",
+  "note": "Нотатка",
+  "add_note": "Напишіть коментар...",
 
   "balance": "БАЛАНС",
   "expenses": "ВИТРАТИ",
@@ -66,6 +68,10 @@
   "amount_and_date": "Сума та дата",
   "select_date": "Вибрати дату",
   "current_month": "Поточний місяць",
+  "transfer": "Переказ",
+  "today": "Сьогодні",
+  "yesterday": "Вчора",
+  "tomorrow": "Завтра",
 
   "regular_payments": "Регулярні платежі",
   "add_subscription": "Додати підписку",

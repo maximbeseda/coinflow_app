@@ -118,6 +118,9 @@ class TransactionProvider extends ChangeNotifier {
     _updateAccountBalance(oldT.fromId, oldT.amount);
     _updateAccountBalance(oldT.toId, -(oldT.targetAmount ?? oldT.amount));
 
+    // ФІКС: ЗБЕРІГАЄМО СТАРЕ ЗНАЧЕННЯ ДО ОНОВЛЕННЯ!
+    final double previousAmount = oldT.amount;
+
     // 2. Оновлюємо дані транзакції
     oldT.amount = newAmount;
     oldT.date = newDate;
@@ -125,9 +128,12 @@ class TransactionProvider extends ChangeNotifier {
     // ДОДАНО: Якщо ми передали нову цільову суму (з розумного діалогу) - зберігаємо її
     if (newTargetAmount != null) {
       oldT.targetAmount = newTargetAmount;
-    } else if (oldT.targetAmount != null && oldT.amount > 0) {
-      // Резервний варіант: пропорційна зміна (якщо колись викличемо без newTargetAmount)
-      oldT.targetAmount = oldT.targetAmount! * (newAmount / oldT.amount);
+    } else if (oldT.targetAmount != null && previousAmount > 0) {
+      // ФІКС: Використовуємо previousAmount, щоб уникнути ділення на нуль
+      oldT.targetAmount = oldT.targetAmount! * (newAmount / previousAmount);
+    } else {
+      // Резервний варіант, якщо previousAmount був 0
+      oldT.targetAmount = newAmount;
     }
 
     // 3. Застосовуємо нові дані
@@ -154,9 +160,18 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   void addTransactionDirectly(Transaction tx) {
+    // 1. Віднімаємо гроші з рахунку-джерела
+    _updateAccountBalance(tx.fromId, -tx.amount);
+
+    // 2. Додаємо гроші на рахунок-ціль (використовуючи targetAmount, якщо є)
+    _updateAccountBalance(tx.toId, tx.targetAmount ?? tx.amount);
+
+    // 3. Зберігаємо в історію та базу даних
     history.insert(0, tx);
     history.sort((a, b) => b.date.compareTo(a.date));
     StorageService.saveTransaction(tx);
+
+    // 4. Оновлюємо статистику місяця та інтерфейс
     _catProv?.recalculateMonthTotals(history, selectedMonth);
     notifyListeners();
   }

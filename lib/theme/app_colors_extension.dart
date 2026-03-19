@@ -9,6 +9,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
   final Color income;
   final Color expense;
   final Color iconBg;
+  final Color accent;
 
   const AppColorsExtension({
     required this.bgGradientStart,
@@ -19,6 +20,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
     required this.income,
     required this.expense,
     required this.iconBg,
+    required this.accent,
   });
 
   @override
@@ -31,6 +33,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
     Color? income,
     Color? expense,
     Color? iconBg,
+    Color? accent,
   }) {
     return AppColorsExtension(
       bgGradientStart: bgGradientStart ?? this.bgGradientStart,
@@ -41,6 +44,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
       income: income ?? this.income,
       expense: expense ?? this.expense,
       iconBg: iconBg ?? this.iconBg,
+      accent: accent ?? this.accent,
     );
   }
 
@@ -59,6 +63,7 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
       income: Color.lerp(income, other.income, t)!,
       expense: Color.lerp(expense, other.expense, t)!,
       iconBg: Color.lerp(iconBg, other.iconBg, t)!,
+      accent: Color.lerp(accent, other.accent, t)!,
     );
   }
 }

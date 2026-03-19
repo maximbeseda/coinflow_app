@@ -15,7 +15,7 @@ class Transaction extends HiveObject {
   final String toId;
 
   @HiveField(3)
-  final String title;
+  String title;
 
   @HiveField(4)
   double amount;
