@@ -766,7 +766,10 @@ class _HomeScreenState extends State<HomeScreen>
 
     Widget dragFeedback = Material(
       color: Colors.transparent,
-      child: CoinWidget(category: c, isFeedback: true),
+      child: CoinWidget(
+        category: c,
+        isFeedback: true,
+      ), // isFeedback=true ховає текст
     );
 
     Widget buildInteractiveInnerCoin(
@@ -808,7 +811,6 @@ class _HomeScreenState extends State<HomeScreen>
               allCategories: catProv.allCategoriesList,
               onDelete: (t) =>
                   context.read<TransactionProvider>().deleteTransaction(t),
-              // ВИПРАВЛЕНО: Виклик нового екрана
               onEdit: (t) =>
                   _handleEditTransaction(t, catProv.allCategoriesList),
             );
@@ -878,6 +880,7 @@ class _HomeScreenState extends State<HomeScreen>
       }
 
       Widget emptySpace = Opacity(opacity: 0.0, child: coin);
+
       Widget dragFeedbackReorder = Material(
         color: Colors.transparent,
         child: CoinWidget(category: c),
@@ -898,13 +901,13 @@ class _HomeScreenState extends State<HomeScreen>
             child: isBeingDragged ? emptySpace : coin,
           ),
         );
-      } else if (c.type == CategoryType.expense) {
+      } else {
         return GestureDetector(
           onTap: openHistory,
           child: LongPressDraggable<Category>(
             data: c,
             maxSimultaneousDrags: 1,
-            delay: const Duration(milliseconds: 250),
+            delay: const Duration(milliseconds: 500),
             onDragStarted: () async {
               if (await Vibration.hasVibrator() == true) {
                 Vibration.vibrate(duration: 15, amplitude: 40);
@@ -920,22 +923,9 @@ class _HomeScreenState extends State<HomeScreen>
                 setState(() => draggedCategoryId = null),
             feedback: dragFeedbackReorder,
             childWhenDragging: emptySpace,
-            child: isBeingDragged ? emptySpace : coin,
+            // ВИПРАВЛЕНО: При швидкій транзакції на місці залишається повноцінна монетка!
+            child: coin,
           ),
-        );
-      } else {
-        return GestureDetector(
-          onTap: openHistory,
-          onLongPress: () async {
-            if (await Vibration.hasVibrator() == true) {
-              Vibration.vibrate(duration: 15, amplitude: 40);
-            }
-            setState(() {
-              isEditMode = true;
-              _jiggleController.repeat();
-            });
-          },
-          child: coin,
         );
       }
     }

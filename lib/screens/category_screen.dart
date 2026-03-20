@@ -265,19 +265,33 @@ class _CategoryScreenState extends State<CategoryScreen> {
                         backgroundColor: isSelected
                             ? Colors.blueAccent
                             : colors.iconBg,
+                        // Зменшив Padding з 4.0 до 2.0
                         child: Padding(
-                          padding: const EdgeInsets.all(4.0),
+                          padding: const EdgeInsets.all(2.0),
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
+                            alignment: Alignment.center,
                             child: Text(
-                              curr.symbol,
+                              curr.symbol.trim(),
                               maxLines: 1,
+                              textAlign: TextAlign.center,
+                              // 👇 ДОДАНО: Жорсткий каркас StrutStyle
+                              strutStyle: const StrutStyle(
+                                fontSize: 14,
+                                height: 1.0,
+                                forceStrutHeight: true,
+                              ),
+                              textHeightBehavior: const TextHeightBehavior(
+                                applyHeightToFirstAscent: false,
+                                applyHeightToLastDescent: false,
+                              ),
                               style: TextStyle(
                                 color: isSelected
                                     ? Colors.white
                                     : colors.textMain,
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
+                                height: 1.0,
                               ),
                             ),
                           ),
@@ -484,35 +498,51 @@ class _CategoryScreenState extends State<CategoryScreen> {
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
-                            prefixIcon: Padding(
+                            prefix: Padding(
                               padding: const EdgeInsets.only(right: 12.0),
                               child: CircleAvatar(
                                 radius: 14,
                                 backgroundColor: colors.iconBg,
+                                // Зменшив Padding з 4.0 до 2.0 для кращого масштабу
                                 child: Padding(
-                                  padding: const EdgeInsets.all(4.0),
+                                  padding: const EdgeInsets.all(2.0),
                                   child: FittedBox(
                                     fit: BoxFit.scaleDown,
+                                    alignment: Alignment.center,
                                     child: Text(
-                                      currencySymbol,
+                                      currencySymbol.trim(),
                                       maxLines: 1,
+                                      textAlign: TextAlign.center,
+                                      // 👇 ДОДАНО: Жорсткий каркас StrutStyle
+                                      strutStyle: const StrutStyle(
+                                        fontSize: 14,
+                                        height: 1.0,
+                                        forceStrutHeight: true,
+                                      ),
+                                      textHeightBehavior:
+                                          const TextHeightBehavior(
+                                            applyHeightToFirstAscent: false,
+                                            applyHeightToLastDescent: false,
+                                          ),
                                       style: TextStyle(
                                         color: colors.textMain,
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
+                                        height: 1.0,
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                            prefixIconConstraints: const BoxConstraints(
-                              minWidth: 36,
-                              minHeight: 28,
-                            ),
-                            suffixIcon: Icon(
-                              Icons.keyboard_arrow_down,
-                              color: colors.textSecondary,
+                            // ВИПРАВЛЕНО: Додали Padding зверху, щоб опустити стрілочку
+                            // рівно на лінію тексту та іконки
+                            suffixIcon: Padding(
+                              padding: const EdgeInsets.only(top: 16.0),
+                              child: Icon(
+                                Icons.keyboard_arrow_down,
+                                color: colors.textSecondary,
+                              ),
                             ),
                             counterText: "",
                             enabledBorder: UnderlineInputBorder(
