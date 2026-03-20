@@ -13,7 +13,7 @@ import '../widgets/common/summary_header.dart';
 import '../widgets/bottom_sheets/general_history_bottom_sheet.dart';
 import '../widgets/common/settings_drawer.dart';
 import '../screens/transaction_screen.dart';
-import '../widgets/dialogs/category_dialog.dart';
+import '../screens/category_screen.dart';
 import '../widgets/dialogs/due_subscription_dialog.dart';
 import '../utils/currency_formatter.dart';
 import '../providers/category_provider.dart';
@@ -336,9 +336,26 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showCategoryDialog({Category? c, required CategoryType type}) async {
-    final result = await showDialog(
-      context: context,
-      builder: (ctx) => CategoryDialog(category: c, type: type),
+    // ВАЖЛИВО: Використовуємо Navigator.push замість showDialog
+    final result = await Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            CategoryScreen(category: c, type: type),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0); // Знизу вгору
+          const end = Offset.zero;
+          const curve = Curves.easeOutQuart;
+          var tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
     );
 
     if (isEditMode && mounted) {

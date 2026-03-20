@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../models/category_model.dart';
 import '../../models/transaction_model.dart';
-import '../../models/app_currency.dart'; // ДОДАНО: Для отримання символу валюти
+import '../../models/app_currency.dart';
 import '../../utils/currency_formatter.dart';
 import '../../theme/app_colors_extension.dart';
 
@@ -31,7 +31,6 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // Фільтруємо історію тільки для цієї конкретної категорії
     final categoryHistory = widget.transactions
         .where(
           (t) => t.fromId == widget.category.id || t.toId == widget.category.id,
@@ -91,14 +90,23 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                         otherCat = null;
                       }
 
+                      // --- ЛОГІКА КОМЕНТАРІВ ---
+                      String customNote = t.title.trim();
+                      bool isDefaultTitle =
+                          customNote.isEmpty ||
+                          customNote.contains('➡️') ||
+                          customNote == otherCat?.name ||
+                          customNote == widget.category.name ||
+                          customNote == 'outgoing_transfer'.tr() ||
+                          customNote == 'top_up'.tr();
+
+                      if (isDefaultTitle) customNote = '';
+
                       // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ ---
-                      // Якщо ми дивимось з боку того, хто ВІДПРАВИВ гроші - показуємо базову суму транзакції
-                      // Якщо ми дивимось з боку того, хто ОТРИМАВ гроші - показуємо targetAmount (або базову, якщо target нема)
                       double displayAmount = isOut
                           ? t.amount
                           : (t.targetAmount ?? t.amount);
 
-                      // Валюта завжди та, яку має категорія, історію якої ми зараз дивимось
                       String currencySymbol = AppCurrency.fromCode(
                         widget.category.currency,
                       ).symbol;
@@ -114,13 +122,10 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                         prefix = "-";
                         amountColor = colors.expense;
                       } else {
-                        // Для Рахунків (Account) логіка складніша
                         prefix = isOut ? "-" : "+";
                         if (otherCat?.type == CategoryType.account) {
-                          // Переказ між своїми — нейтральний колір
                           amountColor = colors.textSecondary;
                         } else {
-                          // Поповнення або витрата — відповідний колір
                           amountColor = isOut ? colors.expense : colors.income;
                         }
                       }
@@ -181,18 +186,56 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                               fontSize: 14,
                             ),
                           ),
-                          subtitle: Text(
-                            "${t.date.day.toString().padLeft(2, '0')}.${t.date.month.toString().padLeft(2, '0')}.${t.date.year}",
-                            style: TextStyle(
-                              color: colors.textSecondary,
-                              fontSize: 12,
+                          // ЗМІНЕНО: Відображення дати + коментаря (якщо є)
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "${t.date.day.toString().padLeft(2, '0')}.${t.date.month.toString().padLeft(2, '0')}.${t.date.year}",
+                                  style: TextStyle(
+                                    color: colors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                if (customNote.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.notes,
+                                        size: 14,
+                                        color: colors.textSecondary.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          customNote,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontStyle: FontStyle.italic,
+                                            color: colors.textSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                "$prefix${CurrencyFormatter.format(displayAmount)} $currencySymbol", // ЗМІНЕНО: Динамічна сума та валюта
+                                "$prefix${CurrencyFormatter.format(displayAmount)} $currencySymbol",
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: amountColor,

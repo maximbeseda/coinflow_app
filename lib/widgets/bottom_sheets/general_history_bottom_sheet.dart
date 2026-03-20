@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../models/category_model.dart';
 import '../../models/transaction_model.dart';
-import '../../models/app_currency.dart'; // ДОДАНО
+import '../../models/app_currency.dart';
 import '../../utils/currency_formatter.dart';
 import '../../theme/app_colors_extension.dart';
 
@@ -111,24 +111,30 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                           fromCat?.type == CategoryType.account &&
                           toCat?.type == CategoryType.account;
 
-                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ ЗАЛЕЖНО ВІД ФІЛЬТРУ ---
+                      // --- ЛОГІКА КОМЕНТАРІВ ---
+                      String customNote = t.title.trim();
+                      bool isDefaultTitle =
+                          customNote.isEmpty ||
+                          customNote.contains('➡️') ||
+                          customNote == fromName ||
+                          customNote == toName ||
+                          customNote == 'outgoing_transfer'.tr() ||
+                          customNote == 'top_up'.tr();
+
+                      if (isDefaultTitle) customNote = '';
+
+                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ ---
                       double displayAmount = t.amount;
                       String currencyCode = t.currency;
 
-                      // Якщо ми дивимось загальну історію ВИТРАТ, то нас цікавить, скільки було зараховано на категорію витрат
-                      // Якщо це був мультивалютний переказ на витрату (наприклад, з доларів на гривневу категорію), беремо targetAmount
                       if (widget.filterType == CategoryType.expense &&
                           toCat?.type == CategoryType.expense) {
                         displayAmount = t.targetAmount ?? t.amount;
                         currencyCode = t.targetCurrency ?? t.currency;
-                      }
-                      // Якщо дивимось історію ДОХОДІВ, нас цікавить базова сума і валюта джерела (вона ж t.currency)
-                      else if (widget.filterType == CategoryType.income) {
+                      } else if (widget.filterType == CategoryType.income) {
                         displayAmount = t.amount;
                         currencyCode = t.currency;
-                      }
-                      // Для загального списку РАХУНКІВ просто показуємо базову суму списання
-                      else if (widget.filterType == CategoryType.account) {
+                      } else if (widget.filterType == CategoryType.account) {
                         displayAmount = t.amount;
                         currencyCode = t.currency;
                       }
@@ -224,18 +230,56 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                               ),
                             ],
                           ),
-                          subtitle: Text(
-                            "${t.date.day.toString().padLeft(2, '0')}.${t.date.month.toString().padLeft(2, '0')}.${t.date.year}",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colors.textSecondary,
+                          // ЗМІНЕНО: Відображення дати + коментаря (якщо є)
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "${t.date.day.toString().padLeft(2, '0')}.${t.date.month.toString().padLeft(2, '0')}.${t.date.year}",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
+                                if (customNote.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.notes,
+                                        size: 14,
+                                        color: colors.textSecondary.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          customNote,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontStyle: FontStyle.italic,
+                                            color: colors.textSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                "$prefix${CurrencyFormatter.format(displayAmount)} $currencySymbol", // ЗМІНЕНО
+                                "$prefix${CurrencyFormatter.format(displayAmount)} $currencySymbol",
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: amountColor,

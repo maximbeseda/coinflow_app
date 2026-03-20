@@ -522,7 +522,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
           "1 $sourceSymbol = ${_formatAmount(_currentExchangeRate)} $targetSymbol";
     }
 
-    Color activeColor = colors.accent;
+    Color activeColor = Colors.blueAccent;
     Color inactiveColor = colors.textSecondary.withValues(alpha: 0.4);
     Color currentColor = _isRateLinked ? activeColor : inactiveColor;
 
@@ -684,10 +684,20 @@ class _TransactionScreenState extends State<TransactionScreen> {
                 focusNode: _commentFocusNode,
                 controller: _commentCtrl,
                 autofocus: true,
+                // 👇 1. ВСТАНОВЛЮЄМО МАКСИМАЛЬНУ ДОВЖИНУ
+                maxLength: 100,
+                // 👇 (Опціонально) додаємо кнопку "Готово" на клавіатурі телефону
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  _commentFocusNode.unfocus();
+                  setState(() => _isCommentActive = false);
+                },
                 style: TextStyle(color: colors.textMain, fontSize: 16),
                 decoration: InputDecoration(
                   hintText: 'add_note'.tr(),
                   border: InputBorder.none,
+                  // 👇 2. ХОВАЄМО ЛІЧИЛЬНИК СИМВОЛІВ, щоб він не псував чистий дизайн (0/100)
+                  counterText: '',
                   suffixIcon: IconButton(
                     icon: Icon(
                       Icons.check_circle,
