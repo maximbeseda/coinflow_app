@@ -29,7 +29,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
   String? _selectedCurrency;
   bool _includeInTotal = true;
 
-  // ДОДАНО: Стан для помилки порожнього імені
+  // Стан для помилки порожнього імені
   bool _showNameError = false;
 
   @override
@@ -60,11 +60,10 @@ class _CategoryScreenState extends State<CategoryScreen> {
         : AppConstants.groupedIcons.values.first.first;
 
     _nameCtrl.addListener(() {
-      // ДОДАНО: Якщо помилка активна і користувач почав вводити текст - прибираємо червоний колір
+      // Якщо помилка активна і користувач почав вводити текст - прибираємо червоний колір
       if (_showNameError && _nameCtrl.text.trim().isNotEmpty) {
-        _showNameError = false;
+        setState(() => _showNameError = false);
       }
-      setState(() {});
     });
   }
 
@@ -265,7 +264,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                         backgroundColor: isSelected
                             ? Colors.blueAccent
                             : colors.iconBg,
-                        // Зменшив Padding з 4.0 до 2.0
                         child: Padding(
                           padding: const EdgeInsets.all(2.0),
                           child: FittedBox(
@@ -275,7 +273,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                               curr.symbol.trim(),
                               maxLines: 1,
                               textAlign: TextAlign.center,
-                              // 👇 ДОДАНО: Жорсткий каркас StrutStyle
                               strutStyle: const StrutStyle(
                                 fontSize: 14,
                                 height: 1.0,
@@ -324,7 +321,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
   }
 
   void _saveCategory() {
-    // ЗМІНЕНО: Валідація з підсвічуванням
     if (_nameCtrl.text.trim().isEmpty) {
       setState(() => _showNameError = true);
       return;
@@ -344,6 +340,136 @@ class _CategoryScreenState extends State<CategoryScreen> {
       'currency': _selectedCurrency,
       'includeInTotal': _includeInTotal,
     });
+  }
+
+  Future<void> _deleteCategory() async {
+    if (widget.category == null) return;
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (ctx) => Dialog(
+            backgroundColor: colors.cardBg,
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: colors.expense.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.warning_amber_rounded,
+                      color: colors.expense,
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'delete_category_title'.tr(),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: colors.textMain,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+
+                  Builder(
+                    builder: (context) {
+                      final itemName = widget.category!.name;
+                      final fullText = 'delete_category_message'.tr(
+                        args: [itemName],
+                      );
+                      final nameIndex = fullText.indexOf(itemName);
+
+                      return Text.rich(
+                        TextSpan(
+                          children: nameIndex != -1
+                              ? [
+                                  TextSpan(
+                                    text: fullText.substring(0, nameIndex),
+                                  ),
+                                  TextSpan(
+                                    text: itemName,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: colors.textMain,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: fullText.substring(
+                                      nameIndex + itemName.length,
+                                    ),
+                                  ),
+                                ]
+                              : [TextSpan(text: fullText)],
+                        ),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colors.textSecondary,
+                        ),
+                        textAlign: TextAlign.center,
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 32),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text(
+                            'cancel'.tr(),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colors.expense,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: Text(
+                            'delete'.tr(),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ) ??
+        false;
+
+    if (!mounted) return;
+
+    // Якщо користувач підтвердив, закриваємо екран категорії
+    // і передаємо команду 'delete' на головний екран для анімації
+    if (confirmed) {
+      Navigator.pop(context, 'delete');
+    }
   }
 
   @override
@@ -393,9 +519,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
                             color: colors.expense,
                             size: 26,
                           ),
-                          onPressed: () => Navigator.pop(context, 'delete'),
+                          onPressed: _deleteCategory,
                         ),
-                      // ЗМІНЕНО: Кнопка тепер завжди активна, щоб викликати валідацію
                       IconButton(
                         icon: const Icon(
                           Icons.check,
@@ -465,14 +590,13 @@ class _CategoryScreenState extends State<CategoryScreen> {
                     // ЧИСТИЙ МІНІМАЛІСТИЧНИЙ ФОРМ-БЛОК
                     Column(
                       children: [
-                        // 1. НАЗВА (Тепер передаємо стан помилки)
+                        // 1. НАЗВА
                         _buildMaterialField(
                           controller: _nameCtrl,
                           label: 'name'.tr(),
                           colors: colors,
                           maxLength: 20,
-                          isError:
-                              _showNameError, // 🔴 ПЕРЕДАЄМО СТАТУС ПОМИЛКИ
+                          isError: _showNameError,
                         ),
                         const SizedBox(height: 16),
 
@@ -503,7 +627,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                               child: CircleAvatar(
                                 radius: 14,
                                 backgroundColor: colors.iconBg,
-                                // Зменшив Padding з 4.0 до 2.0 для кращого масштабу
                                 child: Padding(
                                   padding: const EdgeInsets.all(2.0),
                                   child: FittedBox(
@@ -513,7 +636,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                                       currencySymbol.trim(),
                                       maxLines: 1,
                                       textAlign: TextAlign.center,
-                                      // 👇 ДОДАНО: Жорсткий каркас StrutStyle
                                       strutStyle: const StrutStyle(
                                         fontSize: 14,
                                         height: 1.0,
@@ -535,8 +657,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                                 ),
                               ),
                             ),
-                            // ВИПРАВЛЕНО: Додали Padding зверху, щоб опустити стрілочку
-                            // рівно на лінію тексту та іконки
                             suffixIcon: Padding(
                               padding: const EdgeInsets.only(top: 16.0),
                               child: Icon(
@@ -621,7 +741,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
   }
 
   // ДОПОМІЖНИЙ ВІДЖЕТ ДЛЯ МАТЕРІАЛ-ПОЛЯ
-  // ЗМІНЕНО: Додано параметр `isError`, який керує кольором лінії та заголовка
   Widget _buildMaterialField({
     required TextEditingController controller,
     required String label,
@@ -629,9 +748,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
     String? suffix,
     bool isNumber = false,
     int? maxLength,
-    bool isError = false, // За замовчуванням помилки немає
+    bool isError = false,
   }) {
-    // Визначаємо кольори залежно від стану
     final baseColor = isError ? Colors.red : colors.textSecondary;
     final activeColor = isError ? Colors.red : Colors.blueAccent;
     final underlineBaseColor = isError
@@ -656,12 +774,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
       decoration: InputDecoration(
         filled: false,
         labelText: label,
-        labelStyle: TextStyle(
-          color: baseColor,
-          fontSize: 16,
-        ), // Червоний, якщо є помилка
+        labelStyle: TextStyle(color: baseColor, fontSize: 16),
         floatingLabelStyle: TextStyle(
-          color: activeColor, // Червоний при фокусі, якщо є помилка
+          color: activeColor,
           fontSize: 14,
           fontWeight: FontWeight.bold,
         ),
@@ -675,9 +790,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
         enabledBorder: UnderlineInputBorder(
           borderSide: BorderSide(
             color: underlineBaseColor,
-            width: isError
-                ? 2
-                : 1, // Більш жирна лінія, щоб помилка була помітною
+            width: isError ? 2 : 1,
           ),
         ),
         focusedBorder: UnderlineInputBorder(

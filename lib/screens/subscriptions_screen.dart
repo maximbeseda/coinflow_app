@@ -7,7 +7,7 @@ import '../models/subscription_model.dart';
 import '../models/category_model.dart';
 import '../models/app_currency.dart'; // ДОДАНО: Для отримання символу валюти
 import '../utils/currency_formatter.dart';
-import '../widgets/dialogs/subscription_form_dialog.dart';
+import '../screens/subscription_screen.dart';
 import '../theme/app_colors_extension.dart';
 
 class SubscriptionsScreen extends StatelessWidget {
@@ -17,9 +17,26 @@ class SubscriptionsScreen extends StatelessWidget {
     BuildContext context, {
     Subscription? subscription,
   }) {
-    showDialog(
-      context: context,
-      builder: (context) => SubscriptionFormDialog(subscription: subscription),
+    // ЗАМІСТЬ showDialog ВИКОРИСТОВУЄМО ПЛАВНИЙ ПЕРЕХІД НА НОВИЙ ЕКРАН
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            SubscriptionScreen(subscription: subscription),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0); // Анімація виїзду знизу вгору
+          const end = Offset.zero;
+          const curve = Curves.easeOutQuart;
+          var tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
     );
   }
 

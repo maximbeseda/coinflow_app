@@ -4,8 +4,8 @@ import 'package:easy_localization/easy_localization.dart';
 import '../../models/subscription_model.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/category_provider.dart';
-import '../../providers/settings_provider.dart'; // ДОДАНО: Для конвертації валют
-import '../../models/app_currency.dart'; // ДОДАНО: Для символу валюти
+import '../../providers/settings_provider.dart';
+import '../../models/app_currency.dart';
 import '../../theme/app_colors_extension.dart';
 import '../../utils/currency_formatter.dart';
 
@@ -24,34 +24,31 @@ class DueSubscriptionDialog extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     final catProv = context.watch<CategoryProvider>();
-    final settings = context.watch<SettingsProvider>(); // ДОДАНО
+    final settings = context.watch<SettingsProvider>();
 
     final account = catProv.allCategoriesList
         .where((c) => c.id == subscription.accountId)
         .firstOrNull;
 
-    // ДОДАНО: Правильна мультивалютна перевірка балансу
     bool canPay = false;
     if (account != null && !account.isArchived) {
-      // Конвертуємо баланс рахунку в базову валюту
       double accountAmountBase = settings.convertToBase(
         account.amount,
         account.currency,
       );
-      // Конвертуємо вартість підписки в базову валюту
       double subAmountBase = settings.convertToBase(
         subscription.amount,
         subscription.currency,
       );
-
-      // Порівнюємо їх у спільному еквіваленті
       canPay = accountAmountBase >= subAmountBase;
     }
 
-    // ДОДАНО: Отримуємо символ валюти підписки
     final currencySymbol = AppCurrency.fromCode(subscription.currency).symbol;
 
     return Dialog(
+      backgroundColor: colors.cardBg,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Stack(
         children: [
           Padding(
@@ -59,6 +56,7 @@ class DueSubscriptionDialog extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // 1. ІКОНКА
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -77,19 +75,32 @@ class DueSubscriptionDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
 
-                Text(
-                  'regular_payment_title'.tr(),
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: colors.textMain,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                // 2. ЗАГОЛОВОК З МОНОХРОМНОЮ ІКОНКОЮ
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'regular_payment_title'.tr(),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: colors.textMain,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.payments_outlined, // Стильна контурна іконка грошей
+                      color: colors.textMain,
+                      size: 22,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
 
+                // 3. ПІДЗАГОЛОВОК
                 RichText(
                   textAlign: TextAlign.center,
                   maxLines: 2,
@@ -108,45 +119,33 @@ class DueSubscriptionDialog extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.iconBg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: colors.textSecondary.withValues(alpha: 0.2),
-                      width: 1,
+                // 4. ДАТА (ЛЕГКА, БЕЗ РАМОК І ФОНУ)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.calendar_today_rounded,
+                      size: 16,
+                      color: colors.textSecondary,
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.calendar_today_rounded,
-                        size: 16,
-                        color: colors.textSecondary,
+                    const SizedBox(width: 8),
+                    Text(
+                      _getFormattedDate(context),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textMain,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _getFormattedDate(context),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textMain,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
 
+                // 5. СУМА
                 Text(
-                  '${CurrencyFormatter.format(subscription.amount)} $currencySymbol', // ЗМІНЕНО: Динамічна валюта замість ₴
+                  '${CurrencyFormatter.format(subscription.amount)} $currencySymbol',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
@@ -176,10 +175,17 @@ class DueSubscriptionDialog extends StatelessWidget {
 
                 const SizedBox(height: 32),
 
+                // 6. КНОПКИ
                 Row(
                   children: [
                     Expanded(
                       child: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
                         onPressed: () async {
                           await context
                               .read<SubscriptionProvider>()
@@ -190,9 +196,10 @@ class DueSubscriptionDialog extends StatelessWidget {
                         },
                         child: Text(
                           'skip'.tr(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
+                            color: colors.textSecondary,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -202,12 +209,17 @@ class DueSubscriptionDialog extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        style: canPay
-                            ? null
-                            : ElevatedButton.styleFrom(
-                                backgroundColor: colors.expense,
-                                foregroundColor: Colors.white,
-                              ),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: canPay
+                              ? colors.textMain
+                              : colors.expense,
+                          foregroundColor: colors.cardBg,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
                         onPressed: () async {
                           if (!canPay) {
                             context

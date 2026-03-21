@@ -239,102 +239,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Future<bool> _confirmDeletion(
-    BuildContext context,
-    String title,
-    String message,
-  ) async {
-    final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => Dialog(
-            backgroundColor: colors.cardBg,
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: colors.expense.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.warning_amber_rounded,
-                      color: colors.expense,
-                      size: 36,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: colors.textMain,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    message,
-                    style: TextStyle(fontSize: 14, color: colors.textSecondary),
-                    textAlign: TextAlign.center,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 32),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: Text(
-                            'cancel'.tr(),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: colors.expense,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: Text(
-                            'delete'.tr(),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ) ??
-        false;
-  }
-
   void _showCategoryDialog({Category? c, required CategoryType type}) async {
     // ВАЖЛИВО: Використовуємо Navigator.push замість showDialog
     final result = await Navigator.push(
@@ -369,18 +273,13 @@ class _HomeScreenState extends State<HomeScreen>
     final catProv = context.read<CategoryProvider>();
 
     if (result == 'delete' && c != null) {
-      bool confirmed = await _confirmDeletion(
-        context,
-        'delete_category_title'.tr(),
-        'delete_category_message'.tr(args: [c.name]),
-      );
-      if (confirmed) {
-        if (!mounted) return;
-        setState(() => deletingIds.add(c.id));
-        await Future.delayed(const Duration(milliseconds: 350));
-        catProv.deleteCategory(c);
-        if (mounted) setState(() => deletingIds.remove(c.id));
-      }
+      // Підтвердження вже відбулося всередині CategoryScreen,
+      // тому тут ми просто запускаємо красиву анімацію зникнення монетки
+      if (!mounted) return;
+      setState(() => deletingIds.add(c.id));
+      await Future.delayed(const Duration(milliseconds: 350));
+      catProv.deleteCategory(c);
+      if (mounted) setState(() => deletingIds.remove(c.id));
       return;
     }
 
