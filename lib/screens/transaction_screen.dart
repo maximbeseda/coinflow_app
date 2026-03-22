@@ -694,7 +694,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
   Widget _buildToolbar(AppColorsExtension colors) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Row(
         children: [
           Expanded(
@@ -736,7 +736,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
   Widget _buildSaveButton() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton(
@@ -756,7 +756,10 @@ class _TransactionScreenState extends State<TransactionScreen> {
       child: _isCommentActive
           ? Padding(
               key: const ValueKey('text_field'),
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 16.0,
+              ),
               child: TextField(
                 focusNode: _commentFocusNode,
                 controller: _commentCtrl,
