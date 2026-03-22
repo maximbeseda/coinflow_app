@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../providers/theme_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/transaction_provider.dart';
+import '../providers/subscription_provider.dart';
+import '../providers/category_provider.dart';
 import '../models/app_currency.dart';
 import '../theme/app_colors_extension.dart';
 import '../theme/app_theme.dart';
@@ -10,6 +13,139 @@ import '../utils/app_constants.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
+
+  Future<void> _showClearDataDialog(BuildContext context) async {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    // Зберігаємо змінні до асинхронних викликів
+    final txProv = context.read<TransactionProvider>();
+    final subProv = context.read<SubscriptionProvider>();
+    final catProv = context.read<CategoryProvider>();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (ctx) => Dialog(
+            backgroundColor: colors.cardBg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: colors.expense.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.delete_forever_rounded,
+                      color: colors.expense,
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'clear_data_title'.tr(),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: colors.textMain,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'clear_data_message'.tr(),
+                    style: TextStyle(fontSize: 14, color: colors.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text(
+                            'cancel'.tr(),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colors.expense,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: Text(
+                            'delete'.tr(),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ) ??
+        false;
+
+    if (confirmed) {
+      await txProv.clearAllTransactions();
+      await subProv.clearAllSubscriptions();
+      await catProv.resetAllBalances();
+
+      // Стильний SnackBar у дизайні додатку
+      scaffoldMessenger.clearSnackBars();
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: colors.cardBg,
+          elevation: 4,
+          margin: const EdgeInsets.all(20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: colors.income, width: 1.0),
+          ),
+          content: Row(
+            children: [
+              Icon(Icons.check_circle_outline, color: colors.income, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'data_cleared_success'.tr(),
+                  style: TextStyle(
+                    color: colors.textMain,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +187,7 @@ class ProfileScreen extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   color: colors.cardBg,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.05),
@@ -62,7 +198,6 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    // 1. АВТОМАТИЗОВАНИЙ ВИБІР ТЕМИ
                     _buildSettingsRow(
                       colors: colors,
                       icon: Icons.palette_outlined,
@@ -89,7 +224,6 @@ class ProfileScreen extends StatelessWidget {
                       color: colors.textSecondary.withValues(alpha: 0.1),
                     ),
 
-                    // 2. АВТОМАТИЗОВАНИЙ ВИБІР МОВИ
                     _buildSettingsRow(
                       colors: colors,
                       icon: Icons.language_outlined,
@@ -120,7 +254,6 @@ class ProfileScreen extends StatelessWidget {
                       color: colors.textSecondary.withValues(alpha: 0.1),
                     ),
 
-                    // 3. ВИБІР БАЗОВОЇ ВАЛЮТИ
                     _buildSettingsRow(
                       colors: colors,
                       icon: Icons.monetization_on_outlined,
@@ -143,6 +276,34 @@ class ProfileScreen extends StatelessWidget {
                           ? settingsProvider.setBaseCurrency(val)
                           : null,
                     ),
+
+                    Divider(
+                      height: 1,
+                      indent: 20,
+                      endIndent: 20,
+                      color: colors.textSecondary.withValues(alpha: 0.1),
+                    ),
+
+                    // 👇 ДОДАНО: Кнопка очищення даних
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      leading: Icon(
+                        Icons.delete_forever_rounded,
+                        color: colors.expense,
+                      ),
+                      title: Text(
+                        'clear_all_data'.tr(),
+                        style: TextStyle(
+                          color: colors.expense,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      onTap: () => _showClearDataDialog(context),
+                    ),
                   ],
                 ),
               ),
@@ -153,8 +314,6 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  // ДОДАНО: Універсальний метод-шаблон для пунктів меню.
-  // Гарантує 100% ідентичний дизайн для всіх рядків.
   Widget _buildSettingsRow({
     required AppColorsExtension colors,
     required IconData icon,
@@ -171,18 +330,18 @@ class ProfileScreen extends StatelessWidget {
         style: TextStyle(
           color: colors.textMain,
           fontWeight: FontWeight.w600,
-          fontSize: 16, // Строго фіксований однаковий розмір
+          fontSize: 16,
         ),
-        maxLines: 2, // Дозволяємо перенесення довгого слова на 2 рядок
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
       trailing: SizedBox(
-        width: 115, // Зменшили зі 130, щоб дати тексту більше місця
+        width: 115,
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String>(
             value: dropdownValue,
             dropdownColor: colors.cardBg,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(8),
             alignment: Alignment.centerRight,
             isExpanded: true,
             icon: Icon(

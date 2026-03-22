@@ -21,13 +21,11 @@ class StatsScreen extends StatefulWidget {
 class _StatsScreenState extends State<StatsScreen> {
   bool _showExpenses = true;
 
-  // ДОДАНО: Локальний стан місяця тільки для екрану статистики
   late DateTime _statsMonth;
 
   @override
   void initState() {
     super.initState();
-    // При відкритті екрану встановлюємо поточний місяць
     final now = DateTime.now();
     _statsMonth = DateTime(now.year, now.month, 1);
   }
@@ -92,83 +90,40 @@ class _StatsScreenState extends State<StatsScreen> {
       settings.baseCurrency,
     ).symbol;
 
-    // ЗМІНЕНО: Фільтруємо історію по локальній змінній _statsMonth, а не по провайдеру
-    final monthHistory = txProv.history
-        .where(
-          (t) =>
-              t.date.year == _statsMonth.year &&
-              t.date.month == _statsMonth.month,
-        )
-        .toList();
-
     final allCategories = catProv.allCategoriesList;
     final Map<String, Category> categoryMap = {
       for (var c in allCategories) c.id: c,
     };
 
-    final Map<String, double> expenseNativeTotals = {};
-    final Map<String, double> incomeNativeTotals = {};
+    // 👇 Використовуємо новий точний метод із TransactionProvider
+    final categoryTotals = txProv.calculateCategoryTotalsForMonth(
+      _statsMonth,
+      _showExpenses,
+    );
 
-    for (var t in monthHistory) {
-      final fromCat = categoryMap[t.fromId];
-      final toCat = categoryMap[t.toId];
+    List<Category> activeCategories = [];
 
-      if (toCat != null && toCat.type == CategoryType.expense) {
-        expenseNativeTotals[t.toId] =
-            (expenseNativeTotals[t.toId] ?? 0) + (t.targetAmount ?? t.amount);
+    categoryTotals.forEach((categoryId, amountInBaseCurrency) {
+      if (amountInBaseCurrency > 0 && categoryMap.containsKey(categoryId)) {
+        activeCategories.add(
+          categoryMap[categoryId]!.copyWith(amount: amountInBaseCurrency),
+        );
       }
-      if (fromCat != null && fromCat.type == CategoryType.income) {
-        incomeNativeTotals[t.fromId] =
-            (incomeNativeTotals[t.fromId] ?? 0) + t.amount;
-      }
-    }
+    });
 
-    final activeExpenses = catProv.expenses
-        .where(
-          (c) =>
-              expenseNativeTotals.containsKey(c.id) &&
-              expenseNativeTotals[c.id]! > 0,
-        )
-        .map(
-          (c) => c.copyWith(
-            amount: settings.convertToBase(
-              expenseNativeTotals[c.id]!,
-              c.currency,
-            ),
-          ),
-        )
-        .toList();
+    activeCategories.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
 
-    activeExpenses.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
-    double totalExpenses = activeExpenses.fold(
+    double activeTotal = activeCategories.fold(
       0.0,
       (sum, item) => sum + item.amount.abs(),
     );
 
-    final activeIncomes = catProv.incomes
-        .where(
-          (c) =>
-              incomeNativeTotals.containsKey(c.id) &&
-              incomeNativeTotals[c.id]! > 0,
-        )
-        .map(
-          (c) => c.copyWith(
-            amount: settings.convertToBase(
-              incomeNativeTotals[c.id]!,
-              c.currency,
-            ),
-          ),
-        )
-        .toList();
+    final activeData = activeCategories;
 
-    activeIncomes.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
-    double totalIncomes = activeIncomes.fold(
-      0.0,
-      (sum, item) => sum + item.amount.abs(),
-    );
-
-    final activeData = _showExpenses ? activeExpenses : activeIncomes;
-    final activeTotal = _showExpenses ? totalExpenses : totalIncomes;
+    // Щоб зберегти правильні значення у кнопках перемикання "Витрати / Доходи"
+    final allMonthTotals = txProv.calculateTotalsForMonth(_statsMonth);
+    double totalExpenses = allMonthTotals['expenses'] ?? 0.0;
+    double totalIncomes = allMonthTotals['incomes'] ?? 0.0;
 
     return Scaffold(
       body: Container(
@@ -217,7 +172,6 @@ class _StatsScreenState extends State<StatsScreen> {
                     IconButton(
                       icon: Icon(Icons.chevron_left, color: colors.textMain),
                       onPressed: () {
-                        // ЗМІНЕНО: Оновлюємо локальний стан замість виклику провайдера
                         setState(() {
                           _statsMonth = DateTime(
                             _statsMonth.year,
@@ -231,13 +185,10 @@ class _StatsScreenState extends State<StatsScreen> {
                       onTap: () async {
                         final pickedDate = await showDialog<DateTime>(
                           context: context,
-                          builder: (ctx) => MonthPickerDialog(
-                            // ЗМІНЕНО: Передаємо локальний місяць
-                            initialDate: _statsMonth,
-                          ),
+                          builder: (ctx) =>
+                              MonthPickerDialog(initialDate: _statsMonth),
                         );
                         if (pickedDate != null && mounted) {
-                          // ЗМІНЕНО: Оновлюємо локальний стан замість виклику провайдера
                           setState(() {
                             _statsMonth = pickedDate;
                           });
@@ -254,7 +205,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: colors.cardBg,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withAlpha(10),
@@ -267,7 +218,6 @@ class _StatsScreenState extends State<StatsScreen> {
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            // ЗМІНЕНО: Відображаємо локальний місяць
                             _getMonthName(_statsMonth, context),
                             style: TextStyle(
                               fontSize: 16,
@@ -281,7 +231,6 @@ class _StatsScreenState extends State<StatsScreen> {
                     IconButton(
                       icon: Icon(Icons.chevron_right, color: colors.textMain),
                       onPressed: () {
-                        // ЗМІНЕНО: Оновлюємо локальний стан замість виклику провайдера
                         setState(() {
                           _statsMonth = DateTime(
                             _statsMonth.year,
@@ -432,7 +381,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: colors.cardBg,
-                    borderRadius: BorderRadius.circular(32),
+                    borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withAlpha(10),

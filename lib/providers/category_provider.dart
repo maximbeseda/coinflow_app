@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/category_model.dart';
-import '../models/transaction_model.dart';
 import '../services/storage_service.dart';
 
 class CategoryProvider extends ChangeNotifier {
@@ -42,7 +41,6 @@ class CategoryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Оновлення балансу конкретної категорії
   void updateCategoryAmount(String id, double delta) {
     final all = allCategoriesList;
     final index = all.indexWhere((c) => c.id == id);
@@ -66,41 +64,7 @@ class CategoryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Перерахунок сумарних витрат/доходів за поточний місяць (викликається з транзакцій)
-  void recalculateMonthTotals(
-    List<Transaction> history,
-    DateTime selectedMonth,
-  ) {
-    incomes = incomes.map((c) => c.copyWith(amount: 0.0)).toList();
-    expenses = expenses.map((c) => c.copyWith(amount: 0.0)).toList();
-
-    final currentMonthHistory = history
-        .where(
-          (t) =>
-              t.date.year == selectedMonth.year &&
-              t.date.month == selectedMonth.month,
-        )
-        .toList();
-
-    for (var t in currentMonthHistory) {
-      int incIdx = incomes.indexWhere((c) => c.id == t.fromId);
-      if (incIdx != -1) {
-        // Доходи завжди є джерелом (fromId), тому для них беремо базовий amount
-        incomes[incIdx] = incomes[incIdx].copyWith(
-          amount: incomes[incIdx].amount + t.amount,
-        );
-      }
-
-      int expIdx = expenses.indexWhere((c) => c.id == t.toId);
-      if (expIdx != -1) {
-        // ФІКС: Витрати є ціллю (toId), тому для них беремо targetAmount (якщо він є)
-        expenses[expIdx] = expenses[expIdx].copyWith(
-          amount: expenses[expIdx].amount + (t.targetAmount ?? t.amount),
-        );
-      }
-    }
-    notifyListeners();
-  }
+  // МЕТОД recalculateMonthTotals ПОВНІСТЮ ВИДАЛЕНО!
 
   void addOrUpdateCategory(Category cat) {
     List<Category> targetList;
@@ -157,5 +121,22 @@ class CategoryProvider extends ChangeNotifier {
       StorageService.saveCategories(allCategoriesList);
       notifyListeners();
     }
+  }
+
+  Future<void> resetAllBalances() async {
+    for (var i = 0; i < incomes.length; i++) {
+      incomes[i] = incomes[i].copyWith(amount: 0.0);
+    }
+    for (var i = 0; i < accounts.length; i++) {
+      accounts[i] = accounts[i].copyWith(amount: 0.0);
+    }
+    for (var i = 0; i < expenses.length; i++) {
+      expenses[i] = expenses[i].copyWith(amount: 0.0);
+    }
+    for (var i = 0; i < archivedCategories.length; i++) {
+      archivedCategories[i] = archivedCategories[i].copyWith(amount: 0.0);
+    }
+    await StorageService.saveCategories(allCategoriesList);
+    notifyListeners();
   }
 }

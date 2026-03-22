@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
@@ -8,13 +9,12 @@ import '../theme/app_colors_extension.dart';
 import '../widgets/common/custom_numpad.dart';
 import '../utils/calculator_helper.dart';
 import '../widgets/common/date_strip_selector.dart';
-import '../widgets/dialogs/custom_calendar_dialog.dart';
+import '../widgets/dialogs/premium_date_picker.dart';
 
 class TransactionScreen extends StatefulWidget {
   final Category source;
   final Category target;
 
-  // ДОДАНО: Параметри для режиму редагування
   final double? initialAmount;
   final double? initialTargetAmount;
   final DateTime? initialDate;
@@ -54,11 +54,12 @@ class _TransactionScreenState extends State<TransactionScreen> {
   final TextEditingController _commentCtrl = TextEditingController();
   final FocusNode _commentFocusNode = FocusNode();
 
+  Timer? _rateDebounceTimer;
+
   @override
   void initState() {
     super.initState();
 
-    // ІНІЦІАЛІЗАЦІЯ ДЛЯ РЕЖИМУ РЕДАГУВАННЯ
     _selectedDate = widget.initialDate ?? DateTime.now();
 
     if (widget.initialAmount != null && widget.initialAmount! > 0) {
@@ -69,8 +70,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
     if (widget.initialTargetAmount != null && widget.initialTargetAmount! > 0) {
       _targetAmount = _formatAmount(widget.initialTargetAmount!);
       _targetExpression = _targetAmount;
-      // ВАЖЛИВО: Якщо це редагування і є кастомна цільова сума - розриваємо зв'язок з офіційним курсом,
-      // щоб зберегти історичний обмін користувача
       _isRateLinked = false;
     }
 
@@ -103,10 +102,19 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
     if (mounted) {
       setState(() {
-        _currentExchangeRate = sourceRate == 0
-            ? 1.0
-            : (targetRate / sourceRate);
-        if (_currentExchangeRate <= 0) _currentExchangeRate = 1.0;
+        if (sourceRate == 0 || targetRate == 0) {
+          _currentExchangeRate = 1.0;
+        } else {
+          // 👇 ЖОРСТКЕ ОКРУГЛЕННЯ ДО 4 ЗНАКІВ (Банківська точність)
+          double rawRate = targetRate / sourceRate;
+          if (rawRate >= 1.0) {
+            _currentExchangeRate = double.parse(rawRate.toStringAsFixed(4));
+          } else {
+            double inverted = sourceRate / targetRate;
+            double invertedRounded = double.parse(inverted.toStringAsFixed(4));
+            _currentExchangeRate = 1.0 / invertedRounded;
+          }
+        }
 
         _recalculateLinkedAmounts();
       });
@@ -160,8 +168,25 @@ class _TransactionScreenState extends State<TransactionScreen> {
     return formatted;
   }
 
+  // 👇 ДОДАНО: Спеціальний форматер для курсу валют (до 4 знаків)
+  String _formatRate(double val) {
+    if (val == 0) return "0";
+    String formatted = val.toStringAsFixed(4);
+    if (formatted.contains('.')) {
+      formatted = formatted.replaceAll(
+        RegExp(r'0*$'),
+        '',
+      ); // Прибираємо зайві нулі в кінці
+      if (formatted.endsWith('.')) {
+        formatted = formatted.substring(0, formatted.length - 1);
+      }
+    }
+    return formatted;
+  }
+
   @override
   void dispose() {
+    _rateDebounceTimer?.cancel();
     _commentCtrl.dispose();
     _commentFocusNode.dispose();
     super.dispose();
@@ -250,32 +275,64 @@ class _TransactionScreenState extends State<TransactionScreen> {
         String currentNumber = _activeExpression.split(RegExp(r'[+\-×÷]')).last;
 
         if (key == '.') {
-          if (currentNumber.contains('.')) return;
+          if (currentNumber.contains('.')) return; // Вже є крапка
           if (currentNumber.isEmpty) {
             _activeExpression += '0.';
           } else {
             _activeExpression += '.';
           }
         } else {
+          // Якщо натиснуто цифру або '00'
           if (currentNumber.contains('.')) {
+            // МИ ПІСЛЯ КРАПКИ
             int decimalPlaces = currentNumber.split('.').last.length;
+
             if (decimalPlaces >= 2) return;
 
             if (key == '00') {
-              if (decimalPlaces == 1) {
+              if (decimalPlaces == 0) {
+                _activeExpression += '00';
+              } else if (decimalPlaces == 1) {
                 _activeExpression += '0';
-              } else {
-                return;
               }
             } else {
               _activeExpression += key;
             }
           } else {
-            _activeExpression += key;
+            // МИ ДО КРАПКИ
+
+            // 👇 ДОДАНО: Захист від зайвих нулів на початку
+            if (currentNumber == "0") {
+              if (key == '0' || key == '00') {
+                return; // Ігноруємо натискання, клавіатура просто не відреагує
+              } else {
+                // Якщо натиснули цифру (1-9), замінюємо стартовий "0" на цю цифру
+                _activeExpression =
+                    _activeExpression.substring(
+                      0,
+                      _activeExpression.length - 1,
+                    ) +
+                    key;
+              }
+            } else {
+              // Стандартна логіка введення
+              if (currentNumber.length >= 12) return;
+
+              if (key == '00') {
+                if (currentNumber.length == 11) {
+                  _activeExpression += '0';
+                } else {
+                  _activeExpression += '00';
+                }
+              } else {
+                _activeExpression += key;
+              }
+            }
           }
         }
       }
 
+      // Оновлення суми
       if (_activeExpression.isEmpty) {
         _setActiveAmount("0");
       } else if (_activeExpression == '-') {
@@ -303,14 +360,26 @@ class _TransactionScreenState extends State<TransactionScreen> {
   }
 
   void _handleDateChanged(DateTime newDate) {
+    if (_selectedDate.year == newDate.year &&
+        _selectedDate.month == newDate.month &&
+        _selectedDate.day == newDate.day) {
+      return;
+    }
+
     setState(() => _selectedDate = newDate);
-    _fetchRateForDate(newDate);
+
+    _rateDebounceTimer?.cancel();
+    _rateDebounceTimer = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) {
+        _fetchRateForDate(newDate);
+      }
+    });
   }
 
   Future<void> _handleCalendarTap() async {
-    final DateTime? picked = await showDialog<DateTime>(
+    final DateTime? picked = await PremiumDatePicker.show(
       context: context,
-      builder: (ctx) => CustomCalendarDialog(initialDate: _selectedDate),
+      initialDate: _selectedDate,
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
@@ -358,7 +427,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
             icon: Icon(Icons.close, color: colors.textSecondary, size: 22),
             onPressed: () => Navigator.pop(context),
           ),
-
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -378,7 +446,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
               ),
             ),
           ),
-
           IconButton(
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -438,66 +505,82 @@ class _TransactionScreenState extends State<TransactionScreen> {
         ? amount
         : (expression.isEmpty ? "0" : expression);
 
+    // 👇 ФУНКЦІЯ ФОРМАТУВАННЯ ТІЛЬКИ ДЛЯ ВІЗУАЛУ
+    String formatWithSpaces(String text) {
+      return text.replaceAllMapped(RegExp(r'\d+(\.\d+)?'), (match) {
+        var parts = match[0]!.split('.');
+        String intPart = parts[0].replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]} ',
+        );
+        return parts.length > 1 ? '$intPart.${parts[1]}' : intPart;
+      });
+    }
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 200),
-        opacity: isActive ? 1.0 : 0.4,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    // 👇 Застосовуємо форматування
+                    TextSpan(text: formatWithSpaces(displayMainAmount)),
+                    TextSpan(
+                      text: " $symbol",
+                      style: TextStyle(
+                        fontSize: isActive ? 36 : 28,
+                        color: colors.textSecondary.withValues(
+                          alpha: isActive ? 1.0 : 0.4,
+                        ),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                softWrap: false,
+                overflow: TextOverflow.visible,
+                style: TextStyle(
+                  fontSize: isActive ? 56 : 42,
+                  fontWeight: FontWeight.w800,
+                  color: colors.textMain.withValues(
+                    alpha: isActive ? 1.0 : 0.4,
+                  ),
+                  letterSpacing: -1,
+                ),
+              ),
+            ),
+          ),
+          if (expression != amount &&
+              expression.isNotEmpty &&
+              hasMathOperators &&
+              isActive)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.only(top: 8),
               child: FittedBox(
                 fit: BoxFit.scaleDown,
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(text: displayMainAmount),
-                      TextSpan(
-                        text: " $symbol",
-                        style: TextStyle(
-                          fontSize: isActive ? 36 : 28,
-                          color: colors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  maxLines: 1,
+                child: Text(
+                  // 👇 Застосовуємо форматування для формули
+                  formatWithSpaces(expression),
                   softWrap: false,
+                  overflow: TextOverflow.visible,
                   style: TextStyle(
-                    fontSize: isActive ? 56 : 42,
-                    fontWeight: FontWeight.w800,
-                    color: colors.textMain,
-                    letterSpacing: -1,
+                    fontSize: 22,
+                    color: colors.textSecondary.withValues(
+                      alpha: isActive ? 1.0 : 0.4,
+                    ),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
             ),
-            if (expression != amount &&
-                expression.isNotEmpty &&
-                hasMathOperators &&
-                isActive)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    expression,
-                    maxLines: 1,
-                    softWrap: false,
-                    style: TextStyle(
-                      fontSize: 22,
-                      color: colors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -510,16 +593,16 @@ class _TransactionScreenState extends State<TransactionScreen> {
     final settings = context.read<SettingsProvider>();
     String rateText = "";
 
+    // 👇 ЗМІНЕНО: Використовуємо _formatRate для відображення до 4 знаків
     if (widget.source.currency == settings.baseCurrency &&
         widget.target.currency != settings.baseCurrency) {
       double invertedRate = _currentExchangeRate > 0
           ? (1.0 / _currentExchangeRate)
           : 1.0;
-      rateText =
-          "1 $targetSymbol = ${_formatAmount(invertedRate)} $sourceSymbol";
+      rateText = "1 $targetSymbol = ${_formatRate(invertedRate)} $sourceSymbol";
     } else {
       rateText =
-          "1 $sourceSymbol = ${_formatAmount(_currentExchangeRate)} $targetSymbol";
+          "1 $sourceSymbol = ${_formatRate(_currentExchangeRate)} $targetSymbol";
     }
 
     Color activeColor = Colors.blueAccent;
@@ -595,9 +678,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
             onTap: () => setState(() => _isEditingTarget = false),
             colors: colors,
           ),
-
           _buildMiddleExchangeRow(colors, sourceSymbol, targetSymbol),
-
           _buildSingleAmountBox(
             amount: _targetAmount,
             expression: _targetExpression,
@@ -617,10 +698,12 @@ class _TransactionScreenState extends State<TransactionScreen> {
       child: Row(
         children: [
           Expanded(
-            child: DateStripSelector(
-              selectedDate: _selectedDate,
-              onDateChanged: _handleDateChanged,
-              onCalendarTap: _handleCalendarTap,
+            child: RepaintBoundary(
+              child: DateStripSelector(
+                selectedDate: _selectedDate,
+                onDateChanged: _handleDateChanged,
+                onCalendarTap: _handleCalendarTap,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -643,13 +726,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                   color: colors.textSecondary.withValues(alpha: 0.2),
                 ),
               ),
-              child: Icon(
-                Icons.notes,
-                color: _commentCtrl.text.isNotEmpty
-                    ? colors.textMain
-                    : colors.textMain,
-                size: 24,
-              ),
+              child: Icon(Icons.notes, color: colors.textMain, size: 24),
             ),
           ),
         ],
@@ -684,9 +761,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
                 focusNode: _commentFocusNode,
                 controller: _commentCtrl,
                 autofocus: true,
-                // 👇 1. ВСТАНОВЛЮЄМО МАКСИМАЛЬНУ ДОВЖИНУ
                 maxLength: 100,
-                // 👇 (Опціонально) додаємо кнопку "Готово" на клавіатурі телефону
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) {
                   _commentFocusNode.unfocus();
@@ -696,7 +771,6 @@ class _TransactionScreenState extends State<TransactionScreen> {
                 decoration: InputDecoration(
                   hintText: 'add_note'.tr(),
                   border: InputBorder.none,
-                  // 👇 2. ХОВАЄМО ЛІЧИЛЬНИК СИМВОЛІВ, щоб він не псував чистий дизайн (0/100)
                   counterText: '',
                   suffixIcon: IconButton(
                     icon: Icon(

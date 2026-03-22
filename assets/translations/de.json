@@ -13,6 +13,9 @@
   "name_hint": "Name...",
   "note": "Notiz",
   "add_note": "Kommentar schreiben...",
+  "date": "Datum",
+  "choose_date": "Datum auswählen",
+  "update_date": "Datum aktualisieren",
 
   "balance": "KONTOSTAND",
   "expenses": "AUSGABEN",
@@ -37,6 +40,10 @@
   "interface_theme": "Design",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
+  "clear_all_data": "Alle Daten löschen",
+  "clear_data_title": "Alle Daten löschen?",
+  "clear_data_message": "Dies löscht alle Transaktionen und Abonnements und setzt alle Kontostände zurück. Diese Aktion kann nicht rückgängig gemacht werden.",
+  "data_cleared_success": "Alle Daten erfolgreich gelöscht",
 
   "statistics": "Statistik",
   "stats_subtitle": "Grafiken und Verlauf",

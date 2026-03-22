@@ -3,7 +3,7 @@ import 'package:flutter/physics.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../../theme/app_colors_extension.dart';
 
-// === МАГІЯ НАЙВИЩОГО РІВНЯ: ВЛАСНА ФІЗИКА КІНЕТИЧНОГО СКРОЛУ ===
+// === ТВОРЯ ІДЕАЛЬНА ФІЗИКА КІНЕТИЧНОГО СКРОЛУ ===
 class CustomSnappingScrollPhysics extends ScrollPhysics {
   const CustomSnappingScrollPhysics({super.parent});
 
@@ -34,22 +34,18 @@ class CustomSnappingScrollPhysics extends ScrollPhysics {
     double targetPage;
 
     if (velocity.abs() < currentTolerance.velocity) {
-      // Якщо просто вели пальцем і відпустили - дотягуємо до найближчої дати
       targetPage = currentPage.roundToDouble();
     } else {
-      // --- ЖОРСТКИЙ ЛІМІТЕР КРОКІВ ---
-      int jumpSteps = 1; // За замовчуванням легкий свайп = 1 дата
-      if (velocity.abs() > 1000) jumpSteps = 2; // Середній свайп = 2 дати
-      if (velocity.abs() > 2500) jumpSteps = 3; // Сильний свайп = 3 дати
+      int jumpSteps = 1;
+      if (velocity.abs() > 1000) jumpSteps = 2;
+      if (velocity.abs() > 2500) jumpSteps = 3;
       if (velocity.abs() > 4000) {
-        jumpSteps = 7; // Дуже сильний ривок = 7 дати (стеля)
+        jumpSteps = 7;
       }
 
       if (velocity > 0) {
-        // Свайпнули вліво (мотаємо дати вперед)
         targetPage = currentPage.floorToDouble() + jumpSteps;
       } else {
-        // Свайпнули вправо (мотаємо дати назад)
         targetPage = currentPage.ceilToDouble() - jumpSteps;
       }
     }
@@ -61,11 +57,10 @@ class CustomSnappingScrollPhysics extends ScrollPhysics {
       return null;
     }
 
-    // Робимо пружину жорсткішою, щоб дата фіксувалась чітко і приємно
     final SpringDescription customSpring = SpringDescription(
       mass: spring.mass,
-      stiffness: spring.stiffness * 2.0, // Удвічі жорсткіша
-      damping: spring.damping * 1.3, // Швидше гасить коливання в кінці
+      stiffness: spring.stiffness * 2.0,
+      damping: spring.damping * 1.3,
     );
 
     return SpringSimulation(
@@ -98,11 +93,12 @@ class _DateStripSelectorState extends State<DateStripSelector> {
   late PageController _pageController;
   final int _baseIndex = 10000;
   late DateTime _baseDate;
-
-  final double _viewportFraction = 0.32;
+  final double _viewportFraction = 0.35;
   int _currentIndex = 10000;
 
-  // БЕЗПЕЧНИЙ розрахунок різниці в днях (ігнорує літній/зимовий час)
+  // 👇 НОВИЙ ЗАПОБІЖНИК: чи крутиться стрічка автоматично
+  bool _isProgrammaticScroll = false;
+
   int _getDaysDifference(DateTime target, DateTime base) {
     final targetUtc = DateTime.utc(target.year, target.month, target.day);
     final baseUtc = DateTime.utc(base.year, base.month, base.day);
@@ -115,25 +111,42 @@ class _DateStripSelectorState extends State<DateStripSelector> {
     final now = DateTime.now();
     _baseDate = DateTime(now.year, now.month, now.day);
 
-    // ФІКС 1: Використовуємо безпечний розрахунок
-    final initialOffset = _getDaysDifference(widget.selectedDate, _baseDate);
-    _currentIndex = _baseIndex + initialOffset;
+    final initialPage =
+        _baseIndex + _getDaysDifference(widget.selectedDate, _baseDate);
+    _currentIndex = initialPage;
 
     _pageController = PageController(
-      initialPage: _currentIndex,
+      initialPage: initialPage,
       viewportFraction: _viewportFraction,
     );
   }
 
+  // 👇 ВИПРАВЛЕНО: Стрічка реагує на зовнішню зміну дати (з календаря)
   @override
   void didUpdateWidget(covariant DateStripSelector oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.selectedDate != oldWidget.selectedDate) {
-      // ФІКС 2: Використовуємо безпечний розрахунок
-      final targetPage =
-          _baseIndex + _getDaysDifference(widget.selectedDate, _baseDate);
+
+    final oldDays = _getDaysDifference(oldWidget.selectedDate, _baseDate);
+    final newDays = _getDaysDifference(widget.selectedDate, _baseDate);
+
+    if (oldDays != newDays) {
+      final targetPage = _baseIndex + newDays;
+
       if (_pageController.hasClients && _currentIndex != targetPage) {
-        _scrollToIndex(targetPage);
+        // Активуємо запобіжник перед тим, як крутити
+        _isProgrammaticScroll = true;
+        _currentIndex = targetPage;
+
+        _pageController
+            .animateToPage(
+              targetPage,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+            )
+            .then((_) {
+              // Знімаємо блок після закінчення прокрутки
+              if (mounted) _isProgrammaticScroll = false;
+            });
       }
     }
   }
@@ -145,23 +158,18 @@ class _DateStripSelectorState extends State<DateStripSelector> {
   }
 
   void _scrollToIndex(int index) {
-    if (!_pageController.hasClients) return;
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOutCubic,
-    );
-  }
-
-  String _getTopNumber(DateTime date) {
-    return DateFormat('dd').format(date);
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutCubic,
+      );
+    }
   }
 
   String _getBottomText(DateTime date, BuildContext context) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-
-    // ФІКС 3: Безпечний розрахунок і тут, щоб уникнути багів з написом "Вчора/Сьогодні"
     final diff = _getDaysDifference(date, today);
 
     if (diff == 0) return 'today'.tr();
@@ -182,14 +190,8 @@ class _DateStripSelectorState extends State<DateStripSelector> {
         children: [
           GestureDetector(
             onTap: widget.onCalendarTap,
-            child: Container(
+            child: SizedBox(
               width: 50,
-              height: 50,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-              ),
               child: Icon(
                 Icons.calendar_month_rounded,
                 size: 24,
@@ -197,106 +199,104 @@ class _DateStripSelectorState extends State<DateStripSelector> {
               ),
             ),
           ),
+
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              // Подвійний тап повертає на сьогоднішню дату
               onDoubleTap: () => _scrollToIndex(_baseIndex),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Рамка навколо центральної дати
-                  FractionallySizedBox(
-                    widthFactor: _viewportFraction,
-                    heightFactor: 1,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: colors.textSecondary.withValues(alpha: 0.15),
-                          width: 1.5,
+                  IgnorePointer(
+                    child: FractionallySizedBox(
+                      widthFactor: _viewportFraction,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: colors.textSecondary.withValues(alpha: 0.15),
+                            width: 1.5,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                   ),
 
-                  PageView.builder(
-                    controller: _pageController,
-                    physics: const CustomSnappingScrollPhysics(),
-                    pageSnapping: false,
-                    onPageChanged: (index) {
-                      setState(() => _currentIndex = index);
+                  AnimatedBuilder(
+                    animation: _pageController,
+                    builder: (context, child) {
+                      return PageView.builder(
+                        controller: _pageController,
+                        physics: const CustomSnappingScrollPhysics(),
+                        pageSnapping: false,
+                        onPageChanged: (index) {
+                          // 👇 ВИПРАВЛЕНО: Якщо крутить календар, ми не відправляємо дату назад
+                          if (_isProgrammaticScroll) return;
 
-                      // ФІКС 4: Відправляємо нову дату миттєво!
-                      final offsetDays = index - _baseIndex;
-                      final newDate = DateTime(
-                        _baseDate.year,
-                        _baseDate.month,
-                        _baseDate.day + offsetDays,
-                      );
+                          setState(() => _currentIndex = index);
+                          final newDate = _baseDate.add(
+                            Duration(days: index - _baseIndex),
+                          );
+                          widget.onDateChanged(newDate);
+                        },
+                        itemBuilder: (context, index) {
+                          final date = _baseDate.add(
+                            Duration(days: index - _baseIndex),
+                          );
 
-                      if (widget.selectedDate.year != newDate.year ||
-                          widget.selectedDate.month != newDate.month ||
-                          widget.selectedDate.day != newDate.day) {
-                        widget.onDateChanged(newDate);
-                      }
-                    },
-                    itemBuilder: (context, index) {
-                      final offset = index - _baseIndex;
-                      // ФІКС 5: Ідеальний розрахунок дати без прив'язки до 24 годин
-                      final date = DateTime(
-                        _baseDate.year,
-                        _baseDate.month,
-                        _baseDate.day + offset,
-                      );
-                      final isSelected = index == _currentIndex;
+                          double pageOffset = 0;
+                          if (_pageController.hasClients) {
+                            pageOffset =
+                                (_pageController.page ??
+                                    _pageController.initialPage.toDouble()) -
+                                index;
+                          } else {
+                            pageOffset = (_pageController.initialPage - index)
+                                .toDouble();
+                          }
 
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => _scrollToIndex(index),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 150),
-                                style: TextStyle(
-                                  fontSize: isSelected ? 22 : 18,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w800
-                                      : FontWeight.w600,
-                                  color: isSelected
-                                      ? colors.textMain
-                                      : colors.textSecondary.withValues(
-                                          alpha: 0.4,
-                                        ),
-                                  height: 1.0,
+                          double scale = (1.0 - (pageOffset.abs() * 0.2)).clamp(
+                            0.8,
+                            1.0,
+                          );
+                          double opacity = (1.0 - (pageOffset.abs() * 0.5))
+                              .clamp(0.4, 1.0);
+
+                          return GestureDetector(
+                            onTap: () => _scrollToIndex(index),
+                            behavior: HitTestBehavior.opaque,
+                            child: Opacity(
+                              opacity: opacity,
+                              child: Transform.scale(
+                                scale: scale,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      DateFormat('dd').format(date),
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: colors.textMain,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _getBottomText(date, context),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: colors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                child: Text(_getTopNumber(date)),
                               ),
-                              const SizedBox(height: 2),
-                              AnimatedDefaultTextStyle(
-                                duration: const Duration(milliseconds: 150),
-                                style: TextStyle(
-                                  fontSize: isSelected ? 12 : 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: isSelected
-                                      ? colors.textSecondary
-                                      : colors.textSecondary.withValues(
-                                          alpha: 0.4,
-                                        ),
-                                ),
-                                child: Text(
-                                  _getBottomText(date, context),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),

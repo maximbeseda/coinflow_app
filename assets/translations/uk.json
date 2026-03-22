@@ -13,6 +13,9 @@
   "name_hint": "Назва...",
   "note": "Нотатка",
   "add_note": "Напишіть коментар...",
+  "date": "Дата",
+  "choose_date": "Виберіть дату",
+  "update_date": "Оновити дату",
 
   "balance": "БАЛАНС",
   "expenses": "ВИТРАТИ",
@@ -37,6 +40,10 @@
   "interface_theme": "Тема",
   "theme_light": "Світла",
   "theme_dark": "Темна",
+  "clear_all_data": "Очистити всі дані",
+  "clear_data_title": "Очистити всі дані?",
+  "clear_data_message": "Це видалить всі транзакції, підписки та обнулить рахунки. Цю дію неможливо скасувати.",
+  "data_cleared_success": "Всі дані успішно очищено",
 
   "statistics": "Статистика",
   "stats_subtitle": "Графіки та історія",

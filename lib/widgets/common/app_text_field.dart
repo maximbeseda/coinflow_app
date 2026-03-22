@@ -53,7 +53,7 @@ class AppTextField extends StatelessWidget {
             color: colors.iconBg.withValues(
               alpha: 0.5,
             ), // Легкий фон замість рамок
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: errorText != null
                   ? colors.expense.withValues(alpha: 0.5)

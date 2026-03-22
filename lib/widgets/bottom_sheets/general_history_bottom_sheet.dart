@@ -55,7 +55,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
         color: colors.cardBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [

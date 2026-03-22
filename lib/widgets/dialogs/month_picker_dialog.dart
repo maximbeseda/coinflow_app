@@ -86,7 +86,7 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
                   child: Container(
                     decoration: BoxDecoration(
                       color: isSelected ? colors.textMain : colors.iconBg,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     alignment: Alignment.center,
                     child: Text(

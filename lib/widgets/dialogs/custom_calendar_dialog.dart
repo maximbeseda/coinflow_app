@@ -108,7 +108,7 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                                 color: _mode == CalendarMode.month
                                     ? colors.textMain
                                     : colors.iconBg,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -158,7 +158,7 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                                 color: _mode == CalendarMode.year
                                     ? colors.textMain
                                     : colors.iconBg,
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -353,7 +353,7 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
           child: Container(
             decoration: BoxDecoration(
               color: isSelected ? colors.textMain : colors.iconBg,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
             child: Padding(
@@ -413,7 +413,7 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: isSelected ? colors.textMain : colors.iconBg,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   alignment: Alignment.center,
                   child: Text(

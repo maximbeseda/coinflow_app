@@ -39,7 +39,13 @@ class _CategoryScreenState extends State<CategoryScreen> {
     _currencyCtrl = TextEditingController();
 
     String formatDouble(double val) {
-      return val.toStringAsFixed(2).replaceAll(RegExp(r'\.?0*$'), '');
+      String str = val.toStringAsFixed(2).replaceAll(RegExp(r'\.?0*$'), '');
+      var parts = str.split('.');
+      String intPart = parts[0].replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+        (Match m) => '${m[1]} ',
+      );
+      return parts.length > 1 ? '$intPart.${parts[1]}' : intPart;
     }
 
     _amountCtrl = TextEditingController(
@@ -101,9 +107,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
       context: context,
       backgroundColor: colors.cardBg,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.65,
         minChildSize: 0.4,
@@ -206,9 +209,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
       context: context,
       backgroundColor: colors.cardBg,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.5,
         minChildSize: 0.3,
@@ -327,9 +327,12 @@ class _CategoryScreenState extends State<CategoryScreen> {
     }
 
     double initialAmount =
-        double.tryParse(_amountCtrl.text.replaceAll(',', '.')) ?? 0;
+        double.tryParse(
+          _amountCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
+        ) ??
+        0;
     double? budgetAmount = double.tryParse(
-      _budgetCtrl.text.replaceAll(',', '.'),
+      _budgetCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
     );
 
     Navigator.pop(context, {
@@ -440,9 +443,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: colors.expense,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
                           ),
                           onPressed: () => Navigator.pop(ctx, true),
                           child: Text(
@@ -758,12 +758,60 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
     return TextField(
       controller: controller,
-      maxLength: maxLength,
+      maxLength: isNumber ? null : maxLength,
       keyboardType: isNumber
           ? const TextInputType.numberWithOptions(decimal: true)
           : TextInputType.text,
       inputFormatters: isNumber
-          ? [FilteringTextInputFormatter.allow(RegExp(r'^\d*[.,]?\d{0,2}'))]
+          ? [
+              TextInputFormatter.withFunction((oldValue, newValue) {
+                // 👇 Видаляємо пробіли і коми для чистої логіки
+                String text = newValue.text
+                    .replaceAll(',', '.')
+                    .replaceAll(' ', '');
+                if (text.isEmpty) return newValue.copyWith(text: text);
+
+                if (text.indexOf('.') != text.lastIndexOf('.')) return oldValue;
+
+                if (text.length > 1 &&
+                    text.startsWith('0') &&
+                    !text.startsWith('0.')) {
+                  text = text.replaceFirst(RegExp(r'^0+'), '');
+                  if (text.isEmpty) text = '0';
+                }
+
+                if (text.startsWith('.')) text = '0$text';
+
+                var parts = text.split('.');
+                String intPart = parts[0];
+                String? decPart = parts.length > 1 ? parts[1] : null;
+
+                if (intPart.length > 12) {
+                  intPart = intPart.substring(0, 12);
+                }
+
+                if (decPart != null && decPart.length > 2) {
+                  decPart = decPart.substring(0, 2);
+                }
+
+                // 👇 МАГІЯ ТУТ: Додаємо пробіли кожні 3 цифри в цілу частину
+                String formattedInt = intPart.replaceAllMapped(
+                  RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                  (Match m) => '${m[1]} ',
+                );
+
+                String newString = decPart == null
+                    ? formattedInt
+                    : (text.endsWith('.')
+                          ? '$formattedInt.'
+                          : '$formattedInt.$decPart');
+
+                return TextEditingValue(
+                  text: newString,
+                  selection: TextSelection.collapsed(offset: newString.length),
+                );
+              }),
+            ]
           : null,
       textCapitalization: TextCapitalization.sentences,
       style: TextStyle(

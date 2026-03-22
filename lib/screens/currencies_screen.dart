@@ -8,6 +8,18 @@ import '../theme/app_colors_extension.dart';
 class CurrenciesScreen extends StatelessWidget {
   const CurrenciesScreen({super.key});
 
+  // 👇 ДОДАНО: Спеціальний форматер курсу для списку валют
+  String _formatRate(double val) {
+    String formatted = val.toStringAsFixed(4);
+    if (formatted.contains('.')) {
+      formatted = formatted.replaceAll(RegExp(r'0*$'), '');
+      if (formatted.endsWith('.')) {
+        formatted = formatted.substring(0, formatted.length - 1);
+      }
+    }
+    return formatted;
+  }
+
   void _showAddCurrencyDialog(BuildContext context, SettingsProvider settings) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final availableCurrencies = AppCurrency.supportedCurrencies
@@ -17,9 +29,6 @@ class CurrenciesScreen extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: colors.cardBg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -63,7 +72,6 @@ class CurrenciesScreen extends StatelessWidget {
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundColor: colors.iconBg,
-                        // ФІКС 3: FittedBox для символів у діалозі
                         child: Padding(
                           padding: const EdgeInsets.all(4.0),
                           child: FittedBox(
@@ -173,8 +181,10 @@ class CurrenciesScreen extends StatelessWidget {
                   }
 
                   final rate = settings.exchangeRates[code];
+
+                  // 👇 ЗМІНЕНО: Використовуємо наш новий форматер до 4 знаків
                   final rateText = rate != null
-                      ? "1 ${currency.symbol} = ${(1 / rate).toStringAsFixed(2)} ${baseCurrency.symbol}"
+                      ? "1 ${currency.symbol} = ${_formatRate(1 / rate)} ${baseCurrency.symbol}"
                       : "loading".tr();
 
                   return _buildCurrencyCard(
@@ -211,7 +221,7 @@ class CurrenciesScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: colors.cardBg,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12), // Строгий дизайн 12
         border: isBase
             ? Border.all(color: colors.income.withValues(alpha: 0.5), width: 1)
             : null,
@@ -219,11 +229,10 @@ class CurrenciesScreen extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
-          radius: 24, // Трохи збільшив радіус для кращої видимості
+          radius: 24,
           backgroundColor: isBase
               ? colors.income.withValues(alpha: 0.2)
               : colors.iconBg,
-          // ФІКС 3: FittedBox для символів у списку валют
           child: Padding(
             padding: const EdgeInsets.all(6.0),
             child: FittedBox(
@@ -233,8 +242,7 @@ class CurrenciesScreen extends StatelessWidget {
                 style: TextStyle(
                   color: isBase ? colors.income : colors.textMain,
                   fontWeight: FontWeight.bold,
-                  fontSize:
-                      20, // Встановив базовий розмір, який FittedBox буде зменшувати
+                  fontSize: 20,
                 ),
               ),
             ),

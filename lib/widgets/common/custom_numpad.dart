@@ -89,7 +89,7 @@ class CustomNumpad extends StatelessWidget {
           ? Colors.white.withValues(alpha: 0.2)
           : Colors.black.withValues(alpha: 0.3),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         side: (!isOperator && !isAction && !isEqual)
             ? BorderSide(
                 color: colors.textSecondary.withValues(alpha: 0.1),
@@ -99,7 +99,7 @@ class CustomNumpad extends StatelessWidget {
       ),
       child: InkWell(
         onTap: () => _handleKeyPress(text),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         splashColor: CategoryDefaults.accountBg.withValues(alpha: 0.2),
         highlightColor: CategoryDefaults.accountBg.withValues(alpha: 0.1),
         child: Container(

@@ -166,7 +166,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // ДОДАНО: Єдиний метод для виклику редагування транзакції через новий екран
   void _handleEditTransaction(
     Transaction t,
     List<Category> allCategories,
@@ -174,7 +173,6 @@ class _HomeScreenState extends State<HomeScreen>
     Category? sourceCat;
     Category? targetCat;
 
-    // Шукаємо категорії транзакції
     try {
       sourceCat = allCategories.firstWhere((c) => c.id == t.fromId);
     } catch (_) {}
@@ -183,11 +181,9 @@ class _HomeScreenState extends State<HomeScreen>
     } catch (_) {}
 
     if (sourceCat == null || targetCat == null) {
-      // Якщо якусь з категорій вже видалено, ми не можемо її редагувати через візуальний екран
       return;
     }
 
-    // Якщо назва генерувалась автоматично (містить стрілочку), не виводимо її як нотатку
     String? initialNote = t.title;
     if (initialNote.contains('➡️')) {
       initialNote = '';
@@ -225,7 +221,6 @@ class _HomeScreenState extends State<HomeScreen>
 
     final finance = context.read<TransactionProvider>();
 
-    // Оновлюємо нотатку/назву
     final comment = result['comment'] as String;
     t.title = comment.trim().isNotEmpty
         ? comment.trim()
@@ -240,14 +235,13 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showCategoryDialog({Category? c, required CategoryType type}) async {
-    // ВАЖЛИВО: Використовуємо Navigator.push замість showDialog
     final result = await Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             CategoryScreen(category: c, type: type),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(0.0, 1.0); // Знизу вгору
+          const begin = Offset(0.0, 1.0);
           const end = Offset.zero;
           const curve = Curves.easeOutQuart;
           var tween = Tween(
@@ -273,8 +267,6 @@ class _HomeScreenState extends State<HomeScreen>
     final catProv = context.read<CategoryProvider>();
 
     if (result == 'delete' && c != null) {
-      // Підтвердження вже відбулося всередині CategoryScreen,
-      // тому тут ми просто запускаємо красиву анімацію зникнення монетки
       if (!mounted) return;
       setState(() => deletingIds.add(c.id));
       await Future.delayed(const Duration(milliseconds: 350));
@@ -346,6 +338,14 @@ class _HomeScreenState extends State<HomeScreen>
 
             final settings = context.watch<SettingsProvider>();
 
+            // 1. РОЗРАХУНОК СУМ ДЛЯ ШАПКИ (З історії транзакцій)
+            final monthTotals = txProv.calculateTotalsForMonth(
+              txProv.selectedMonth,
+            );
+            double totalIncomes = monthTotals['incomes'] ?? 0.0;
+            double totalExpenses = monthTotals['expenses'] ?? 0.0;
+
+            // Баланс рахунків (поточний стан)
             double totalBalance = catProv.accounts
                 .where((item) => item.includeInTotal)
                 .fold(
@@ -354,23 +354,27 @@ class _HomeScreenState extends State<HomeScreen>
                       sum + settings.convertToBase(item.amount, item.currency),
                 );
 
-            double totalIncomes = catProv.allCategoriesList
-                .where((c) => c.type == CategoryType.income)
-                .fold(
-                  0.0,
-                  (sum, item) =>
-                      sum +
-                      settings.convertToBase(item.amount.abs(), item.currency),
-                );
+            // 2. ПІДГОТОВКА ВІРТУАЛЬНИХ СУМ ПІД МОНЕТКАМИ
+            // Вказуємо inBaseCurrency: false, щоб долари залишилися доларами
+            final incomeMap = txProv.calculateCategoryTotalsForMonth(
+              txProv.selectedMonth,
+              false,
+              inBaseCurrency: false,
+            );
+            final expenseMap = txProv.calculateCategoryTotalsForMonth(
+              txProv.selectedMonth,
+              true,
+              inBaseCurrency: false,
+            );
 
-            double totalExpenses = catProv.allCategoriesList
-                .where((c) => c.type == CategoryType.expense)
-                .fold(
-                  0.0,
-                  (sum, item) =>
-                      sum +
-                      settings.convertToBase(item.amount.abs(), item.currency),
-                );
+            final displayIncomes = catProv.incomes.map((c) {
+              return c.copyWith(amount: incomeMap[c.id] ?? 0.0);
+            }).toList();
+
+            final displayExpenses = catProv.expenses.map((c) {
+              return c.copyWith(amount: expenseMap[c.id] ?? 0.0);
+            }).toList();
+
             final allCategories = catProv.allCategoriesList;
 
             return Container(
@@ -411,7 +415,6 @@ class _HomeScreenState extends State<HomeScreen>
                             onDelete: (t) => context
                                 .read<TransactionProvider>()
                                 .deleteTransaction(t),
-                            // ВИПРАВЛЕНО: Виклик нового екрана
                             onEdit: (t) =>
                                 _handleEditTransaction(t, allCategories),
                           ),
@@ -437,7 +440,6 @@ class _HomeScreenState extends State<HomeScreen>
                             onDelete: (t) => context
                                 .read<TransactionProvider>()
                                 .deleteTransaction(t),
-                            // ВИПРАВЛЕНО: Виклик нового екрана
                             onEdit: (t) =>
                                 _handleEditTransaction(t, allCategories),
                           ),
@@ -463,7 +465,6 @@ class _HomeScreenState extends State<HomeScreen>
                             onDelete: (t) => context
                                 .read<TransactionProvider>()
                                 .deleteTransaction(t),
-                            // ВИПРАВЛЕНО: Виклик нового екрана
                             onEdit: (t) =>
                                 _handleEditTransaction(t, allCategories),
                           ),
@@ -480,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen>
                         _scaffoldKey.currentState?.openEndDrawer();
                       },
                     ),
-                    _buildSection(catProv.incomes, CategoryType.income),
+                    _buildSection(displayIncomes, CategoryType.income),
                     _buildSection(
                       catProv.accounts,
                       CategoryType.account,
@@ -488,7 +489,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                     Expanded(
                       child: _buildSection(
-                        catProv.expenses,
+                        displayExpenses,
                         CategoryType.expense,
                         isTarget: true,
                         isGrid: true,
@@ -665,10 +666,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     Widget dragFeedback = Material(
       color: Colors.transparent,
-      child: CoinWidget(
-        category: c,
-        isFeedback: true,
-      ), // isFeedback=true ховає текст
+      child: CoinWidget(category: c, isFeedback: true),
     );
 
     Widget buildInteractiveInnerCoin(
@@ -822,7 +820,6 @@ class _HomeScreenState extends State<HomeScreen>
                 setState(() => draggedCategoryId = null),
             feedback: dragFeedbackReorder,
             childWhenDragging: emptySpace,
-            // ВИПРАВЛЕНО: При швидкій транзакції на місці залишається повноцінна монетка!
             child: coin,
           ),
         );

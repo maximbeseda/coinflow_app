@@ -12,58 +12,72 @@ final darkTheme = ThemeData(
     brightness: Brightness.dark,
   ),
 
-  // НАШ КОНТРАКТ КОЛЬОРІВ
   extensions: [
-    AppColorsExtension(
-      bgGradientStart: const Color(0xFF2C2C2E),
-      bgGradientEnd: const Color(0xFF1C1C1E),
-      cardBg: const Color(0xFF3A3A3C),
+    const AppColorsExtension(
+      bgGradientStart: Color(0xFF2C2C2E),
+      bgGradientEnd: Color(0xFF1C1C1E),
+      cardBg: Color(0xFF3A3A3C),
       textMain: Colors.white,
       textSecondary: Colors.white70,
-      // ЗМІНЕНО: Ідентичний яскравий зелений зі світлої теми
-      income: const Color(0xFF1E8E3E),
-      // ЗМІНЕНО: Ідентичний яскравий червоний зі світлої теми
-      expense: const Color(0xFFE53935),
-      iconBg: Colors.white.withValues(alpha: 0.1),
+      income: Color(0xFF1E8E3E),
+      expense: Color(0xFFE53935),
+      iconBg: Color(0x1AFFFFFF), // Colors.white.withValues(alpha: 0.1)
       accent: Color(0xFF4361EE),
     ),
   ],
 
-  // Адаптуємо діалоги через контраст кольорів та тіні
+  // СТРОГІ ДІАЛОГИ (радіус 16 замість 28)
   dialogTheme: DialogThemeData(
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     backgroundColor: const Color(0xFF2C2C2E),
     surfaceTintColor: Colors.transparent,
-    elevation: 12, // Збільшуємо висоту для кращої тіні
-    shadowColor:
-        Colors.black, // Чорна тінь додасть глибини на темно-сірому фоні
+    elevation: 12,
+    shadowColor: Colors.black,
   ),
 
+  // НИЖНІ ШТОРКИ
+  bottomSheetTheme: const BottomSheetThemeData(
+    backgroundColor: Color(0xFF3A3A3C),
+    elevation: 0,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+  ),
+
+  // КАРТКИ
+  cardTheme: CardThemeData(
+    color: const Color(0xFF3A3A3C),
+    elevation: 0,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  ),
+
+  // СТРОГІ ПОЛЯ ВВОДУ (радіус 8 замість 16)
   inputDecorationTheme: InputDecorationTheme(
     filled: true,
-    fillColor: const Color(0xFF3A3A3C), // Поля вводу ще світліші
+    fillColor: const Color(0xFF3A3A3C),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(8),
       borderSide: BorderSide.none,
     ),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(8),
       borderSide: BorderSide.none,
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(8),
       borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
     ),
   ),
 
+  // СТРОГІ КНОПКИ (радіус 8 замість 16)
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
       padding: const EdgeInsets.symmetric(vertical: 14),
       backgroundColor: Colors.white,
       foregroundColor: Colors.black,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
   ),
 
@@ -72,7 +86,7 @@ final darkTheme = ThemeData(
       padding: const EdgeInsets.symmetric(vertical: 14),
       backgroundColor: const Color(0xFF3A3A3C),
       foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
   ),
 );

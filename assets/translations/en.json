@@ -13,6 +13,9 @@
   "name_hint": "Name...",
   "note": "Note",
   "add_note": "Write a comment...",
+  "date": "Date",
+  "choose_date": "Choose date",
+  "update_date": "Update date",
 
   "balance": "BALANCE",
   "expenses": "EXPENSES",
@@ -37,6 +40,10 @@
   "interface_theme": "Theme",
   "theme_light": "Light",
   "theme_dark": "Dark",
+  "clear_all_data": "Clear all data",
+  "clear_data_title": "Clear all data?",
+  "clear_data_message": "This will delete all transactions, subscriptions, and reset account balances. This action cannot be undone.",
+  "data_cleared_success": "All data cleared successfully",
 
   "statistics": "Statistics",
   "stats_subtitle": "Charts and history",

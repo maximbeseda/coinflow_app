@@ -3,11 +3,11 @@ import '../models/category_model.dart';
 import '../models/transaction_model.dart';
 import '../services/storage_service.dart';
 import 'category_provider.dart';
+import 'settings_provider.dart';
 
 class TransactionProvider extends ChangeNotifier {
-  CategoryProvider? _catProv; // Посилання на провайдер категорій
-
-  bool _isInitialRecalculationDone = false;
+  CategoryProvider? _catProv;
+  SettingsProvider? _settingsProv;
 
   List<Transaction> history = [];
   DateTime selectedMonth = DateTime(
@@ -21,12 +21,15 @@ class TransactionProvider extends ChangeNotifier {
     loadHistory();
   }
 
-  void updateDependencies(CategoryProvider catProv) {
+  void updateDependencies(
+    CategoryProvider catProv,
+    SettingsProvider settingsProv,
+  ) {
     _catProv = catProv;
+    _settingsProv = settingsProv;
 
-    if (!isLoading && !catProv.isLoading && !_isInitialRecalculationDone) {
-      _isInitialRecalculationDone = true;
-      _catProv?.recalculateMonthTotals(history, selectedMonth);
+    if (!isLoading && !catProv.isLoading && _settingsProv != null) {
+      notifyListeners();
     }
   }
 
@@ -39,14 +42,6 @@ class TransactionProvider extends ChangeNotifier {
     history = await StorageService.loadHistory();
     history.sort((a, b) => b.date.compareTo(a.date));
     isLoading = false;
-
-    if (_catProv != null &&
-        !_catProv!.isLoading &&
-        !_isInitialRecalculationDone) {
-      _isInitialRecalculationDone = true;
-      _catProv?.recalculateMonthTotals(history, selectedMonth);
-    }
-
     notifyListeners();
   }
 
@@ -56,14 +51,112 @@ class TransactionProvider extends ChangeNotifier {
       selectedMonth.month + offset,
       1,
     );
-    _catProv?.recalculateMonthTotals(history, selectedMonth);
     notifyListeners();
   }
 
   void setMonth(DateTime newMonth) {
     selectedMonth = DateTime(newMonth.year, newMonth.month, 1);
-    _catProv?.recalculateMonthTotals(history, selectedMonth);
     notifyListeners();
+  }
+
+  // 👇 ДОДАНО: Головний метод для "безвтратного" підрахунку статистики
+  Map<String, double> calculateTotalsForMonth(DateTime month) {
+    double totalExpenses = 0.0;
+    double totalIncomes = 0.0;
+
+    if (_catProv == null || _settingsProv == null) {
+      return {'expenses': 0.0, 'incomes': 0.0};
+    }
+
+    final baseCurrency = _settingsProv!.baseCurrency;
+    final rates = _settingsProv!.exchangeRates;
+
+    final monthHistory = history
+        .where((t) => t.date.year == month.year && t.date.month == month.month)
+        .toList();
+
+    for (var tx in monthHistory) {
+      // Визначаємо типи категорій для транзакції
+      bool isExpense = _catProv!.expenses.any((c) => c.id == tx.toId);
+      bool isIncome = _catProv!.incomes.any((c) => c.id == tx.fromId);
+
+      if (isExpense) {
+        // Якщо витрата в базовій валюті - беремо рівно скільки списалося (amount)
+        if (tx.currency == baseCurrency) {
+          totalExpenses += tx.amount;
+        } else {
+          // Якщо списалося у валюті - конвертуємо amount у базову валюту за поточним курсом
+          double txRate = rates[tx.currency] ?? 1.0;
+          double baseRate = rates[baseCurrency] ?? 1.0;
+          totalExpenses += tx.amount * (baseRate / txRate);
+        }
+      }
+
+      if (isIncome) {
+        // Дохід завжди беремо з amount, бо джерело - це Income-категорія
+        if (tx.currency == baseCurrency) {
+          totalIncomes += tx.amount;
+        } else {
+          double txRate = rates[tx.currency] ?? 1.0;
+          double baseRate = rates[baseCurrency] ?? 1.0;
+          totalIncomes += tx.amount * (baseRate / txRate);
+        }
+      }
+    }
+
+    return {'expenses': totalExpenses, 'incomes': totalIncomes};
+  }
+
+  // 👇 ДОДАНО: Статистика з розбивкою по окремих категоріях (для графіків)
+  Map<String, double> calculateCategoryTotalsForMonth(
+    DateTime month,
+    bool isExpenses, {
+    bool inBaseCurrency = true, // Додаємо цей параметр
+  }) {
+    Map<String, double> totals = {};
+
+    if (_catProv == null || _settingsProv == null) return totals;
+
+    final baseCurrency = _settingsProv!.baseCurrency;
+    final rates = _settingsProv!.exchangeRates;
+
+    final monthHistory = history
+        .where((t) => t.date.year == month.year && t.date.month == month.month)
+        .toList();
+
+    for (var tx in monthHistory) {
+      if (isExpenses) {
+        bool isExpenseCat = _catProv!.expenses.any((c) => c.id == tx.toId);
+        if (isExpenseCat) {
+          double value;
+          if (inBaseCurrency) {
+            // Для статистики: конвертуємо в UAH
+            value = tx.currency == baseCurrency
+                ? tx.amount
+                : tx.amount * (rates[baseCurrency]! / rates[tx.currency]!);
+          } else {
+            // ДЛЯ МОНЕТОК: беремо суму, яка реально потрапила в категорію
+            value = tx.targetAmount ?? tx.amount;
+          }
+          totals[tx.toId] = (totals[tx.toId] ?? 0.0) + value;
+        }
+      } else {
+        bool isIncomeCat = _catProv!.incomes.any((c) => c.id == tx.fromId);
+        if (isIncomeCat) {
+          double value;
+          if (inBaseCurrency) {
+            value = tx.currency == baseCurrency
+                ? tx.amount
+                : tx.amount * (rates[baseCurrency]! / rates[tx.currency]!);
+          } else {
+            // Для доходів зазвичай це tx.amount
+            value = tx.amount;
+          }
+          totals[tx.fromId] = (totals[tx.fromId] ?? 0.0) + value;
+        }
+      }
+    }
+    return totals;
   }
 
   void _updateAccountBalance(String categoryId, double delta) {
@@ -82,13 +175,12 @@ class TransactionProvider extends ChangeNotifier {
     Category target,
     double amount,
     DateTime date, {
-    double? targetAmount, // ДОДАНО: Сума для цільового рахунку
+    double? targetAmount,
   }) {
     if (source.type == CategoryType.account) {
       _catProv?.updateCategoryAmount(source.id, -amount);
     }
     if (target.type == CategoryType.account) {
-      // ЗМІНЕНО: Використовуємо targetAmount, якщо він є
       _catProv?.updateCategoryAmount(target.id, targetAmount ?? amount);
     }
 
@@ -99,7 +191,6 @@ class TransactionProvider extends ChangeNotifier {
       title: target.name,
       amount: amount,
       date: date,
-      // ДОДАНО: Зберігаємо дані про валюти у транзакцію
       currency: source.currency,
       targetAmount: targetAmount,
       targetCurrency: targetAmount != null ? target.currency : null,
@@ -114,65 +205,52 @@ class TransactionProvider extends ChangeNotifier {
     DateTime newDate, {
     double? newTargetAmount,
   }) {
-    // 1. Скасовуємо стару транзакцію
     _updateAccountBalance(oldT.fromId, oldT.amount);
     _updateAccountBalance(oldT.toId, -(oldT.targetAmount ?? oldT.amount));
 
-    // ФІКС: ЗБЕРІГАЄМО СТАРЕ ЗНАЧЕННЯ ДО ОНОВЛЕННЯ!
     final double previousAmount = oldT.amount;
 
-    // 2. Оновлюємо дані транзакції
     oldT.amount = newAmount;
     oldT.date = newDate;
 
-    // ДОДАНО: Якщо ми передали нову цільову суму (з розумного діалогу) - зберігаємо її
     if (newTargetAmount != null) {
       oldT.targetAmount = newTargetAmount;
     } else if (oldT.targetAmount != null && previousAmount > 0) {
-      // ФІКС: Використовуємо previousAmount, щоб уникнути ділення на нуль
       oldT.targetAmount = oldT.targetAmount! * (newAmount / previousAmount);
     } else {
-      // Резервний варіант, якщо previousAmount був 0
       oldT.targetAmount = newAmount;
     }
 
-    // 3. Застосовуємо нові дані
     _updateAccountBalance(oldT.fromId, -oldT.amount);
     _updateAccountBalance(oldT.toId, oldT.targetAmount ?? oldT.amount);
 
     StorageService.saveTransaction(oldT);
     history.sort((a, b) => b.date.compareTo(a.date));
-    _catProv?.recalculateMonthTotals(history, selectedMonth);
     notifyListeners();
   }
 
   void deleteTransaction(Transaction t) {
-    // Скасовуємо вплив транзакції на баланс
     _updateAccountBalance(t.fromId, t.amount);
-    // ЗМІНЕНО: Скасовуємо правильну цільову суму
     _updateAccountBalance(t.toId, -(t.targetAmount ?? t.amount));
 
     history.removeWhere((item) => item.id == t.id);
     StorageService.removeTransaction(t.id);
-
-    _catProv?.recalculateMonthTotals(history, selectedMonth);
     notifyListeners();
   }
 
   void addTransactionDirectly(Transaction tx) {
-    // 1. Віднімаємо гроші з рахунку-джерела
     _updateAccountBalance(tx.fromId, -tx.amount);
-
-    // 2. Додаємо гроші на рахунок-ціль (використовуючи targetAmount, якщо є)
     _updateAccountBalance(tx.toId, tx.targetAmount ?? tx.amount);
 
-    // 3. Зберігаємо в історію та базу даних
     history.insert(0, tx);
     history.sort((a, b) => b.date.compareTo(a.date));
     StorageService.saveTransaction(tx);
+    notifyListeners();
+  }
 
-    // 4. Оновлюємо статистику місяця та інтерфейс
-    _catProv?.recalculateMonthTotals(history, selectedMonth);
+  Future<void> clearAllTransactions() async {
+    history.clear();
+    await StorageService.saveHistory([]);
     notifyListeners();
   }
 }

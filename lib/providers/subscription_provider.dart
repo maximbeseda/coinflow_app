@@ -121,50 +121,55 @@ class SubscriptionProvider extends ChangeNotifier {
       return (false, 'error_category_not_found'.tr());
     }
 
-    if (sourceAccount.amount < finalAmount) {
+    double subRate =
+        await _settingsProv!.getRateForDate(
+          sub.currency,
+          sub.nextPaymentDate,
+        ) ??
+        _settingsProv!.exchangeRates[sub.currency] ??
+        1.0;
+    double accRate =
+        await _settingsProv!.getRateForDate(
+          sourceAccount.currency,
+          sub.nextPaymentDate,
+        ) ??
+        _settingsProv!.exchangeRates[sourceAccount.currency] ??
+        1.0;
+    double expRate =
+        await _settingsProv!.getRateForDate(
+          targetExpense.currency,
+          sub.nextPaymentDate,
+        ) ??
+        _settingsProv!.exchangeRates[targetExpense.currency] ??
+        1.0;
+
+    double accountDeduction = finalAmount;
+    if (sourceAccount.currency != sub.currency) {
+      double exactAmount = finalAmount * (accRate / subRate);
+      accountDeduction = double.parse(exactAmount.toStringAsFixed(2));
+    }
+
+    double expenseAddition = finalAmount;
+    if (targetExpense.currency != sub.currency) {
+      double exactAmount = finalAmount * (expRate / subRate);
+      expenseAddition = double.parse(exactAmount.toStringAsFixed(2));
+    }
+
+    if (sourceAccount.amount < accountDeduction) {
       return (false, 'not_enough_funds'.tr(args: [sourceAccount.name]));
     }
 
     bool isMultiCurrency = sourceAccount.currency != targetExpense.currency;
-    double? targetAmount;
-
-    if (isMultiCurrency) {
-      double? sRate = await _settingsProv!.getRateForDate(
-        sourceAccount.currency,
-        sub.nextPaymentDate,
-      );
-      double? tRate = await _settingsProv!.getRateForDate(
-        targetExpense.currency,
-        sub.nextPaymentDate,
-      );
-
-      if (sRate != null && tRate != null && sRate > 0) {
-        targetAmount = finalAmount * (tRate / sRate);
-      } else {
-        // ВИПРАВЛЕНО: Беремо останній відомий курс з кешу, якщо API не відповідає
-        double fallbackSRate =
-            _settingsProv!.exchangeRates[sourceAccount.currency] ?? 1.0;
-        double fallbackTRate =
-            _settingsProv!.exchangeRates[targetExpense.currency] ?? 1.0;
-        targetAmount = finalAmount * (fallbackTRate / fallbackSRate);
-      }
-    }
-
-    _catProv!.updateCategoryAmount(sourceAccount.id, -finalAmount);
-    _catProv!.updateCategoryAmount(
-      targetExpense.id,
-      targetAmount ?? finalAmount,
-    );
 
     final newTx = Transaction(
       id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}",
       fromId: sourceAccount.id,
       toId: targetExpense.id,
       title: sub.name,
-      amount: finalAmount,
+      amount: accountDeduction,
       date: sub.nextPaymentDate,
       currency: sourceAccount.currency,
-      targetAmount: targetAmount,
+      targetAmount: isMultiCurrency ? expenseAddition : null,
       targetCurrency: isMultiCurrency ? targetExpense.currency : null,
     );
 
@@ -220,56 +225,54 @@ class SubscriptionProvider extends ChangeNotifier {
 
         if (account != null &&
             expense != null &&
-            account.amount >= sub.amount &&
             !account.isArchived &&
             !expense.isArchived) {
-          bool isMultiCurrency = account.currency != expense.currency;
-          double? targetAmount;
+          double subRate =
+              await _settingsProv!.getRateForDate(sub.currency, pDate) ??
+              _settingsProv!.exchangeRates[sub.currency] ??
+              1.0;
+          double accRate =
+              await _settingsProv!.getRateForDate(account.currency, pDate) ??
+              _settingsProv!.exchangeRates[account.currency] ??
+              1.0;
+          double expRate =
+              await _settingsProv!.getRateForDate(expense.currency, pDate) ??
+              _settingsProv!.exchangeRates[expense.currency] ??
+              1.0;
 
-          if (isMultiCurrency) {
-            double? sRate = await _settingsProv!.getRateForDate(
-              account.currency,
-              pDate,
-            );
-            double? tRate = await _settingsProv!.getRateForDate(
-              expense.currency,
-              pDate,
-            );
-
-            if (sRate != null && tRate != null && sRate > 0) {
-              targetAmount = sub.amount * (tRate / sRate);
-            } else {
-              // ВИПРАВЛЕНО: Беремо останній відомий курс з кешу, якщо API не відповідає
-              double fallbackSRate =
-                  _settingsProv!.exchangeRates[account.currency] ?? 1.0;
-              double fallbackTRate =
-                  _settingsProv!.exchangeRates[expense.currency] ?? 1.0;
-              targetAmount = sub.amount * (fallbackTRate / fallbackSRate);
-            }
+          double accountDeduction = sub.amount;
+          if (account.currency != sub.currency) {
+            double exactAmount = sub.amount * (accRate / subRate);
+            accountDeduction = double.parse(exactAmount.toStringAsFixed(2));
           }
 
-          _catProv!.updateCategoryAmount(account.id, -sub.amount);
-          _catProv!.updateCategoryAmount(
-            expense.id,
-            targetAmount ?? sub.amount,
-          );
+          double expenseAddition = sub.amount;
+          if (expense.currency != sub.currency) {
+            double exactAmount = sub.amount * (expRate / subRate);
+            expenseAddition = double.parse(exactAmount.toStringAsFixed(2));
+          }
 
-          final newTx = Transaction(
-            id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}_${pDate.millisecondsSinceEpoch}",
-            fromId: account.id,
-            toId: expense.id,
-            title: 'auto_payment_marker'.tr(args: [sub.name]),
-            amount: sub.amount,
-            date: sub.nextPaymentDate,
-            currency: account.currency,
-            targetAmount: targetAmount,
-            targetCurrency: isMultiCurrency ? expense.currency : null,
-          );
+          if (account.amount >= accountDeduction) {
+            bool isMultiCurrency = account.currency != expense.currency;
 
-          _txProv!.addTransactionDirectly(newTx);
+            final newTx = Transaction(
+              id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}_${pDate.millisecondsSinceEpoch}",
+              fromId: account.id,
+              toId: expense.id,
+              title: 'auto_payment_marker'.tr(args: [sub.name]),
+              amount: accountDeduction,
+              date: sub.nextPaymentDate,
+              currency: account.currency,
+              targetAmount: isMultiCurrency ? expenseAddition : null,
+              targetCurrency: isMultiCurrency ? expense.currency : null,
+            );
 
-          await SubscriptionService.advanceOnePeriod(sub);
-          processedAny = true;
+            _txProv!.addTransactionDirectly(newTx);
+            await SubscriptionService.advanceOnePeriod(sub);
+            processedAny = true;
+          } else {
+            break;
+          }
         } else {
           break;
         }
@@ -287,6 +290,18 @@ class SubscriptionProvider extends ChangeNotifier {
   void ignoreSubscriptionForSession(String subId) {
     _ignoredSubIds.add(subId);
     _checkDueSubscriptions();
+    notifyListeners();
+  }
+
+  // 👇 ДОДАНО: Очистити всі підписки
+  Future<void> clearAllSubscriptions() async {
+    for (var sub in subscriptions) {
+      await StorageService.deleteSubscription(sub.id);
+    }
+    subscriptions.clear();
+    dueSubscriptions.clear();
+    _ignoredSubIds.clear();
+    await StorageService.saveIgnoredSubscriptions([]);
     notifyListeners();
   }
 }

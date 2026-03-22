@@ -140,11 +140,6 @@ class SettingsDrawer extends StatelessWidget {
                 showModalBottomSheet(
                   context: context,
                   backgroundColor: sheetColors.cardBg,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20),
-                    ),
-                  ),
                   builder: (ctx) {
                     return SafeArea(
                       child: Column(

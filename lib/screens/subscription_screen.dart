@@ -9,7 +9,7 @@ import '../models/subscription_model.dart';
 import '../models/app_currency.dart';
 import '../models/category_model.dart';
 import '../utils/app_constants.dart';
-import '../widgets/dialogs/custom_calendar_dialog.dart';
+import '../widgets/dialogs/premium_date_picker.dart';
 import '../theme/app_colors_extension.dart';
 
 class SubscriptionScreen extends StatefulWidget {
@@ -39,7 +39,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   int? _customIconCodePoint;
   bool _isAutoPay = false;
 
-  // Стани для валідації
   bool _showNameError = false;
   bool _showAmountError = false;
   bool _showAccountError = false;
@@ -52,7 +51,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     _nameCtrl = TextEditingController(text: sub?.name ?? '');
     String formatDouble(double val) {
-      return val.toStringAsFixed(2).replaceAll(RegExp(r'\.?0*$'), '');
+      String str = val.toStringAsFixed(2).replaceAll(RegExp(r'\.?0*$'), '');
+      var parts = str.split('.');
+      String intPart = parts[0].replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+        (Match m) => '${m[1]} ',
+      );
+      return parts.length > 1 ? '$intPart.${parts[1]}' : intPart;
     }
 
     _amountCtrl = TextEditingController(
@@ -70,7 +75,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     _customIconCodePoint = sub?.customIconCodePoint;
     _isAutoPay = sub?.isAutoPay ?? false;
 
-    // Скидання помилок при введенні
     _nameCtrl.addListener(() {
       if (_showNameError && _nameCtrl.text.trim().isNotEmpty) {
         setState(() => _showNameError = false);
@@ -169,20 +173,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     _dateCtrl.text = DateFormat('dd.MM.yyyy').format(date);
   }
 
-  void _openCurrencyPicker() {
-    FocusScope.of(context).unfocus();
+  Future<void> _openCurrencyPicker() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     List<String> availableCurrencies = AppCurrency.supportedCurrencies
         .map((c) => c.code)
         .toList();
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       backgroundColor: colors.cardBg,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.5,
         minChildSize: 0.3,
@@ -223,6 +225,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
                     return ListTile(
                       onTap: () {
+                        FocusManager.instance.primaryFocus?.unfocus();
                         setState(() {
                           _selectedCurrency = code;
                           _updateCurrencyText(code);
@@ -292,10 +295,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
       ),
     );
+
+    if (mounted) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
   }
 
-  void _openCategoryPicker(CategoryType type, TextEditingController ctrl) {
-    FocusScope.of(context).unfocus();
+  Future<void> _openCategoryPicker(
+    CategoryType type,
+    TextEditingController ctrl,
+  ) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
     final catProv = context.read<CategoryProvider>();
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final list = type == CategoryType.account
@@ -308,13 +319,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ? _selectedAccountId
         : _selectedExpenseId;
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       backgroundColor: colors.cardBg,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.5,
         minChildSize: 0.3,
@@ -354,6 +362,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
                     return ListTile(
                       onTap: () {
+                        FocusManager.instance.primaryFocus?.unfocus();
                         setState(() {
                           if (type == CategoryType.account) {
                             _selectedAccountId = cat.id;
@@ -403,10 +412,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
       ),
     );
+
+    if (mounted) FocusManager.instance.primaryFocus?.unfocus();
   }
 
-  void _openPeriodicityPicker() {
-    FocusScope.of(context).unfocus();
+  Future<void> _openPeriodicityPicker() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final options = {
       'monthly': 'period_monthly'.tr(),
@@ -414,12 +426,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       'weekly': 'period_weekly'.tr(),
     };
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       backgroundColor: colors.cardBg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
         child: Column(
@@ -447,6 +456,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               bool isSelected = _selectedPeriodicity == entry.key;
               return ListTile(
                 onTap: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
                   setState(() {
                     _selectedPeriodicity = entry.key;
                     _updatePeriodicityText(entry.key);
@@ -470,33 +480,39 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
       ),
     );
+
+    if (mounted) FocusManager.instance.primaryFocus?.unfocus();
   }
 
   Future<void> _pickDate() async {
-    FocusScope.of(context).unfocus();
-    final picked = await showDialog<DateTime>(
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    final pickedDate = await PremiumDatePicker.show(
       context: context,
-      builder: (context) => CustomCalendarDialog(initialDate: _selectedDate),
+      initialDate: _selectedDate,
     );
-    if (picked != null) {
+
+    if (mounted) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
+
+    if (pickedDate != null && pickedDate != _selectedDate) {
       setState(() {
-        _selectedDate = picked;
-        _updateDateText(picked);
+        _selectedDate = pickedDate;
+        _updateDateText(pickedDate);
       });
     }
   }
 
-  void _openIconPicker() {
-    FocusScope.of(context).unfocus();
+  Future<void> _openIconPicker() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       backgroundColor: colors.cardBg,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.65,
         minChildSize: 0.4,
@@ -535,6 +551,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                 ),
                 onTap: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
                   setState(() => _customIconCodePoint = null);
                   Navigator.pop(ctx);
                 },
@@ -571,6 +588,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                               _customIconCodePoint == icon.codePoint;
                           return GestureDetector(
                             onTap: () {
+                              FocusManager.instance.primaryFocus?.unfocus();
                               setState(
                                 () => _customIconCodePoint = icon.codePoint,
                               );
@@ -604,12 +622,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
       ),
     );
+
+    if (mounted) FocusManager.instance.primaryFocus?.unfocus();
   }
 
   void _save() {
-    FocusScope.of(context).unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
     double amount =
-        double.tryParse(_amountCtrl.text.replaceAll(',', '.')) ?? 0.0;
+        double.tryParse(
+          _amountCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
+        ) ??
+        0.0;
 
     setState(() {
       _showNameError = _nameCtrl.text.trim().isEmpty;
@@ -653,6 +676,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Future<void> _delete() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     if (widget.subscription == null) return;
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
@@ -690,7 +714,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // 👇 ВІДРЕДАГОВАНИЙ БЛОК З ЖИРНИМ ТЕКСТОМ
                   Builder(
                     builder: (context) {
                       final itemName = widget.subscription!.name;
@@ -710,8 +733,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                     text: itemName,
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: colors
-                                          .textMain, // Робимо колір яскравішим за основний текст
+                                      color: colors.textMain,
                                     ),
                                   ),
                                   TextSpan(
@@ -731,7 +753,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     },
                   ),
 
-                  // 👆 КІНЕЦЬ ВІДРЕДАГОВАНОГО БЛОКУ
                   const SizedBox(height: 32),
                   Row(
                     children: [
@@ -753,9 +774,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: colors.expense,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
                           ),
                           onPressed: () => Navigator.pop(ctx, true),
                           child: Text(
@@ -785,13 +803,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
-  // ДОПОМІЖНІ ВІДЖЕТИ ДЛЯ ПОЛІВ
   Widget _buildMaterialField({
     required TextEditingController controller,
     required String label,
     required AppColorsExtension colors,
     bool isError = false,
     bool isNumber = false,
+    int? maxLength,
   }) {
     final baseColor = isError ? Colors.red : colors.textSecondary;
     final activeColor = isError ? Colors.red : Colors.blueAccent;
@@ -801,11 +819,60 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     return TextField(
       controller: controller,
+      maxLength: isNumber ? null : maxLength,
       keyboardType: isNumber
           ? const TextInputType.numberWithOptions(decimal: true)
           : TextInputType.text,
       inputFormatters: isNumber
-          ? [FilteringTextInputFormatter.allow(RegExp(r'^\d*[.,]?\d{0,2}'))]
+          ? [
+              TextInputFormatter.withFunction((oldValue, newValue) {
+                // 👇 Видаляємо пробіли і коми для чистої логіки
+                String text = newValue.text
+                    .replaceAll(',', '.')
+                    .replaceAll(' ', '');
+                if (text.isEmpty) return newValue.copyWith(text: text);
+
+                if (text.indexOf('.') != text.lastIndexOf('.')) return oldValue;
+
+                if (text.length > 1 &&
+                    text.startsWith('0') &&
+                    !text.startsWith('0.')) {
+                  text = text.replaceFirst(RegExp(r'^0+'), '');
+                  if (text.isEmpty) text = '0';
+                }
+
+                if (text.startsWith('.')) text = '0$text';
+
+                var parts = text.split('.');
+                String intPart = parts[0];
+                String? decPart = parts.length > 1 ? parts[1] : null;
+
+                if (intPart.length > 12) {
+                  intPart = intPart.substring(0, 12);
+                }
+
+                if (decPart != null && decPart.length > 2) {
+                  decPart = decPart.substring(0, 2);
+                }
+
+                // 👇 МАГІЯ ТУТ: Додаємо пробіли кожні 3 цифри в цілу частину
+                String formattedInt = intPart.replaceAllMapped(
+                  RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                  (Match m) => '${m[1]} ',
+                );
+
+                String newString = decPart == null
+                    ? formattedInt
+                    : (text.endsWith('.')
+                          ? '$formattedInt.'
+                          : '$formattedInt.$decPart');
+
+                return TextEditingValue(
+                  text: newString,
+                  selection: TextSelection.collapsed(offset: newString.length),
+                );
+              }),
+            ]
           : null,
       textCapitalization: TextCapitalization.sentences,
       style: TextStyle(
@@ -816,13 +883,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       decoration: InputDecoration(
         filled: false,
         labelText: label,
+        counterText: "",
         labelStyle: TextStyle(color: baseColor, fontSize: 16),
         floatingLabelStyle: TextStyle(
           color: activeColor,
           fontSize: 14,
           fontWeight: FontWeight.bold,
         ),
-        counterText: "",
         enabledBorder: UnderlineInputBorder(
           borderSide: BorderSide(
             color: underlineBaseColor,
@@ -845,6 +912,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     required VoidCallback onTap,
     bool isError = false,
     Widget? prefix,
+    Widget? suffix,
   }) {
     final baseColor = isError ? Colors.red : colors.textSecondary;
     final activeColor = isError ? Colors.red : Colors.blueAccent;
@@ -856,7 +924,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: InputDecorator(
-        // Це керує тим, чи опущений заголовок вниз, чи піднятий вгору
         isEmpty: controller.text.isEmpty && prefix == null,
         decoration: InputDecoration(
           filled: false,
@@ -868,10 +935,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             fontWeight: FontWeight.bold,
           ),
           prefix: prefix,
-          suffixIcon: Padding(
-            padding: const EdgeInsets.only(top: 16.0),
-            child: Icon(Icons.keyboard_arrow_down, color: colors.textSecondary),
-          ),
+          suffixIcon:
+              suffix ??
+              Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: Icon(
+                  Icons.keyboard_arrow_down,
+                  color: colors.textSecondary,
+                ),
+              ),
           enabledBorder: UnderlineInputBorder(
             borderSide: BorderSide(
               color: underlineBaseColor,
@@ -884,13 +956,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
           isDense: true,
         ),
-        // МАГІЯ ТУТ:
         child: Stack(
           alignment: Alignment.centerLeft,
           children: [
-            // 1. Невидимий каркас.
-            // Літери 'W' та 'j' мають найбільшу висоту (вгору і вниз),
-            // тому вони гарантують ідеальну базову лінію поля (як у сусіднього TextField).
             const Text(
               'Wj',
               style: TextStyle(
@@ -899,9 +967,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 color: Colors.transparent,
               ),
             ),
-            // 2. Реальний текст.
-            // Він стиснеться, якщо не влазить, але завдяки Positioned.fill
-            // це ніяк не вплине на висоту самого поля.
             Positioned.fill(
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -967,167 +1032,173 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     return Scaffold(
       backgroundColor: colors.cardBg,
       body: SafeArea(
-        child: Column(
-          children: [
-            // ШАПКА
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.close,
-                      color: colors.textSecondary,
-                      size: 28,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  Text(
-                    isEditing ? 'edit'.tr() : 'new_subscription'.tr(),
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: colors.textMain,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      if (isEditing)
-                        IconButton(
-                          icon: Icon(
-                            Icons.delete_outline,
-                            color: colors.expense,
-                            size: 26,
-                          ),
-                          onPressed: _delete,
-                        ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.check,
-                          color: Colors.blueAccent,
-                          size: 28,
-                        ),
-                        onPressed: _save,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
+        child: GestureDetector(
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          behavior: HitTestBehavior.opaque,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const SizedBox(height: 30),
-                    // КРУГЛЕ ПРЕВ'Ю ІКОНКИ
-                    GestureDetector(
-                      onTap: _openIconPicker,
-                      child: Stack(
-                        alignment: Alignment.bottomRight,
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: displayColor,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: displayColor.withValues(alpha: 0.3),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              displayIcon,
-                              color: displayIconColor,
-                              size: 36,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: colors.cardBg,
-                              shape: BoxShape.circle,
-                              boxShadow: const [
-                                BoxShadow(color: Colors.black12, blurRadius: 4),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.edit,
-                              color: Colors.blueAccent,
-                              size: 14,
-                            ),
-                          ),
-                        ],
+                    IconButton(
+                      icon: Icon(
+                        Icons.close,
+                        color: colors.textSecondary,
+                        size: 28,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Text(
+                      isEditing ? 'edit'.tr() : 'new_subscription'.tr(),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: colors.textMain,
                       ),
                     ),
-                    const SizedBox(height: 40),
-
-                    // 1. НАЗВА
-                    _buildMaterialField(
-                      controller: _nameCtrl,
-                      label: 'name_hint_netflix'.tr(),
-                      colors: colors,
-                      isError: _showNameError,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 2. СУМА ТА ВАЛЮТА (в один рядок, 50/50, поміняли місцями)
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Expanded(
-                          // Сума зліва
-                          child: _buildMaterialField(
-                            controller: _amountCtrl,
-                            label: 'amount'.tr(),
-                            colors: colors,
-                            isNumber: true,
-                            isError: _showAmountError,
+                        if (isEditing)
+                          IconButton(
+                            icon: Icon(
+                              Icons.delete_outline,
+                              color: colors.expense,
+                              size: 26,
+                            ),
+                            onPressed: _delete,
                           ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.check,
+                            color: Colors.blueAccent,
+                            size: 28,
+                          ),
+                          onPressed: _save,
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          // Валюта справа
-                          child: _buildSelectorField(
-                            controller: _currencyCtrl,
-                            label: 'currency'.tr(),
-                            colors: colors,
-                            onTap: _openCurrencyPicker,
-                            prefix: Padding(
-                              padding: const EdgeInsets.only(right: 12.0),
-                              child: CircleAvatar(
-                                radius: 14,
-                                backgroundColor: colors.iconBg,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(2.0),
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      currencySymbol.trim(),
-                                      maxLines: 1,
-                                      textAlign: TextAlign.center,
-                                      strutStyle: const StrutStyle(
-                                        fontSize: 14,
-                                        height: 1.0,
-                                        forceStrutHeight: true,
-                                      ),
-                                      textHeightBehavior:
-                                          const TextHeightBehavior(
-                                            applyHeightToFirstAscent: false,
-                                            applyHeightToLastDescent: false,
-                                          ),
-                                      style: TextStyle(
-                                        color: colors.textMain,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        height: 1.0,
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 30),
+                      GestureDetector(
+                        onTap: _openIconPicker,
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: displayColor,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: displayColor.withValues(alpha: 0.3),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                displayIcon,
+                                color: displayIconColor,
+                                size: 36,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: colors.cardBg,
+                                shape: BoxShape.circle,
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.edit,
+                                color: Colors.blueAccent,
+                                size: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+
+                      // 👇 ПЕРЕДАЄМО maxLength: 40
+                      _buildMaterialField(
+                        controller: _nameCtrl,
+                        label: 'name_hint_netflix'.tr(),
+                        colors: colors,
+                        isError: _showNameError,
+                        maxLength: 40,
+                      ),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: _buildMaterialField(
+                              controller: _amountCtrl,
+                              label: 'amount'.tr(),
+                              colors: colors,
+                              isNumber: true,
+                              isError: _showAmountError,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildSelectorField(
+                              controller: _currencyCtrl,
+                              label: 'currency'.tr(),
+                              colors: colors,
+                              onTap: _openCurrencyPicker,
+                              prefix: Padding(
+                                padding: const EdgeInsets.only(right: 12.0),
+                                child: CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor: colors.iconBg,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(2.0),
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        currencySymbol.trim(),
+                                        maxLines: 1,
+                                        textAlign: TextAlign.center,
+                                        strutStyle: const StrutStyle(
+                                          fontSize: 14,
+                                          height: 1.0,
+                                          forceStrutHeight: true,
+                                        ),
+                                        textHeightBehavior:
+                                            const TextHeightBehavior(
+                                              applyHeightToFirstAscent: false,
+                                              applyHeightToLastDescent: false,
+                                            ),
+                                        style: TextStyle(
+                                          color: colors.textMain,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          height: 1.0,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1135,129 +1206,90 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
 
-                    // 3. ДАТА ТА ПЕРІОДИЧНІСТЬ (в один рядок, 50/50, поміняли місцями)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          // Дата зліва
-                          child: TextField(
-                            controller: _dateCtrl,
-                            readOnly: true,
-                            onTap: _pickDate,
-                            // ПОВЕРНУЛИ ідеальний розмір 18
-                            style: TextStyle(
-                              color: colors.textMain,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            decoration: InputDecoration(
-                              filled: false,
-                              labelText: 'payment'.tr(),
-                              labelStyle: TextStyle(
-                                color: colors.textSecondary,
-                                fontSize: 16,
-                              ),
-                              floatingLabelStyle: const TextStyle(
-                                color: Colors.blueAccent,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              suffixIcon: Padding(
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: _buildSelectorField(
+                              controller: _dateCtrl,
+                              label: 'payment'.tr(),
+                              colors: colors,
+                              onTap: _pickDate,
+                              suffix: Padding(
                                 padding: const EdgeInsets.only(top: 16.0),
                                 child: Icon(
-                                  Icons.calendar_today,
+                                  Icons.calendar_month,
                                   color: colors.textSecondary,
                                   size: 20,
                                 ),
                               ),
-                              enabledBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: colors.textSecondary.withValues(
-                                    alpha: 0.3,
-                                  ),
-                                  width: 1,
-                                ),
-                              ),
-                              focusedBorder: const UnderlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: Colors.blueAccent,
-                                  width: 2,
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                              ),
-                              isDense: true,
                             ),
                           ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildSelectorField(
+                              controller: _periodicityCtrl,
+                              label: 'period'.tr(),
+                              colors: colors,
+                              onTap: _openPeriodicityPicker,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      _buildSelectorField(
+                        controller: _accountCtrl,
+                        label: 'write_off_from'.tr(),
+                        colors: colors,
+                        isError: _showAccountError,
+                        onTap: () => _openCategoryPicker(
+                          CategoryType.account,
+                          _accountCtrl,
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          // Період справа (тепер використовує розумний FittedBox з розміром 18)
-                          child: _buildSelectorField(
-                            controller: _periodicityCtrl,
-                            label: 'period'.tr(),
-                            colors: colors,
-                            onTap: _openPeriodicityPicker,
+                      ),
+                      const SizedBox(height: 16),
+
+                      _buildSelectorField(
+                        controller: _expenseCtrl,
+                        label: 'expense_category'.tr(),
+                        colors: colors,
+                        isError: _showExpenseError,
+                        onTap: () => _openCategoryPicker(
+                          CategoryType.expense,
+                          _expenseCtrl,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          'auto_pay'.tr(),
+                          style: TextStyle(
+                            color: colors.textMain,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 4. ЗВІДКИ
-                    _buildSelectorField(
-                      controller: _accountCtrl,
-                      label: 'write_off_from'.tr(),
-                      colors: colors,
-                      isError: _showAccountError,
-                      onTap: () => _openCategoryPicker(
-                        CategoryType.account,
-                        _accountCtrl,
+                        value: _isAutoPay,
+                        activeThumbColor: Colors.blueAccent,
+                        onChanged: (val) {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          setState(() => _isAutoPay = val);
+                        },
                       ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 5. КУДИ (КАТЕГОРІЯ ВИТРАТ)
-                    _buildSelectorField(
-                      controller: _expenseCtrl,
-                      label: 'expense_category'.tr(),
-                      colors: colors,
-                      isError: _showExpenseError,
-                      onTap: () => _openCategoryPicker(
-                        CategoryType.expense,
-                        _expenseCtrl,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // 6. АВТОСПИСАННЯ
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'auto_pay'.tr(),
-                        style: TextStyle(
-                          color: colors.textMain,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 16,
-                        ),
-                      ),
-                      value: _isAutoPay,
-                      activeThumbColor: Colors.blueAccent,
-                      onChanged: (val) => setState(() => _isAutoPay = val),
-                    ),
-                    const SizedBox(height: 40),
-                  ],
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

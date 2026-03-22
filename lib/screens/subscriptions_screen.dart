@@ -79,9 +79,6 @@ class SubscriptionsScreen extends StatelessWidget {
                 onPressed: () => _showSubscriptionDialog(context),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
                   elevation: 4,
                   shadowColor: Colors.black.withValues(alpha: 0.2),
                 ),
@@ -171,7 +168,7 @@ class SubscriptionsScreen extends StatelessWidget {
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
                             color: colors.cardBg,
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(12),
                             border: isBroken
                                 ? Border.all(
                                     color: colors.expense.withValues(
@@ -191,7 +188,7 @@ class SubscriptionsScreen extends StatelessWidget {
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(12),
                               onTap: () => _showSubscriptionDialog(
                                 context,
                                 subscription: sub,
@@ -345,12 +342,6 @@ class SubscriptionsScreen extends StatelessWidget {
                                                     foregroundColor:
                                                         Colors.white,
                                                     elevation: 0,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                    ),
                                                   ),
                                                   onPressed: () async {
                                                     final (

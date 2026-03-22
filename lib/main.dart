@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -77,10 +78,15 @@ void main() async {
           ChangeNotifierProvider(create: (_) => CategoryProvider()),
 
           // 3. Провайдер транзакцій (слідкує за категоріями, щоб оновлювати їх баланси)
-          ChangeNotifierProxyProvider<CategoryProvider, TransactionProvider>(
+          // 👇 ЗМІНЕНО: Тепер використовуємо ProxyProvider2, щоб передати catProv ТА settingsProv
+          ChangeNotifierProxyProvider2<
+            CategoryProvider,
+            SettingsProvider,
+            TransactionProvider
+          >(
             create: (_) => TransactionProvider(),
-            update: (_, catProv, txProv) =>
-                txProv!..updateDependencies(catProv),
+            update: (_, catProv, settingsProv, txProv) =>
+                txProv!..updateDependencies(catProv, settingsProv),
           ),
 
           // 4. Провайдер підписок (слідкує за налаштуваннями, категоріями та транзакціями)
@@ -130,7 +136,11 @@ class MyApp extends StatelessWidget {
       title: 'CoinFlow',
 
       // Локалізація
-      localizationsDelegates: context.localizationDelegates,
+      localizationsDelegates: [
+        ...context.localizationDelegates,
+        GlobalCupertinoLocalizations
+            .delegate, // Додаємо підтримку для Cupertino-віджетів
+      ],
       supportedLocales: context.supportedLocales,
       locale: context.locale,
 
