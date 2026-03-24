@@ -17,6 +17,12 @@
   "choose_date": "Choose date",
   "update_date": "Update date",
 
+  "onboarding_title": "Welcome to CoinFlow!",
+  "onboarding_subtitle": "Let's set up your profile",
+  "language_title": "Language",
+  "base_currency_title": "Base Currency",
+  "get_started": "Get Started",
+
   "balance": "BALANCE",
   "expenses": "EXPENSES",
   "income": "Income",

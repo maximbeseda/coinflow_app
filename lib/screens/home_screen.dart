@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:vibration/vibration.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:collection/collection.dart';
 import '../models/category_model.dart';
 import '../models/transaction_model.dart';
 import '../models/subscription_model.dart';
@@ -170,15 +171,10 @@ class _HomeScreenState extends State<HomeScreen>
     Transaction t,
     List<Category> allCategories,
   ) async {
-    Category? sourceCat;
-    Category? targetCat;
-
-    try {
-      sourceCat = allCategories.firstWhere((c) => c.id == t.fromId);
-    } catch (_) {}
-    try {
-      targetCat = allCategories.firstWhere((c) => c.id == t.toId);
-    } catch (_) {}
+    Category? sourceCat = allCategories.firstWhereOrNull(
+      (c) => c.id == t.fromId,
+    );
+    Category? targetCat = allCategories.firstWhereOrNull((c) => c.id == t.toId);
 
     if (sourceCat == null || targetCat == null) {
       return;
@@ -194,8 +190,8 @@ class _HomeScreenState extends State<HomeScreen>
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             TransactionScreen(
-              source: sourceCat!,
-              target: targetCat!,
+              source: sourceCat,
+              target: targetCat,
               initialAmount: t.amount,
               initialTargetAmount: t.targetAmount,
               initialDate: t.date,
@@ -289,7 +285,9 @@ class _HomeScreenState extends State<HomeScreen>
           budget: result['budget'],
           bgColor: CategoryDefaults.getBgColor(type),
           iconColor: CategoryDefaults.getIconColor(type),
-          currency: result['currency'] ?? 'UAH',
+          currency:
+              result['currency'] ??
+              context.read<SettingsProvider>().baseCurrency,
           includeInTotal: result['includeInTotal'] ?? true,
         );
         catProv.addOrUpdateCategory(n);

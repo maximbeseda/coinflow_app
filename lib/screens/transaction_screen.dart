@@ -338,10 +338,17 @@ class _TransactionScreenState extends State<TransactionScreen> {
       } else if (_activeExpression == '-') {
         _setActiveAmount("-0");
       } else {
-        String result = CalculatorHelper.calculate(_activeExpression);
-        if (!CalculatorHelper.endsWithOperator(_activeExpression)) {
-          _setActiveAmount(result);
+        // Створюємо тимчасову змінну для обчислення
+        String exprToCalc = _activeExpression;
+
+        // Якщо в кінці стоїть оператор (+, -, ×, ÷), ми його ігноруємо для розрахунку суми на екрані
+        if (CalculatorHelper.endsWithOperator(exprToCalc)) {
+          exprToCalc = exprToCalc.substring(0, exprToCalc.length - 1);
         }
+
+        // Тепер сума на екрані ЗАВЖДИ відповідатиме тому, що буде збережено
+        String result = CalculatorHelper.calculate(exprToCalc);
+        _setActiveAmount(result);
       }
 
       _recalculateLinkedAmounts();
@@ -349,13 +356,33 @@ class _TransactionScreenState extends State<TransactionScreen> {
   }
 
   void _saveTransaction() {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    // 1. Очищаємо вирази від можливих математичних знаків у кінці (наприклад, "50+" -> "50")
+    String cleanSource = _sourceExpression;
+    if (CalculatorHelper.endsWithOperator(cleanSource)) {
+      cleanSource = cleanSource.substring(0, cleanSource.length - 1);
+    }
+
+    String cleanTarget = _targetExpression;
+    if (CalculatorHelper.endsWithOperator(cleanTarget)) {
+      cleanTarget = cleanTarget.substring(0, cleanTarget.length - 1);
+    }
+
+    // 2. Примусово обчислюємо фінальні значення перед збереженням
+    double finalSourceAmount =
+        double.tryParse(CalculatorHelper.calculate(cleanSource)) ?? 0.0;
+    double finalTargetAmount =
+        double.tryParse(CalculatorHelper.calculate(cleanTarget)) ?? 0.0;
+
+    // 3. Зберігаємо транзакцію
     Navigator.pop(context, {
-      'amount': double.tryParse(_sourceAmount) ?? 0.0,
+      'amount': finalSourceAmount,
       'targetAmount': widget.source.currency != widget.target.currency
-          ? (double.tryParse(_targetAmount) ?? 0.0)
+          ? finalTargetAmount
           : null,
       'date': _selectedDate,
-      'comment': _commentCtrl.text,
+      'comment': _commentCtrl.text.trim(),
     });
   }
 

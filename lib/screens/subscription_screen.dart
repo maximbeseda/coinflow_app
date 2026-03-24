@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:collection/collection.dart';
 import '../providers/category_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/settings_provider.dart';
@@ -9,6 +10,7 @@ import '../models/subscription_model.dart';
 import '../models/app_currency.dart';
 import '../models/category_model.dart';
 import '../utils/app_constants.dart';
+import '../utils/date_formatter.dart'; // Використовується!
 import '../widgets/dialogs/premium_date_picker.dart';
 import '../theme/app_colors_extension.dart';
 
@@ -162,15 +164,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     List<Category> list,
     String id,
   ) {
-    try {
-      ctrl.text = list.firstWhere((c) => c.id == id).name;
-    } catch (_) {
-      ctrl.text = '';
-    }
+    ctrl.text = list.firstWhereOrNull((c) => c.id == id)?.name ?? '';
   }
 
+  // 👇 ВИПРАВЛЕНО: Використовуємо наш новий DateFormatter
   void _updateDateText(DateTime date) {
-    _dateCtrl.text = DateFormat('dd.MM.yyyy').format(date);
+    _dateCtrl.text = DateFormatter.formatFull(date);
   }
 
   Future<void> _openCurrencyPicker() async {
@@ -826,7 +825,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       inputFormatters: isNumber
           ? [
               TextInputFormatter.withFunction((oldValue, newValue) {
-                // 👇 Видаляємо пробіли і коми для чистої логіки
+                // Видаляємо пробіли і коми для чистої логіки
                 String text = newValue.text
                     .replaceAll(',', '.')
                     .replaceAll(' ', '');
@@ -855,7 +854,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   decPart = decPart.substring(0, 2);
                 }
 
-                // 👇 МАГІЯ ТУТ: Додаємо пробіли кожні 3 цифри в цілу частину
+                // Додаємо пробіли кожні 3 цифри в цілу частину
                 String formattedInt = intPart.replaceAllMapped(
                   RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
                   (Match m) => '${m[1]} ',
@@ -1010,23 +1009,23 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         fontFamily: 'MaterialIcons',
       );
       if (_selectedExpenseId != null) {
-        try {
-          final cat = catProv.expenses.firstWhere(
-            (c) => c.id == _selectedExpenseId,
-          );
-          displayColor = cat.bgColor;
-          displayIconColor = cat.iconColor;
-        } catch (_) {}
-      }
-    } else if (_selectedExpenseId != null) {
-      try {
-        final cat = catProv.expenses.firstWhere(
+        final cat = catProv.expenses.firstWhereOrNull(
           (c) => c.id == _selectedExpenseId,
         );
+        if (cat != null) {
+          displayColor = cat.bgColor;
+          displayIconColor = cat.iconColor;
+        }
+      }
+    } else if (_selectedExpenseId != null) {
+      final cat = catProv.expenses.firstWhereOrNull(
+        (c) => c.id == _selectedExpenseId,
+      );
+      if (cat != null) {
         displayIcon = cat.icon;
         displayColor = cat.bgColor;
         displayIconColor = cat.iconColor;
-      } catch (_) {}
+      }
     }
 
     return Scaffold(
@@ -1140,7 +1139,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       ),
                       const SizedBox(height: 40),
 
-                      // 👇 ПЕРЕДАЄМО maxLength: 40
                       _buildMaterialField(
                         controller: _nameCtrl,
                         label: 'name_hint_netflix'.tr(),

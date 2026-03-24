@@ -90,6 +90,18 @@ class StorageService {
   }
 
   // ==========================================
+  // ОНБОРДІНГ (Перший запуск)
+  // ==========================================
+  static bool hasCompletedOnboarding() {
+    final box = Hive.box(_settingsBox);
+    return box.get('onboarding_completed', defaultValue: false) ?? false;
+  }
+
+  static Future<void> completeOnboarding() async {
+    await Hive.box(_settingsBox).put('onboarding_completed', true);
+  }
+
+  // ==========================================
   // НОВЕ: НАЛАШТУВАННЯ ВАЛЮТ
   // ==========================================
 

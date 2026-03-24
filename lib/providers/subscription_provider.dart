@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:collection/collection.dart';
 import '../models/category_model.dart';
 import '../models/transaction_model.dart';
 import '../models/subscription_model.dart';
@@ -111,14 +112,15 @@ class SubscriptionProvider extends ChangeNotifier {
     Category? sourceAccount;
     Category? targetExpense;
 
-    try {
-      sourceAccount = all.firstWhere((c) => c.id == sub.accountId);
-      targetExpense = all.firstWhere((c) => c.id == sub.categoryId);
-      if (sourceAccount.isArchived || targetExpense.isArchived) {
-        return (false, 'error_category_deleted'.tr());
-      }
-    } catch (e) {
+    sourceAccount = all.firstWhereOrNull((c) => c.id == sub.accountId);
+    targetExpense = all.firstWhereOrNull((c) => c.id == sub.categoryId);
+
+    if (sourceAccount == null || targetExpense == null) {
       return (false, 'error_category_not_found'.tr());
+    }
+
+    if (sourceAccount.isArchived || targetExpense.isArchived) {
+      return (false, 'error_category_deleted'.tr());
     }
 
     double subRate =

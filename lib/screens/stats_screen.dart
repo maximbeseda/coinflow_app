@@ -7,6 +7,7 @@ import '../providers/transaction_provider.dart';
 import '../providers/settings_provider.dart';
 import '../models/app_currency.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/date_formatter.dart'; // <-- ДОДАНО ІМПОРТ
 import '../widgets/dialogs/month_picker_dialog.dart';
 import '../models/category_model.dart';
 import '../theme/app_colors_extension.dart';
@@ -20,14 +21,23 @@ class StatsScreen extends StatefulWidget {
 
 class _StatsScreenState extends State<StatsScreen> {
   bool _showExpenses = true;
-
   late DateTime _statsMonth;
+  bool _animatingForward = true;
 
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
     _statsMonth = DateTime(now.year, now.month, 1);
+  }
+
+  void _changeMonth(DateTime newMonth) {
+    if (newMonth == _statsMonth) return;
+
+    setState(() {
+      _animatingForward = newMonth.isAfter(_statsMonth);
+      _statsMonth = newMonth;
+    });
   }
 
   final List<Color> _appCustomPalette = [
@@ -72,30 +82,15 @@ class _StatsScreenState extends State<StatsScreen> {
     return _appCustomPalette[index % _appCustomPalette.length];
   }
 
-  String _getMonthName(DateTime date, BuildContext context) {
-    final languageCode = context.locale.languageCode;
-    String month = DateFormat.MMMM(languageCode).format(date);
-    month = month[0].toUpperCase() + month.substring(1);
-    return "$month ${date.year}";
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final catProv = context.watch<CategoryProvider>();
-    final txProv = context.watch<TransactionProvider>();
-    final settings = context.watch<SettingsProvider>();
-    final colors = Theme.of(context).extension<AppColorsExtension>()!;
-
-    final baseCurrencySymbol = AppCurrency.fromCode(
-      settings.baseCurrency,
-    ).symbol;
-
+  List<Category> _getSortedActiveCategories(
+    CategoryProvider catProv,
+    TransactionProvider txProv,
+  ) {
     final allCategories = catProv.allCategoriesList;
     final Map<String, Category> categoryMap = {
       for (var c in allCategories) c.id: c,
     };
 
-    // 👇 Використовуємо новий точний метод із TransactionProvider
     final categoryTotals = txProv.calculateCategoryTotalsForMonth(
       _statsMonth,
       _showExpenses,
@@ -113,14 +108,27 @@ class _StatsScreenState extends State<StatsScreen> {
 
     activeCategories.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
 
-    double activeTotal = activeCategories.fold(
+    return activeCategories;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final catProv = context.watch<CategoryProvider>();
+    final txProv = context.watch<TransactionProvider>();
+    final settings = context.watch<SettingsProvider>();
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    final baseCurrencySymbol = AppCurrency.fromCode(
+      settings.baseCurrency,
+    ).symbol;
+
+    final activeData = _getSortedActiveCategories(catProv, txProv);
+
+    double activeTotal = activeData.fold(
       0.0,
       (sum, item) => sum + item.amount.abs(),
     );
 
-    final activeData = activeCategories;
-
-    // Щоб зберегти правильні значення у кнопках перемикання "Витрати / Доходи"
     final allMonthTotals = txProv.calculateTotalsForMonth(_statsMonth);
     double totalExpenses = allMonthTotals['expenses'] ?? 0.0;
     double totalIncomes = allMonthTotals['incomes'] ?? 0.0;
@@ -137,381 +145,440 @@ class _StatsScreenState extends State<StatsScreen> {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 8.0, top: 4.0, right: 8.0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back, color: colors.textMain),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'statistics'.tr(),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: colors.textMain,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragEnd: (details) {
+              int sensitivity = 300;
+              if (details.primaryVelocity != null) {
+                if (details.primaryVelocity! < -sensitivity) {
+                  _changeMonth(
+                    DateTime(_statsMonth.year, _statsMonth.month + 1, 1),
+                  );
+                } else if (details.primaryVelocity! > sensitivity) {
+                  _changeMonth(
+                    DateTime(_statsMonth.year, _statsMonth.month - 1, 1),
+                  );
+                }
+              }
+            },
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 8.0,
+                    top: 4.0,
+                    right: 8.0,
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.arrow_back, color: colors.textMain),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                    ),
-                    const SizedBox(width: 48),
-                  ],
+                      Expanded(
+                        child: Text(
+                          'statistics'.tr(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: colors.textMain,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.chevron_left, color: colors.textMain),
-                      onPressed: () {
-                        setState(() {
-                          _statsMonth = DateTime(
-                            _statsMonth.year,
-                            _statsMonth.month - 1,
-                            1,
-                          );
-                        });
-                      },
-                    ),
-                    GestureDetector(
-                      onTap: () async {
-                        final pickedDate = await showDialog<DateTime>(
-                          context: context,
-                          builder: (ctx) =>
-                              MonthPickerDialog(initialDate: _statsMonth),
-                        );
-                        if (pickedDate != null && mounted) {
-                          setState(() {
-                            _statsMonth = pickedDate;
-                          });
-                        }
-                      },
-                      child: Container(
-                        constraints: BoxConstraints(
-                          minWidth: 130,
-                          maxWidth: MediaQuery.of(context).size.width * 0.45,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 6,
-                          horizontal: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.cardBg,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withAlpha(10),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.chevron_left, color: colors.textMain),
+                        onPressed: () {
+                          _changeMonth(
+                            DateTime(
+                              _statsMonth.year,
+                              _statsMonth.month - 1,
+                              1,
                             ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            _getMonthName(_statsMonth, context),
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: colors.textMain,
+                          );
+                        },
+                      ),
+                      GestureDetector(
+                        onTap: () async {
+                          final pickedDate = await showDialog<DateTime>(
+                            context: context,
+                            builder: (ctx) =>
+                                MonthPickerDialog(initialDate: _statsMonth),
+                          );
+                          if (pickedDate != null && mounted) {
+                            _changeMonth(pickedDate);
+                          }
+                        },
+                        child: Container(
+                          constraints: BoxConstraints(
+                            minWidth: 130,
+                            maxWidth: MediaQuery.of(context).size.width * 0.45,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 6,
+                            horizontal: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colors.cardBg,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(10),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            // ЗМІНЕНО: Використовуємо DateFormatter
+                            child: Text(
+                              DateFormatter.formatMonthYear(
+                                _statsMonth,
+                                context.locale.languageCode,
+                              ),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: colors.textMain,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.chevron_right, color: colors.textMain),
-                      onPressed: () {
-                        setState(() {
-                          _statsMonth = DateTime(
-                            _statsMonth.year,
-                            _statsMonth.month + 1,
-                            1,
+                      IconButton(
+                        icon: Icon(Icons.chevron_right, color: colors.textMain),
+                        onPressed: () {
+                          _changeMonth(
+                            DateTime(
+                              _statsMonth.year,
+                              _statsMonth.month + 1,
+                              1,
+                            ),
                           );
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                  vertical: 8.0,
-                ),
-                child: Container(
-                  height: 60,
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: colors.cardBg,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(10),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        },
                       ),
                     ],
                   ),
-                  child: Stack(
-                    children: [
-                      AnimatedAlign(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOutCubic,
-                        alignment: _showExpenses
-                            ? Alignment.centerLeft
-                            : Alignment.centerRight,
-                        child: FractionallySizedBox(
-                          widthFactor: 0.5,
-                          heightFactor: 1.0,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: colors.iconBg,
-                              borderRadius: BorderRadius.circular(16),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0,
+                    vertical: 8.0,
+                  ),
+                  child: Container(
+                    height: 60,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: colors.cardBg,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(10),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        AnimatedAlign(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutCubic,
+                          alignment: !_showExpenses
+                              ? Alignment.centerLeft
+                              : Alignment.centerRight,
+                          child: FractionallySizedBox(
+                            widthFactor: 0.5,
+                            heightFactor: 1.0,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: colors.iconBg,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(() => _showExpenses = true),
-                              behavior: HitTestBehavior.opaque,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      'stats_expenses'.tr(),
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: _showExpenses
-                                            ? colors.textMain
-                                            : colors.textSecondary,
-                                        fontWeight: FontWeight.w700,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () =>
+                                    setState(() => _showExpenses = false),
+                                behavior: HitTestBehavior.opaque,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'income'.tr(),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: !_showExpenses
+                                              ? colors.textMain
+                                              : colors.textSecondary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    Text(
-                                      "${CurrencyFormatter.format(totalExpenses)} $baseCurrencySymbol",
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        color: _showExpenses
-                                            ? colors.expense
-                                            : colors.textSecondary.withAlpha(
-                                                80,
-                                              ),
+                                      Text(
+                                        "${CurrencyFormatter.format(totalIncomes)} $baseCurrencySymbol",
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                          color: !_showExpenses
+                                              ? colors.income
+                                              : colors.textSecondary.withAlpha(
+                                                  80,
+                                                ),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () =>
-                                  setState(() => _showExpenses = false),
-                              behavior: HitTestBehavior.opaque,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      'income'.tr(),
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: !_showExpenses
-                                            ? colors.textMain
-                                            : colors.textSecondary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    Text(
-                                      "${CurrencyFormatter.format(totalIncomes)} $baseCurrencySymbol",
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        color: !_showExpenses
-                                            ? colors.income
-                                            : colors.textSecondary.withAlpha(
-                                                80,
-                                              ),
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () =>
+                                    setState(() => _showExpenses = true),
+                                behavior: HitTestBehavior.opaque,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'stats_expenses'.tr(),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: _showExpenses
+                                              ? colors.textMain
+                                              : colors.textSecondary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        "${CurrencyFormatter.format(totalExpenses)} $baseCurrencySymbol",
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                          color: _showExpenses
+                                              ? colors.expense
+                                              : colors.textSecondary.withAlpha(
+                                                  80,
+                                                ),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          final inFrom = _animatingForward
+                              ? const Offset(1.0, 0.0)
+                              : const Offset(-1.0, 0.0);
+                          final outTo = _animatingForward
+                              ? const Offset(-1.0, 0.0)
+                              : const Offset(1.0, 0.0);
+
+                          if (child.key ==
+                              ValueKey(_statsMonth.toIso8601String())) {
+                            return SlideTransition(
+                              position: Tween<Offset>(
+                                begin: inFrom,
+                                end: Offset.zero,
+                              ).animate(animation),
+                              child: child,
+                            );
+                          } else {
+                            return SlideTransition(
+                              position: Tween<Offset>(
+                                begin: outTo,
+                                end: Offset.zero,
+                              ).animate(animation),
+                              child: child,
+                            );
+                          }
+                        },
+                    child: Container(
+                      key: ValueKey(_statsMonth.toIso8601String()),
+                      width: double.infinity,
+                      margin: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: colors.cardBg,
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(10),
+                            blurRadius: 15,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.fromLTRB(24, 4, 24, 16),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: colors.cardBg,
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(10),
-                        blurRadius: 15,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: activeData.isEmpty
-                      ? Center(
-                          child: Text(
-                            _showExpenses
-                                ? 'no_expenses_month'.tr()
-                                : 'no_incomes_month'.tr(),
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: colors.textSecondary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            Expanded(
-                              flex: 5,
-                              child: PieChart(
-                                PieChartData(
-                                  sectionsSpace: 2,
-                                  centerSpaceRadius: 38,
-                                  sections: activeData.map((cat) {
-                                    final value = cat.amount.abs();
-                                    final percentage =
-                                        (value / activeTotal) * 100;
-                                    final sliceColor = _getUniqueColor(
-                                      cat.id,
-                                      catProv,
-                                    );
-                                    final bool showTitle = percentage >= 5.0;
-
-                                    return PieChartSectionData(
-                                      color: sliceColor,
-                                      value: value,
-                                      title: showTitle
-                                          ? "${percentage.toStringAsFixed(0)}%"
-                                          : "",
-                                      radius: 42,
-                                      titlePositionPercentageOffset: 0.5,
-                                      titleStyle: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                      ),
-                                    );
-                                  }).toList(),
+                      child: activeData.isEmpty
+                          ? Center(
+                              child: Text(
+                                _showExpenses
+                                    ? 'no_expenses_month'.tr()
+                                    : 'no_incomes_month'.tr(),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: colors.textSecondary,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            Expanded(
-                              flex: 7,
-                              child: ListView.builder(
-                                itemCount: activeData.length,
-                                itemBuilder: (context, index) {
-                                  final cat = activeData[index];
-                                  final percentage =
-                                      (cat.amount.abs() / activeTotal) * 100;
-                                  final rowColor = _getUniqueColor(
-                                    cat.id,
-                                    catProv,
-                                  );
+                            )
+                          : Column(
+                              children: [
+                                Expanded(
+                                  flex: 5,
+                                  child: PieChart(
+                                    PieChartData(
+                                      sectionsSpace: 2,
+                                      centerSpaceRadius: 38,
+                                      sections: activeData.map((cat) {
+                                        final value = cat.amount.abs();
+                                        final percentage =
+                                            (value / activeTotal) * 100;
+                                        final sliceColor = _getUniqueColor(
+                                          cat.id,
+                                          catProv,
+                                        );
+                                        final bool showTitle =
+                                            percentage >= 5.0;
 
-                                  return Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: 12.0,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 12,
-                                          backgroundColor: rowColor.withAlpha(
-                                            30,
-                                          ),
-                                          child: Icon(
-                                            cat.icon,
-                                            size: 14,
-                                            color: rowColor,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            cat.name,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                              color: colors.textMain,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          "${percentage.toStringAsFixed(1)}%",
-                                          style: TextStyle(
-                                            color: colors.textSecondary,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          "${CurrencyFormatter.format(cat.amount.abs())} $baseCurrencySymbol",
-                                          style: TextStyle(
+                                        return PieChartSectionData(
+                                          color: sliceColor,
+                                          value: value,
+                                          title: showTitle
+                                              ? "${percentage.toStringAsFixed(0)}%"
+                                              : "",
+                                          radius: 42,
+                                          titlePositionPercentageOffset: 0.5,
+                                          titleStyle: const TextStyle(
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w800,
-                                            fontSize: 14,
-                                            color: colors.textMain,
+                                            color: Colors.white,
                                           ),
-                                        ),
-                                      ],
+                                        );
+                                      }).toList(),
                                     ),
-                                  );
-                                },
-                              ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Expanded(
+                                  flex: 7,
+                                  child: ListView.builder(
+                                    itemCount: activeData.length,
+                                    itemBuilder: (context, index) {
+                                      final cat = activeData[index];
+                                      final percentage =
+                                          (cat.amount.abs() / activeTotal) *
+                                          100;
+                                      final rowColor = _getUniqueColor(
+                                        cat.id,
+                                        catProv,
+                                      );
+
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 12.0,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 12,
+                                              backgroundColor: rowColor
+                                                  .withAlpha(30),
+                                              child: Icon(
+                                                cat.icon,
+                                                size: 14,
+                                                color: rowColor,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                cat.name,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 14,
+                                                  color: colors.textMain,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              "${percentage.toStringAsFixed(1)}%",
+                                              style: TextStyle(
+                                                color: colors.textSecondary,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text(
+                                              "${CurrencyFormatter.format(cat.amount.abs())} $baseCurrencySymbol",
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 14,
+                                                color: colors.textMain,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

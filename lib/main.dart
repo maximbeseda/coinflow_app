@@ -10,6 +10,7 @@ import 'dart:ui';
 
 import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
+import 'screens/onboarding_screen.dart'; // <-- ДОДАНО: Імпорт екрану онбордінгу
 import 'providers/category_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/subscription_provider.dart';
@@ -62,6 +63,9 @@ void main() async {
 
   const bool showPreview = false;
 
+  // 👇 ДОДАНО: Перевіряємо, чи завершено онбордінг
+  final bool hasCompletedOnboarding = StorageService.hasCompletedOnboarding();
+
   runApp(
     EasyLocalization(
       supportedLocales: const [Locale('uk'), Locale('en'), Locale('de')],
@@ -78,7 +82,6 @@ void main() async {
           ChangeNotifierProvider(create: (_) => CategoryProvider()),
 
           // 3. Провайдер транзакцій (слідкує за категоріями, щоб оновлювати їх баланси)
-          // 👇 ЗМІНЕНО: Тепер використовуємо ProxyProvider2, щоб передати catProv ТА settingsProv
           ChangeNotifierProxyProvider2<
             CategoryProvider,
             SettingsProvider,
@@ -103,7 +106,12 @@ void main() async {
         ],
         child: DevicePreview(
           enabled: !kReleaseMode && showPreview,
-          builder: (context) => const MyApp(),
+          // 👇 ЗМІНЕНО: Передаємо статус онбордінгу в MyApp
+          builder: (context) => MyApp(showOnboarding: !hasCompletedOnboarding),
+
+          // ДЛЯ ПЕРЕВІРКИ ЕКРАНУ ОНБОРДИНГУ:
+          // builder: (context) =>
+          //    MyApp(showOnboarding: true), // Завжди показувати
         ),
       ),
     ),
@@ -111,7 +119,12 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool showOnboarding; // <-- ДОДАНО: Параметр для контролю екрану
+
+  const MyApp({
+    super.key,
+    required this.showOnboarding,
+  }); // <-- ДОДАНО: Конструктор
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +187,8 @@ class MyApp extends StatelessWidget {
         },
       ),
 
-      home: const HomeScreen(),
+      // 👇 ЗМІНЕНО: Визначаємо домашній екран
+      home: showOnboarding ? const OnboardingScreen() : const HomeScreen(),
     );
   }
 }

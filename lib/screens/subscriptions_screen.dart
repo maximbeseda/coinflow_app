@@ -5,8 +5,9 @@ import '../providers/category_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../models/subscription_model.dart';
 import '../models/category_model.dart';
-import '../models/app_currency.dart'; // ДОДАНО: Для отримання символу валюти
+import '../models/app_currency.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/date_formatter.dart'; // <-- ДОДАНО: Імпорт нашої утиліти
 import '../screens/subscription_screen.dart';
 import '../theme/app_colors_extension.dart';
 
@@ -17,14 +18,13 @@ class SubscriptionsScreen extends StatelessWidget {
     BuildContext context, {
     Subscription? subscription,
   }) {
-    // ЗАМІСТЬ showDialog ВИКОРИСТОВУЄМО ПЛАВНИЙ ПЕРЕХІД НА НОВИЙ ЕКРАН
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             SubscriptionScreen(subscription: subscription),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(0.0, 1.0); // Анімація виїзду знизу вгору
+          const begin = Offset(0.0, 1.0);
           const end = Offset.zero;
           const curve = Curves.easeOutQuart;
           var tween = Tween(
@@ -159,7 +159,6 @@ class SubscriptionsScreen extends StatelessWidget {
                             paymentDate.isBefore(today) ||
                             paymentDate.isAtSameMomentAs(today);
 
-                        // ДОДАНО: Отримуємо символ валюти для підписки
                         final currencySymbol = AppCurrency.fromCode(
                           sub.currency,
                         ).symbol;
@@ -240,10 +239,9 @@ class SubscriptionsScreen extends StatelessWidget {
                                                   ),
                                                   const SizedBox(width: 4),
                                                   Flexible(
+                                                    // ЗМІНЕНО: Використовуємо DateFormatter
                                                     child: Text(
-                                                      DateFormat(
-                                                        'dd.MM.yyyy',
-                                                      ).format(
+                                                      DateFormatter.formatFull(
                                                         sub.nextPaymentDate,
                                                       ),
                                                       style: TextStyle(
@@ -267,7 +265,7 @@ class SubscriptionsScreen extends StatelessWidget {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          "-${CurrencyFormatter.format(sub.amount)} $currencySymbol", // ЗМІНЕНО: Динамічний символ
+                                          "-${CurrencyFormatter.format(sub.amount)} $currencySymbol",
                                           style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w900,

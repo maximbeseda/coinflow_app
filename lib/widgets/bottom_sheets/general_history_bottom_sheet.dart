@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:collection/collection.dart';
 import '../../models/category_model.dart';
 import '../../models/transaction_model.dart';
 import '../../models/app_currency.dart';
 import '../../utils/currency_formatter.dart';
+import '../../utils/date_formatter.dart';
 import '../../theme/app_colors_extension.dart';
 
 class GeneralHistoryBottomSheet extends StatefulWidget {
@@ -30,25 +32,43 @@ class GeneralHistoryBottomSheet extends StatefulWidget {
 }
 
 class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+  late List<Transaction> _filteredHistory;
 
-    final filteredHistory = widget.transactions.where((t) {
-      Category? fromCat;
-      Category? toCat;
-      try {
-        fromCat = widget.allCategories.firstWhere((c) => c.id == t.fromId);
-      } catch (_) {}
-      try {
-        toCat = widget.allCategories.firstWhere((c) => c.id == t.toId);
-      } catch (_) {}
+  @override
+  void initState() {
+    super.initState();
+    _filterAndSortTransactions();
+  }
+
+  @override
+  void didUpdateWidget(covariant GeneralHistoryBottomSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Перераховуємо тільки якщо список транзакцій реально оновився (наприклад, після видалення)
+    if (oldWidget.transactions != widget.transactions ||
+        oldWidget.filterType != widget.filterType) {
+      _filterAndSortTransactions();
+    }
+  }
+
+  void _filterAndSortTransactions() {
+    _filteredHistory = widget.transactions.where((t) {
+      final fromCat = widget.allCategories.firstWhereOrNull(
+        (c) => c.id == t.fromId,
+      );
+      final toCat = widget.allCategories.firstWhereOrNull(
+        (c) => c.id == t.toId,
+      );
 
       return fromCat?.type == widget.filterType ||
           toCat?.type == widget.filterType;
     }).toList();
 
-    filteredHistory.sort((a, b) => b.date.compareTo(a.date));
+    _filteredHistory.sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -78,7 +98,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
           ),
           const SizedBox(height: 15),
           Expanded(
-            child: filteredHistory.isEmpty
+            child: _filteredHistory.isEmpty
                 ? Center(
                     child: Text(
                       'no_transactions_yet'.tr(),
@@ -86,22 +106,16 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                     ),
                   )
                 : ListView.builder(
-                    itemCount: filteredHistory.length,
+                    itemCount: _filteredHistory.length,
                     itemBuilder: (context, index) {
-                      final t = filteredHistory[index];
+                      final t = _filteredHistory[index];
 
-                      Category? fromCat;
-                      Category? toCat;
-                      try {
-                        fromCat = widget.allCategories.firstWhere(
-                          (c) => c.id == t.fromId,
-                        );
-                      } catch (_) {}
-                      try {
-                        toCat = widget.allCategories.firstWhere(
-                          (c) => c.id == t.toId,
-                        );
-                      } catch (_) {}
+                      final fromCat = widget.allCategories.firstWhereOrNull(
+                        (c) => c.id == t.fromId,
+                      );
+                      final toCat = widget.allCategories.firstWhereOrNull(
+                        (c) => c.id == t.toId,
+                      );
 
                       String fromName = fromCat?.name ?? 'unknown'.tr();
                       String toName = toCat?.name ?? 'unknown'.tr();
@@ -176,8 +190,14 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         onDismissed: (_) {
+                          // СПОЧАТКУ миттєво видаляємо з локального списку для UI
+                          setState(() {
+                            _filteredHistory.removeWhere(
+                              (item) => item.id == t.id,
+                            );
+                          });
+                          // ПОТІМ передаємо команду на видалення з бази
                           widget.onDelete(t);
-                          setState(() {});
                         },
                         child: ListTile(
                           onTap: () async {
@@ -230,14 +250,14 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                               ),
                             ],
                           ),
-                          // ЗМІНЕНО: Відображення дати + коментаря (якщо є)
+                          // Відображення дати + коментаря (якщо є)
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 4.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  "${t.date.day.toString().padLeft(2, '0')}.${t.date.month.toString().padLeft(2, '0')}.${t.date.year}",
+                                  DateFormatter.formatFull(t.date),
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: colors.textSecondary,

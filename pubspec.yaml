@@ -51,6 +51,7 @@ dependencies:
   easy_localization: ^3.0.8
   http: ^1.6.0
   math_expressions: ^2.5.0
+  collection: ^1.18.0
 
 dev_dependencies:
   flutter_test:

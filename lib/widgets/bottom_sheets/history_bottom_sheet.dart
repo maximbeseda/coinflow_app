@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:collection/collection.dart';
 import '../../models/category_model.dart';
 import '../../models/transaction_model.dart';
 import '../../models/app_currency.dart';
 import '../../utils/currency_formatter.dart';
+import '../../utils/date_formatter.dart';
 import '../../theme/app_colors_extension.dart';
 
 class HistoryBottomSheet extends StatefulWidget {
@@ -27,17 +29,36 @@ class HistoryBottomSheet extends StatefulWidget {
 }
 
 class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+  late List<Transaction> _categoryHistory;
 
-    final categoryHistory = widget.transactions
+  @override
+  void initState() {
+    super.initState();
+    _filterAndSortTransactions();
+  }
+
+  @override
+  void didUpdateWidget(covariant HistoryBottomSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.transactions != widget.transactions ||
+        oldWidget.category.id != widget.category.id) {
+      _filterAndSortTransactions();
+    }
+  }
+
+  void _filterAndSortTransactions() {
+    _categoryHistory = widget.transactions
         .where(
           (t) => t.fromId == widget.category.id || t.toId == widget.category.id,
         )
         .toList();
 
-    categoryHistory.sort((a, b) => b.date.compareTo(a.date));
+    _categoryHistory.sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -67,7 +88,7 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
           ),
           const SizedBox(height: 15),
           Expanded(
-            child: categoryHistory.isEmpty
+            child: _categoryHistory.isEmpty
                 ? Center(
                     child: Text(
                       'no_transactions_yet'.tr(),
@@ -75,20 +96,15 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                     ),
                   )
                 : ListView.builder(
-                    itemCount: categoryHistory.length,
+                    itemCount: _categoryHistory.length,
                     itemBuilder: (context, index) {
-                      final t = categoryHistory[index];
+                      final t = _categoryHistory[index];
                       bool isOut = t.fromId == widget.category.id;
                       String otherId = isOut ? t.toId : t.fromId;
 
-                      Category? otherCat;
-                      try {
-                        otherCat = widget.allCategories.firstWhere(
-                          (c) => c.id == otherId,
-                        );
-                      } catch (e) {
-                        otherCat = null;
-                      }
+                      final otherCat = widget.allCategories.firstWhereOrNull(
+                        (c) => c.id == otherId,
+                      );
 
                       // --- ЛОГІКА КОМЕНТАРІВ ---
                       String customNote = t.title.trim();
@@ -140,8 +156,14 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         onDismissed: (_) {
+                          // СПОЧАТКУ миттєво видаляємо з локального списку для UI
+                          setState(() {
+                            _categoryHistory.removeWhere(
+                              (item) => item.id == t.id,
+                            );
+                          });
+                          // ПОТІМ передаємо команду на видалення з бази
                           widget.onDelete(t);
-                          setState(() {});
                         },
                         child: ListTile(
                           onTap: () async {
@@ -186,14 +208,14 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                               fontSize: 14,
                             ),
                           ),
-                          // ЗМІНЕНО: Відображення дати + коментаря (якщо є)
+                          // Відображення дати + коментаря (якщо є)
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 4.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  "${t.date.day.toString().padLeft(2, '0')}.${t.date.month.toString().padLeft(2, '0')}.${t.date.year}",
+                                  DateFormatter.formatFull(t.date),
                                   style: TextStyle(
                                     color: colors.textSecondary,
                                     fontSize: 12,

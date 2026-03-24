@@ -17,6 +17,12 @@
   "choose_date": "Виберіть дату",
   "update_date": "Оновити дату",
 
+  "onboarding_title": "Вітаємо у CoinFlow!",
+  "onboarding_subtitle": "Давайте налаштуємо ваш профіль",
+  "language_title": "Мова інтерфейсу",
+  "base_currency_title": "Головна валюта",
+  "get_started": "Почати користування",
+
   "balance": "БАЛАНС",
   "expenses": "ВИТРАТИ",
   "income": "Доходи",
