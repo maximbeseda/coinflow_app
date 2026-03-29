@@ -22,6 +22,8 @@ class CategoryProvider extends ChangeNotifier {
   }
 
   Future<void> loadCategories() async {
+    // 👇 ДОДАЙ ЦЕЙ РЯДОК ТІЛЬКИ ДЛЯ ТЕСТУ:
+    await Future.delayed(const Duration(seconds: 2));
     final savedCats = await StorageService.loadCategories();
 
     if (savedCats.isNotEmpty) {

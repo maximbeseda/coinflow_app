@@ -58,6 +58,12 @@
   "no_transactions": "Немає операцій",
   "no_expenses_month": "Немає витрат у цьому місяці 👏",
   "no_incomes_month": "Немає доходів у цьому місяці 😔",
+  "monthly_view": "Місяць",
+  "trends_view": "Тренди",
+  "trend_in": "Тренд у",
+  "no_data": "Немає даних для аналізу",
+  "history_trends": "Історія доходів та витрат",
+  "average_for_year": "Середні показники за {} рік",
 
   "new_category": "Нова категорія",
   "initial_balance": "Початковий баланс",
@@ -136,5 +142,10 @@
   "include_in_total": "Додати до загального балансу",
   "include_in_total_desc": "Враховувати суму в шапці на головному екрані",
   "loading_rate": "Оновлення курсу...",
-  "rate_not_found": "Курс недоступний"
+  "rate_not_found": "Курс недоступний",
+  "rate_unavailable": "Курс на цю дату недоступний.",
+  "enter_manually": "Введіть суму вручну.",
+  "rates_updated_success": "Курси успішно оновлено!",
+  "rates_update_error": "Помилка оновлення. Перевірте інтернет!"
+
 }

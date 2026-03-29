@@ -134,7 +134,6 @@ class StorageService {
     final box = Hive.box(_settingsBox);
     final data = box.get('exchange_rates', defaultValue: {});
 
-    // Hive може зберігати цілі числа як int, тому конвертуємо все в double надійно
     final map = (data as Map).cast<String, dynamic>();
     return map.map((key, value) => MapEntry(key, (value as num).toDouble()));
   }
@@ -154,6 +153,27 @@ class StorageService {
     await Hive.box(
       _settingsBox,
     ).put('last_rates_update', date.millisecondsSinceEpoch);
+  }
+
+  // 👇 ДОДАНО: ІСТОРИЧНІ КУРСИ ВАЛЮТ (КЕШ)
+  static Map<String, dynamic> getHistoricalRatesCache() {
+    try {
+      final box = Hive.box(_settingsBox);
+      final data = box.get('historical_rates_cache');
+      if (data != null) {
+        return Map<String, dynamic>.from(data);
+      }
+      return {};
+    } catch (e) {
+      debugPrint("Помилка читання історичного кешу: $e");
+      return {};
+    }
+  }
+
+  static Future<void> saveHistoricalRatesCache(
+    Map<String, dynamic> cache,
+  ) async {
+    await Hive.box(_settingsBox).put('historical_rates_cache', cache);
   }
 
   // ==========================================

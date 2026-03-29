@@ -13,6 +13,7 @@ import '../widgets/bottom_sheets/history_bottom_sheet.dart';
 import '../widgets/common/summary_header.dart';
 import '../widgets/bottom_sheets/general_history_bottom_sheet.dart';
 import '../widgets/common/settings_drawer.dart';
+import '../widgets/common/home_screen_skeleton.dart';
 import '../screens/transaction_screen.dart';
 import '../screens/category_screen.dart';
 import '../widgets/dialogs/due_subscription_dialog.dart';
@@ -21,6 +22,7 @@ import '../providers/category_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/stats_provider.dart'; // 👇 ДОДАНО ІМПОРТ НОВОГО ПРОВАЙДЕРА
 import '../theme/app_colors_extension.dart';
 
 String formatCurrency(double amount) => CurrencyFormatter.format(amount);
@@ -143,6 +145,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (amount > 0) {
         final txProv = context.read<TransactionProvider>();
+        final catProv = context.read<CategoryProvider>();
 
         String txTitle = comment.trim().isNotEmpty
             ? comment.trim()
@@ -160,8 +163,14 @@ class _HomeScreenState extends State<HomeScreen>
           targetCurrency: source.currency != target.currency
               ? target.currency
               : null,
+          baseAmount: 0.0,
+          baseCurrency: '',
         );
 
+        catProv.updateCategoryAmount(source.id, -amount);
+        catProv.updateCategoryAmount(target.id, targetAmount ?? amount);
+
+        // Зберігаємо історію
         txProv.addTransactionDirectly(newTx);
       }
     }
@@ -325,55 +334,12 @@ class _HomeScreenState extends State<HomeScreen>
             });
           }
         },
-        child: Builder(
-          builder: (context) {
-            final catProv = context.watch<CategoryProvider>();
-            final txProv = context.watch<TransactionProvider>();
-
-            if (catProv.isLoading || txProv.isLoading) {
-              return const Center(child: CircularProgressIndicator());
+        child: Selector2<CategoryProvider, TransactionProvider, bool>(
+          selector: (ctx, cat, tx) => cat.isLoading || tx.isLoading,
+          builder: (context, isLoading, child) {
+            if (isLoading) {
+              return const HomeScreenSkeleton();
             }
-
-            final settings = context.watch<SettingsProvider>();
-
-            // 1. РОЗРАХУНОК СУМ ДЛЯ ШАПКИ (З історії транзакцій)
-            final monthTotals = txProv.calculateTotalsForMonth(
-              txProv.selectedMonth,
-            );
-            double totalIncomes = monthTotals['incomes'] ?? 0.0;
-            double totalExpenses = monthTotals['expenses'] ?? 0.0;
-
-            // Баланс рахунків (поточний стан)
-            double totalBalance = catProv.accounts
-                .where((item) => item.includeInTotal)
-                .fold(
-                  0.0,
-                  (sum, item) =>
-                      sum + settings.convertToBase(item.amount, item.currency),
-                );
-
-            // 2. ПІДГОТОВКА ВІРТУАЛЬНИХ СУМ ПІД МОНЕТКАМИ
-            // Вказуємо inBaseCurrency: false, щоб долари залишилися доларами
-            final incomeMap = txProv.calculateCategoryTotalsForMonth(
-              txProv.selectedMonth,
-              false,
-              inBaseCurrency: false,
-            );
-            final expenseMap = txProv.calculateCategoryTotalsForMonth(
-              txProv.selectedMonth,
-              true,
-              inBaseCurrency: false,
-            );
-
-            final displayIncomes = catProv.incomes.map((c) {
-              return c.copyWith(amount: incomeMap[c.id] ?? 0.0);
-            }).toList();
-
-            final displayExpenses = catProv.expenses.map((c) {
-              return c.copyWith(amount: expenseMap[c.id] ?? 0.0);
-            }).toList();
-
-            final allCategories = catProv.allCategoriesList;
 
             return Container(
               width: double.infinity,
@@ -389,109 +355,170 @@ class _HomeScreenState extends State<HomeScreen>
                 maintainBottomViewPadding: true,
                 child: Column(
                   children: [
-                    SummaryHeader(
-                      totalBalance: totalBalance,
-                      totalIncomes: totalIncomes,
-                      totalExpenses: totalExpenses,
-                      onBalanceTap: () {
-                        if (isEditMode) {
-                          setState(() {
-                            isEditMode = false;
-                            _jiggleController.stop();
-                          });
-                          return;
-                        }
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => GeneralHistoryBottomSheet(
-                            title: 'history_balance'.tr(),
-                            filterType: CategoryType.account,
-                            transactions: txProv.history,
-                            allCategories: allCategories,
-                            onDelete: (t) => context
-                                .read<TransactionProvider>()
-                                .deleteTransaction(t),
-                            onEdit: (t) =>
-                                _handleEditTransaction(t, allCategories),
-                          ),
+                    // 👇 ЗМІНЕНО: Додано StatsProvider у Consumer4
+                    Consumer4<
+                      TransactionProvider,
+                      CategoryProvider,
+                      SettingsProvider,
+                      StatsProvider
+                    >(
+                      builder:
+                          (
+                            context,
+                            txProv,
+                            catProv,
+                            settings,
+                            statsProv,
+                            child,
+                          ) {
+                            // 👇 ЗМІНЕНО: Викликаємо метод з statsProv
+                            final monthTotals = statsProv
+                                .calculateTotalsForMonth(txProv.selectedMonth);
+                            double totalIncomes = monthTotals['incomes'] ?? 0.0;
+                            double totalExpenses =
+                                monthTotals['expenses'] ?? 0.0;
+
+                            double totalBalance = catProv.accounts
+                                .where((item) => item.includeInTotal)
+                                .fold(
+                                  0.0,
+                                  (sum, item) =>
+                                      sum +
+                                      settings.convertToBase(
+                                        item.amount,
+                                        item.currency,
+                                      ),
+                                );
+
+                            return SummaryHeader(
+                              totalBalance: totalBalance,
+                              totalIncomes: totalIncomes,
+                              totalExpenses: totalExpenses,
+                              isMigrating: txProv.isMigrating,
+                              onBalanceTap: () {
+                                if (isEditMode) {
+                                  setState(() {
+                                    isEditMode = false;
+                                    _jiggleController.stop();
+                                  });
+                                  return;
+                                }
+                                _openHistoryBottomSheet(
+                                  context,
+                                  'history_balance'.tr(),
+                                  CategoryType.account,
+                                );
+                              },
+                              onIncomesTap: () {
+                                if (isEditMode) {
+                                  setState(() {
+                                    isEditMode = false;
+                                    _jiggleController.stop();
+                                  });
+                                  return;
+                                }
+                                _openHistoryBottomSheet(
+                                  context,
+                                  'history_incomes'.tr(),
+                                  CategoryType.income,
+                                );
+                              },
+                              onExpensesTap: () {
+                                if (isEditMode) {
+                                  setState(() {
+                                    isEditMode = false;
+                                    _jiggleController.stop();
+                                  });
+                                  return;
+                                }
+                                _openHistoryBottomSheet(
+                                  context,
+                                  'history_expenses'.tr(),
+                                  CategoryType.expense,
+                                );
+                              },
+                              onSettingsTap: () {
+                                if (isEditMode) {
+                                  setState(() {
+                                    isEditMode = false;
+                                    _jiggleController.stop();
+                                  });
+                                  return;
+                                }
+                                _scaffoldKey.currentState?.openEndDrawer();
+                              },
+                            );
+                          },
+                    ),
+
+                    // 👇 ЗМІНЕНО: Додано StatsProvider у Consumer3
+                    Consumer3<
+                      CategoryProvider,
+                      TransactionProvider,
+                      StatsProvider
+                    >(
+                      builder: (context, catProv, txProv, statsProv, child) {
+                        // 👇 ЗМІНЕНО: Викликаємо метод з statsProv
+                        final incomeMap = statsProv
+                            .calculateCategoryTotalsForMonth(
+                              txProv.selectedMonth,
+                              false,
+                              inBaseCurrency: false,
+                            );
+                        final displayIncomes = catProv.incomes
+                            .map(
+                              (c) => c.copyWith(amount: incomeMap[c.id] ?? 0.0),
+                            )
+                            .toList();
+                        return _buildSection(
+                          displayIncomes,
+                          CategoryType.income,
                         );
-                      },
-                      onIncomesTap: () {
-                        if (isEditMode) {
-                          setState(() {
-                            isEditMode = false;
-                            _jiggleController.stop();
-                          });
-                          return;
-                        }
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => GeneralHistoryBottomSheet(
-                            title: 'history_incomes'.tr(),
-                            filterType: CategoryType.income,
-                            transactions: txProv.history,
-                            allCategories: allCategories,
-                            onDelete: (t) => context
-                                .read<TransactionProvider>()
-                                .deleteTransaction(t),
-                            onEdit: (t) =>
-                                _handleEditTransaction(t, allCategories),
-                          ),
-                        );
-                      },
-                      onExpensesTap: () {
-                        if (isEditMode) {
-                          setState(() {
-                            isEditMode = false;
-                            _jiggleController.stop();
-                          });
-                          return;
-                        }
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => GeneralHistoryBottomSheet(
-                            title: 'history_expenses'.tr(),
-                            filterType: CategoryType.expense,
-                            transactions: txProv.history,
-                            allCategories: allCategories,
-                            onDelete: (t) => context
-                                .read<TransactionProvider>()
-                                .deleteTransaction(t),
-                            onEdit: (t) =>
-                                _handleEditTransaction(t, allCategories),
-                          ),
-                        );
-                      },
-                      onSettingsTap: () {
-                        if (isEditMode) {
-                          setState(() {
-                            isEditMode = false;
-                            _jiggleController.stop();
-                          });
-                          return;
-                        }
-                        _scaffoldKey.currentState?.openEndDrawer();
                       },
                     ),
-                    _buildSection(displayIncomes, CategoryType.income),
-                    _buildSection(
-                      catProv.accounts,
-                      CategoryType.account,
-                      isTarget: true,
+
+                    Consumer<CategoryProvider>(
+                      builder: (context, catProv, child) {
+                        return _buildSection(
+                          catProv.accounts,
+                          CategoryType.account,
+                          isTarget: true,
+                        );
+                      },
                     ),
+
                     Expanded(
-                      child: _buildSection(
-                        displayExpenses,
-                        CategoryType.expense,
-                        isTarget: true,
-                        isGrid: true,
-                      ),
+                      // 👇 ЗМІНЕНО: Додано StatsProvider у Consumer3
+                      child:
+                          Consumer3<
+                            CategoryProvider,
+                            TransactionProvider,
+                            StatsProvider
+                          >(
+                            builder:
+                                (context, catProv, txProv, statsProv, child) {
+                                  // 👇 ЗМІНЕНО: Викликаємо метод з statsProv
+                                  final expenseMap = statsProv
+                                      .calculateCategoryTotalsForMonth(
+                                        txProv.selectedMonth,
+                                        true,
+                                        inBaseCurrency: false,
+                                      );
+                                  final displayExpenses = catProv.expenses
+                                      .map(
+                                        (c) => c.copyWith(
+                                          amount: expenseMap[c.id] ?? 0.0,
+                                        ),
+                                      )
+                                      .toList();
+                                  return _buildSection(
+                                    displayExpenses,
+                                    CategoryType.expense,
+                                    isTarget: true,
+                                    isGrid: true,
+                                  );
+                                },
+                          ),
                     ),
                   ],
                 ),
@@ -499,6 +526,31 @@ class _HomeScreenState extends State<HomeScreen>
             );
           },
         ),
+      ),
+    );
+  }
+
+  void _openHistoryBottomSheet(
+    BuildContext context,
+    String title,
+    CategoryType type,
+  ) {
+    final txProv = context.read<TransactionProvider>();
+    final catProv = context.read<CategoryProvider>();
+    final allCategories = catProv.allCategoriesList;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => GeneralHistoryBottomSheet(
+        title: title,
+        filterType: type,
+        transactions: txProv.history,
+        allCategories: allCategories,
+        onDelete: (t) =>
+            context.read<TransactionProvider>().deleteTransaction(t),
+        onEdit: (t) => _handleEditTransaction(t, allCategories),
       ),
     );
   }
@@ -680,7 +732,7 @@ class _HomeScreenState extends State<HomeScreen>
         onDraggableCanceled: (_, _) => setState(() => draggedCategoryId = null),
         feedback: dragFeedback,
         childWhenDragging: placeholderCoin,
-        child: normalCoin,
+        child: isBeingDragged ? placeholderCoin : normalCoin,
       );
     }
 
@@ -698,8 +750,8 @@ class _HomeScreenState extends State<HomeScreen>
         backgroundColor: Colors.transparent,
         builder: (_) => Builder(
           builder: (ctx) {
-            final catProv = context.watch<CategoryProvider>();
-            final txProv = context.watch<TransactionProvider>();
+            final catProv = context.read<CategoryProvider>();
+            final txProv = context.read<TransactionProvider>();
             return HistoryBottomSheet(
               category: c,
               transactions: txProv.history,

@@ -16,6 +16,7 @@ import 'providers/transaction_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/stats_provider.dart';
 import 'theme/app_theme.dart';
 import 'services/storage_service.dart';
 
@@ -102,6 +103,17 @@ void main() async {
             create: (_) => SubscriptionProvider(),
             update: (_, catProv, txProv, settingsProv, subProv) =>
                 subProv!..updateDependencies(catProv, txProv, settingsProv),
+          ),
+
+          // 5. Провайдер статистики (Спеціалізований мозок для графіків)
+          ChangeNotifierProxyProvider2<
+            TransactionProvider,
+            CategoryProvider,
+            StatsProvider
+          >(
+            create: (_) => StatsProvider(),
+            update: (_, txProv, catProv, statsProv) =>
+                statsProv!..updateDependencies(txProv, catProv),
           ),
         ],
         child: DevicePreview(

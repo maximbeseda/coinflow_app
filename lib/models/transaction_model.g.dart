@@ -21,19 +21,20 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       fromId: fields[1] as String,
       toId: fields[2] as String,
       title: fields[3] as String,
-      amount: fields[4] as double,
-      date: fields[5] as DateTime,
-      currency: fields[6] == null ? 'UAH' : fields[6] as String,
-      exchangeRate: fields[7] == null ? 1.0 : fields[7] as double,
-      targetAmount: fields[8] as double?,
-      targetCurrency: fields[9] as String?,
+      date: fields[4] as DateTime,
+      amount: fields[5] as double,
+      currency: fields[6] as String,
+      targetAmount: fields[7] as double?,
+      targetCurrency: fields[8] as String?,
+      baseAmount: fields[9] == null ? 0.0 : fields[9] as double,
+      baseCurrency: fields[10] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, Transaction obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -43,17 +44,19 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       ..writeByte(3)
       ..write(obj.title)
       ..writeByte(4)
-      ..write(obj.amount)
-      ..writeByte(5)
       ..write(obj.date)
+      ..writeByte(5)
+      ..write(obj.amount)
       ..writeByte(6)
       ..write(obj.currency)
       ..writeByte(7)
-      ..write(obj.exchangeRate)
-      ..writeByte(8)
       ..write(obj.targetAmount)
+      ..writeByte(8)
+      ..write(obj.targetCurrency)
       ..writeByte(9)
-      ..write(obj.targetCurrency);
+      ..write(obj.baseAmount)
+      ..writeByte(10)
+      ..write(obj.baseCurrency);
   }
 
   @override

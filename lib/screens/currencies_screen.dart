@@ -6,10 +6,18 @@ import '../models/app_currency.dart';
 import '../utils/date_formatter.dart';
 import '../theme/app_colors_extension.dart';
 
-class CurrenciesScreen extends StatelessWidget {
+// 👇 ЗМІНЕНО: Тепер це StatefulWidget для локального керування статусами
+class CurrenciesScreen extends StatefulWidget {
   const CurrenciesScreen({super.key});
 
-  // 👇 ДОДАНО: Спеціальний форматер курсу для списку валют
+  @override
+  State<CurrenciesScreen> createState() => _CurrenciesScreenState();
+}
+
+class _CurrenciesScreenState extends State<CurrenciesScreen> {
+  bool _isUpdating = false;
+  String? _errorMessage;
+
   String _formatRate(double val) {
     String formatted = val.toStringAsFixed(4);
     if (formatted.contains('.')) {
@@ -21,8 +29,10 @@ class CurrenciesScreen extends StatelessWidget {
     return formatted;
   }
 
-  void _showAddCurrencyDialog(BuildContext context, SettingsProvider settings) {
+  void _showAddCurrencyDialog(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
+    final settings = context.read<SettingsProvider>();
+
     final availableCurrencies = AppCurrency.supportedCurrencies
         .where((c) => !settings.selectedCurrencies.contains(c.code))
         .toList();
@@ -92,7 +102,9 @@ class CurrenciesScreen extends StatelessWidget {
                         style: TextStyle(color: colors.textMain),
                       ),
                       onTap: () {
-                        settings.toggleSelectedCurrency(currency.code);
+                        context.read<SettingsProvider>().toggleSelectedCurrency(
+                          currency.code,
+                        );
                         Navigator.pop(ctx);
                       },
                     );
@@ -105,11 +117,91 @@ class CurrenciesScreen extends StatelessWidget {
     );
   }
 
+  // 👇 ДОДАНО: Елегантне локальне оновлення без спливаючих вікон
+  Future<void> _handleRefresh() async {
+    if (_isUpdating) return;
+
+    setState(() {
+      _isUpdating = true;
+      _errorMessage = null;
+    });
+
+    final success = await context.read<SettingsProvider>().forceUpdateRates();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isUpdating = false;
+      if (!success) {
+        _errorMessage = 'rates_update_error'.tr();
+      }
+    });
+
+    // Якщо помилка — показуємо її 3 секунди, а потім повертаємо час останнього оновлення
+    if (!success) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _errorMessage = null;
+          });
+        }
+      });
+    }
+  }
+
+  // 👇 ДОДАНО: Віджет статусу (Час / Завантаження / Помилка)
+  Widget _buildStatusRow(AppColorsExtension colors, SettingsProvider settings) {
+    if (_errorMessage != null) {
+      return Row(
+        children: [
+          Icon(Icons.error_outline, size: 14, color: colors.expense),
+          const SizedBox(width: 8),
+          Text(
+            _errorMessage!,
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.expense,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    } else if (_isUpdating) {
+      return Row(
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'updating_rates'.tr(),
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          ),
+        ],
+      );
+    } else if (settings.lastRatesUpdate != null) {
+      return Row(
+        children: [
+          Icon(Icons.access_time, size: 14, color: colors.textSecondary),
+          const SizedBox(width: 8),
+          Text(
+            '${'last_update'.tr()}: ${DateFormatter.formatWithTime(settings.lastRatesUpdate!)}',
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          ),
+        ],
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    final settings = context.watch<SettingsProvider>();
-    final baseCurrency = AppCurrency.fromCode(settings.baseCurrency);
 
     return Scaffold(
       backgroundColor: colors.bgGradientStart,
@@ -122,90 +214,93 @@ class CurrenciesScreen extends StatelessWidget {
           style: TextStyle(color: colors.textMain, fontWeight: FontWeight.bold),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('updating_rates'.tr()),
-                  duration: const Duration(seconds: 1),
+          // 👇 ЗМІНЕНО: Якщо вантажиться — показуємо лоадер замість кнопки
+          _isUpdating
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.textMain,
+                      ),
+                    ),
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _handleRefresh,
                 ),
-              );
-              await settings.forceUpdateRates();
-            },
-          ),
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            if (settings.lastRatesUpdate != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 8.0,
-                  horizontal: 16.0,
+        child: Consumer<SettingsProvider>(
+          builder: (context, settings, child) {
+            final baseCurrency = AppCurrency.fromCode(settings.baseCurrency);
+
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8.0,
+                    horizontal: 16.0,
+                  ),
+                  // 👇 ВИКЛИК інлайн-статусу
+                  child: _buildStatusRow(colors, settings),
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.access_time,
-                      size: 14,
-                      color: colors.textSecondary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${'last_update'.tr()}: ${DateFormatter.formatWithTime(settings.lastRatesUpdate!)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textSecondary,
+                Expanded(
+                  child: RefreshIndicator(
+                    color: colors.income,
+                    backgroundColor: colors.cardBg,
+                    onRefresh: _handleRefresh,
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
                       ),
+                      padding: const EdgeInsets.all(16),
+                      itemCount: settings.selectedCurrencies.length,
+                      itemBuilder: (context, index) {
+                        final code = settings.selectedCurrencies[index];
+                        final currency = AppCurrency.fromCode(code);
+
+                        if (code == settings.baseCurrency) {
+                          return _buildCurrencyCard(
+                            context,
+                            currency: currency,
+                            isBase: true,
+                            rateText: 'base_currency'.tr(),
+                            colors: colors,
+                          );
+                        }
+
+                        final rate = settings.exchangeRates[code];
+                        final rateText = rate != null
+                            ? "1 ${currency.symbol} = ${_formatRate(1 / rate)} ${baseCurrency.symbol}"
+                            : 'loading'.tr();
+
+                        return _buildCurrencyCard(
+                          context,
+                          currency: currency,
+                          isBase: false,
+                          rateText: rateText,
+                          colors: colors,
+                          onDelete: () => settings.toggleSelectedCurrency(code),
+                        );
+                      },
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: settings.selectedCurrencies.length,
-                itemBuilder: (context, index) {
-                  final code = settings.selectedCurrencies[index];
-                  final currency = AppCurrency.fromCode(code);
-
-                  if (code == settings.baseCurrency) {
-                    return _buildCurrencyCard(
-                      context,
-                      currency: currency,
-                      isBase: true,
-                      rateText: 'base_currency'.tr(),
-                      colors: colors,
-                    );
-                  }
-
-                  final rate = settings.exchangeRates[code];
-
-                  // 👇 ЗМІНЕНО: Використовуємо наш новий форматер до 4 знаків
-                  final rateText = rate != null
-                      ? "1 ${currency.symbol} = ${_formatRate(1 / rate)} ${baseCurrency.symbol}"
-                      : "loading".tr();
-
-                  return _buildCurrencyCard(
-                    context,
-                    currency: currency,
-                    isBase: false,
-                    rateText: rateText,
-                    colors: colors,
-                    onDelete: () => settings.toggleSelectedCurrency(code),
-                  );
-                },
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: colors.income,
         child: const Icon(Icons.add, color: Colors.white),
-        onPressed: () => _showAddCurrencyDialog(context, settings),
+        onPressed: () => _showAddCurrencyDialog(context),
       ),
     );
   }
@@ -222,7 +317,7 @@ class CurrenciesScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: colors.cardBg,
-        borderRadius: BorderRadius.circular(12), // Строгий дизайн 12
+        borderRadius: BorderRadius.circular(12),
         border: isBase
             ? Border.all(color: colors.income.withValues(alpha: 0.5), width: 1)
             : null,

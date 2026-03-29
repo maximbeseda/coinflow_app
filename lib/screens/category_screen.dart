@@ -465,8 +465,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
     if (!mounted) return;
 
-    // Якщо користувач підтвердив, закриваємо екран категорії
-    // і передаємо команду 'delete' на головний екран для анімації
     if (confirmed) {
       Navigator.pop(context, 'delete');
     }
@@ -475,7 +473,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    final settings = context.watch<SettingsProvider>();
+    // ОПТИМІЗАЦІЯ: read замість watch для статичного читання налаштувань
+    final settings = context.read<SettingsProvider>();
 
     Color previewBgColor = CategoryDefaults.getBgColor(widget.type);
     Color previewIconColor = CategoryDefaults.getIconColor(widget.type);
@@ -765,7 +764,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
       inputFormatters: isNumber
           ? [
               TextInputFormatter.withFunction((oldValue, newValue) {
-                // 👇 Видаляємо пробіли і коми для чистої логіки
+                // Видаляємо пробіли і коми для чистої логіки
                 String text = newValue.text
                     .replaceAll(',', '.')
                     .replaceAll(' ', '');
@@ -794,7 +793,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   decPart = decPart.substring(0, 2);
                 }
 
-                // 👇 МАГІЯ ТУТ: Додаємо пробіли кожні 3 цифри в цілу частину
+                // МАГІЯ ТУТ: Додаємо пробіли кожні 3 цифри в цілу частину
                 String formattedInt = intPart.replaceAllMapped(
                   RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
                   (Match m) => '${m[1]} ',

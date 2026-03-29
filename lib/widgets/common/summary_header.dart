@@ -6,6 +6,7 @@ import '../../theme/app_colors_extension.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/settings_provider.dart'; // ДОДАНО: Для доступу до базової валюти
 import '../../models/app_currency.dart'; // ДОДАНО: Для отримання символу валюти
+import 'animated_dots.dart';
 
 class SummaryHeader extends StatelessWidget {
   final double totalBalance;
@@ -15,6 +16,7 @@ class SummaryHeader extends StatelessWidget {
   final VoidCallback onIncomesTap;
   final VoidCallback onExpensesTap;
   final VoidCallback onSettingsTap;
+  final bool isMigrating;
 
   const SummaryHeader({
     super.key,
@@ -25,6 +27,7 @@ class SummaryHeader extends StatelessWidget {
     required this.onIncomesTap,
     required this.onExpensesTap,
     required this.onSettingsTap,
+    this.isMigrating = false,
   });
 
   @override
@@ -53,7 +56,7 @@ class SummaryHeader extends StatelessWidget {
               colors.textMain,
               onBalanceTap,
               colors,
-              baseCurrencySymbol, // Передаємо символ валюти
+              baseCurrencySymbol,
             ),
             _item(
               Icons.north_east,
@@ -61,7 +64,7 @@ class SummaryHeader extends StatelessWidget {
               colors.income,
               onIncomesTap,
               colors,
-              baseCurrencySymbol, // Передаємо символ валюти
+              baseCurrencySymbol,
             ),
             _item(
               Icons.south_east,
@@ -69,7 +72,7 @@ class SummaryHeader extends StatelessWidget {
               colors.expense,
               onExpensesTap,
               colors,
-              baseCurrencySymbol, // Передаємо символ валюти
+              baseCurrencySymbol,
             ),
 
             GestureDetector(
@@ -122,7 +125,7 @@ class SummaryHeader extends StatelessWidget {
     Color color,
     VoidCallback onTap,
     AppColorsExtension colors,
-    String currencySymbol, // ДОДАНО: Приймаємо символ валюти
+    String currencySymbol,
   ) {
     String formattedAmount = CurrencyFormatter.format(amount, isHeader: true);
 
@@ -139,28 +142,53 @@ class SummaryHeader extends StatelessWidget {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
+                // 👇 МАГІЯ ТУТ: Використовуємо Stack для накладання
+                child: Stack(
+                  alignment: Alignment.centerLeft,
                   children: [
-                    for (int i = 0; i < formattedAmount.length; i++)
-                      RollingDigit(
-                        char: formattedAmount[i],
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                        ),
-                      ),
-                    Text(
-                      " $currencySymbol", // ЗМІНЕНО: Динамічний символ валюти замість "₴"
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: color.withValues(alpha: 0.6),
+                    // 1. КАРКАС: Прозорі цифри, які тримають ширину під час міграції
+                    Opacity(
+                      opacity: isMigrating ? 0.0 : 1.0,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          for (int i = 0; i < formattedAmount.length; i++)
+                            RollingDigit(
+                              char: formattedAmount[i],
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: color,
+                              ),
+                            ),
+                          Text(
+                            " $currencySymbol",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: color.withValues(alpha: 0.6),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+
+                    // 2. КРАПКИ: З'являються рівно поверх зарезервованого місця
+                    if (isMigrating)
+                      Positioned.fill(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: AnimatedDots(
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: color,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

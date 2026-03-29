@@ -17,26 +17,7 @@ class TransactionProvider extends ChangeNotifier {
     1,
   );
   bool isLoading = true;
-
-  DateTime? _cachedMonth;
-  List<Transaction> _cachedMonthHistory = [];
-
-  List<Transaction> _getHistoryForMonth(DateTime month) {
-    if (_cachedMonth != null &&
-        _cachedMonth!.year == month.year &&
-        _cachedMonth!.month == month.month) {
-      return _cachedMonthHistory;
-    }
-    _cachedMonth = month;
-    _cachedMonthHistory = history
-        .where((t) => t.date.year == month.year && t.date.month == month.month)
-        .toList();
-    return _cachedMonthHistory;
-  }
-
-  void _invalidateCache() {
-    _cachedMonth = null;
-  }
+  bool isMigrating = false;
 
   TransactionProvider() {
     loadHistory();
@@ -52,17 +33,11 @@ class TransactionProvider extends ChangeNotifier {
     if (_settingsProv != null) {
       final currentBase = _settingsProv!.baseCurrency;
 
-      // 👇 МАГІЯ ТУТ: Якщо валюта змінилася (і це не перша ініціалізація)
+      // Якщо базову валюту змінено — запускаємо міграцію ТІЛЬКИ для поточного місяця
       if (_lastKnownBaseCurrency != null &&
           _lastKnownBaseCurrency != currentBase) {
-        debugPrint(
-          "🔄 Виявлено зміну базової валюти з $_lastKnownBaseCurrency на $currentBase. Запуск фонової міграції...",
-        );
-
-        // Запускаємо міграцію без await, щоб не блокувати UI!
-        runExchangeRateMigration();
+        _migrateCurrentMonthBaseCurrency(currentBase);
       }
-
       _lastKnownBaseCurrency = currentBase;
     }
 
@@ -77,10 +52,11 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   Future<void> loadHistory() async {
+    // 👇 ДОДАЙ ЦЕЙ РЯДОК ТІЛЬКИ ДЛЯ ТЕСТУ:
+    await Future.delayed(const Duration(seconds: 2));
     final loadedHistory = await StorageService.loadHistory();
     loadedHistory.sort((a, b) => b.date.compareTo(a.date));
     history = loadedHistory;
-    _invalidateCache();
     isLoading = false;
     notifyListeners();
   }
@@ -100,178 +76,32 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   // =======================================================
-  // ЛОГІКА ФІКСАЦІЇ ІСТОРИЧНОГО КУРСУ
+  // ВНУТРІШНІЙ МЕТОД: Підрахунок базової суми з жорстким заокругленням
   // =======================================================
-  Future<void> _fetchAndSetExactRate(Transaction tx) async {
-    if (_settingsProv == null) return;
+  double _calculateBaseAmount(
+    double amount,
+    String currency,
+    double? targetAmount,
+    String? targetCurrency,
+    String baseCur,
+  ) {
+    // 1. Якщо валюта списання — це і є базова валюта
+    if (currency == baseCur) return amount;
 
-    final currentBase = _settingsProv!.baseCurrency;
+    // 2. Якщо валюта зарахування — це і є базова валюта
+    if (targetCurrency == baseCur && targetAmount != null) return targetAmount;
 
-    // 1. ЗАХИСТ КАСТОМНОГО КУРСУ:
-    // Якщо користувач ввів суми вручну і одна з них - базова валюта, курс ВЖЕ відомий з ідеальною точністю!
-    if (tx.targetAmount != null &&
-        tx.targetCurrency != null &&
-        tx.currency != tx.targetCurrency) {
-      if (tx.targetCurrency == currentBase) {
-        double customRate = tx.targetAmount! / tx.amount;
-        // Оновлюємо і зберігаємо, тільки якщо база змінилася або була помилка збереження
-        if ((tx.exchangeRate - customRate).abs() > 0.0001 ||
-            tx.rateBaseCurrency != currentBase) {
-          tx.exchangeRate = customRate;
-          tx.rateBaseCurrency = currentBase;
-          StorageService.saveTransaction(tx);
-          _invalidateCache();
-          notifyListeners();
-        }
-        return; // ВИХОДИМО! Забороняємо API змінювати цей курс
-      }
-      if (tx.currency == currentBase) {
-        if (tx.exchangeRate != 1.0 || tx.rateBaseCurrency != currentBase) {
-          tx.exchangeRate = 1.0;
-          tx.rateBaseCurrency = currentBase;
-          StorageService.saveTransaction(tx);
-          _invalidateCache();
-          notifyListeners();
-        }
-        return; // ВИХОДИМО!
-      }
-    }
+    // 3. Інакше рахуємо крос-курс через кеш
+    double fromRate = _settingsProv?.exchangeRates[currency] ?? 1.0;
+    double toRate = _settingsProv?.exchangeRates[baseCur] ?? 1.0;
 
-    // 2. Якщо валюта базова
-    if (tx.currency == currentBase) {
-      if (tx.exchangeRate != 1.0 || tx.rateBaseCurrency != currentBase) {
-        tx.exchangeRate = 1.0;
-        tx.rateBaseCurrency = currentBase;
-        StorageService.saveTransaction(tx);
-      }
-      return;
-    }
+    if (fromRate == 0) fromRate = 1.0; // Захист від ділення на нуль
 
-    // 3. Лише для всіх інших (звичайних валютних) випадків - йдемо в API за офіційним історичним курсом
-    double? historicalRate = await _settingsProv!.getRateForDate(
-      tx.currency,
-      tx.date,
-    );
-    double? historicalBase = await _settingsProv!.getRateForDate(
-      currentBase,
-      tx.date,
-    );
+    // 👇 ПРАВИЛЬНА МАТЕМАТИКА ДЛЯ ІНВЕРТОВАНИХ КУРСІВ API
+    double calculated = amount * (toRate / fromRate);
 
-    if (historicalRate != null) {
-      double bRate = historicalBase ?? 1.0;
-      double newRate = bRate / historicalRate;
-
-      if ((tx.exchangeRate - newRate).abs() > 0.0001 ||
-          tx.rateBaseCurrency != currentBase) {
-        tx.exchangeRate = newRate;
-        tx.rateBaseCurrency = currentBase;
-        StorageService.saveTransaction(tx);
-        _invalidateCache();
-        notifyListeners();
-      }
-    }
-  }
-
-  Map<String, double> calculateTotalsForMonth(DateTime month) {
-    double totalExpenses = 0.0;
-    double totalIncomes = 0.0;
-
-    if (_catProv == null || _settingsProv == null) {
-      return {'expenses': 0.0, 'incomes': 0.0};
-    }
-
-    final baseCurrency = _settingsProv!.baseCurrency;
-    final rates = _settingsProv!.exchangeRates;
-
-    // ДОПОМІЖНА ФУНКЦІЯ: Читає зафіксований курс З УРАХУВАННЯМ БАЗОВОЇ ВАЛЮТИ
-    double getRate(Transaction tx) {
-      if (tx.currency == baseCurrency) return 1.0;
-
-      // Бронебійний захист: Використовуємо курс, ТІЛЬКИ якщо він був збережений для поточної бази
-      // 👇 ВИПРАВЛЕННЯ: Дозволяємо null для транзакцій, збережених до додавання поля rateBaseCurrency
-      if ((tx.rateBaseCurrency == baseCurrency ||
-              tx.rateBaseCurrency == null) &&
-          tx.exchangeRate != 1.0) {
-        return tx.exchangeRate;
-      }
-
-      // Фолбек, якщо валюту змінили і мігратор ще не відпрацював
-      double txRate = rates[tx.currency] ?? 1.0;
-      double baseRate = rates[baseCurrency] ?? 1.0;
-      return baseRate / txRate;
-    }
-
-    final monthHistory = _getHistoryForMonth(month);
-
-    for (var tx in monthHistory) {
-      bool isExpense = _catProv!.expenses.any((c) => c.id == tx.toId);
-      bool isIncome = _catProv!.incomes.any((c) => c.id == tx.fromId);
-
-      if (isExpense) totalExpenses += tx.amount * getRate(tx);
-      if (isIncome) totalIncomes += tx.amount * getRate(tx);
-    }
-
-    return {'expenses': totalExpenses, 'incomes': totalIncomes};
-  }
-
-  Map<String, double> calculateCategoryTotalsForMonth(
-    DateTime month,
-    bool isExpenses, {
-    bool inBaseCurrency = true,
-  }) {
-    Map<String, double> totals = {};
-
-    if (_catProv == null || _settingsProv == null) return totals;
-
-    final baseCurrency = _settingsProv!.baseCurrency;
-    final rates = _settingsProv!.exchangeRates;
-
-    // ДОПОМІЖНА ФУНКЦІЯ: Читає зафіксований курс З УРАХУВАННЯМ БАЗОВОЇ ВАЛЮТИ
-    double getRate(Transaction tx) {
-      if (tx.currency == baseCurrency) return 1.0;
-
-      // Бронебійний захист: Використовуємо курс, ТІЛЬКИ якщо він був збережений для поточної бази
-      // 👇 ВИПРАВЛЕННЯ: Дозволяємо null для транзакцій, збережених до додавання поля rateBaseCurrency
-      if ((tx.rateBaseCurrency == baseCurrency ||
-              tx.rateBaseCurrency == null) &&
-          tx.exchangeRate != 1.0) {
-        return tx.exchangeRate;
-      }
-
-      // Фолбек, якщо валюту змінили і мігратор ще не відпрацював
-      double txRate = rates[tx.currency] ?? 1.0;
-      double baseRate = rates[baseCurrency] ?? 1.0;
-      return baseRate / txRate;
-    }
-
-    final monthHistory = _getHistoryForMonth(month);
-
-    for (var tx in monthHistory) {
-      if (isExpenses) {
-        bool isExpenseCat = _catProv!.expenses.any((c) => c.id == tx.toId);
-        if (isExpenseCat) {
-          double value;
-          if (inBaseCurrency) {
-            value = tx.amount * getRate(tx);
-          } else {
-            value = tx.targetAmount ?? tx.amount;
-          }
-          totals[tx.toId] = (totals[tx.toId] ?? 0.0) + value;
-        }
-      } else {
-        bool isIncomeCat = _catProv!.incomes.any((c) => c.id == tx.fromId);
-        if (isIncomeCat) {
-          double value;
-          if (inBaseCurrency) {
-            value = tx.amount * getRate(tx);
-          } else {
-            value = tx.amount;
-          }
-          totals[tx.fromId] = (totals[tx.fromId] ?? 0.0) + value;
-        }
-      }
-    }
-    return totals;
+    // Жорстке обрізання до копійок для точності double
+    return double.parse(calculated.toStringAsFixed(2));
   }
 
   void _updateAccountBalance(String categoryId, double delta) {
@@ -283,6 +113,28 @@ class TransactionProvider extends ChangeNotifier {
     if (category != null && category.type == CategoryType.account) {
       _catProv!.updateCategoryAmount(categoryId, delta);
     }
+  }
+
+  // =======================================================
+  // ДОДАВАННЯ ТА РЕДАГУВАННЯ ТРАНЗАКЦІЙ
+  // =======================================================
+  void addTransactionDirectly(Transaction tx) {
+    if (_settingsProv == null) return;
+    final currentBase = _settingsProv!.baseCurrency;
+
+    // Гарантуємо, що транзакція збережеться з ідеальними базовими значеннями
+    tx.baseCurrency = currentBase;
+    tx.baseAmount = _calculateBaseAmount(
+      tx.amount,
+      tx.currency,
+      tx.targetAmount,
+      tx.targetCurrency,
+      currentBase,
+    );
+
+    history.add(tx);
+    StorageService.saveHistory(history);
+    notifyListeners();
   }
 
   void addTransfer(
@@ -299,6 +151,15 @@ class TransactionProvider extends ChangeNotifier {
       _catProv?.updateCategoryAmount(target.id, targetAmount ?? amount);
     }
 
+    final currentBase = _settingsProv?.baseCurrency ?? 'UAH';
+    final baseAmt = _calculateBaseAmount(
+      amount,
+      source.currency,
+      targetAmount,
+      targetAmount != null ? target.currency : null,
+      currentBase,
+    );
+
     final newTx = Transaction(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       fromId: source.id,
@@ -309,9 +170,13 @@ class TransactionProvider extends ChangeNotifier {
       currency: source.currency,
       targetAmount: targetAmount,
       targetCurrency: targetAmount != null ? target.currency : null,
+      baseAmount: baseAmt,
+      baseCurrency: currentBase,
     );
 
-    addTransactionDirectly(newTx);
+    history.add(newTx);
+    StorageService.saveHistory(history);
+    notifyListeners();
   }
 
   void editTransaction(
@@ -324,7 +189,6 @@ class TransactionProvider extends ChangeNotifier {
     _updateAccountBalance(oldT.toId, -(oldT.targetAmount ?? oldT.amount));
 
     final double previousAmount = oldT.amount;
-
     oldT.amount = newAmount;
     oldT.date = newDate;
 
@@ -339,12 +203,23 @@ class TransactionProvider extends ChangeNotifier {
     _updateAccountBalance(oldT.fromId, -oldT.amount);
     _updateAccountBalance(oldT.toId, oldT.targetAmount ?? oldT.amount);
 
-    // Асинхронно оновлюємо курс, оскільки дата могла змінитися
-    _fetchAndSetExactRate(oldT);
+    // Зберігаємо стару базову валюту (історичність!), але пропорційно змінюємо суму
+    if (previousAmount > 0) {
+      double scaledBase = oldT.baseAmount * (newAmount / previousAmount);
+      oldT.baseAmount = double.parse(scaledBase.toStringAsFixed(2));
+    } else {
+      // Запасний варіант, якщо попередня сума була 0
+      oldT.baseAmount = _calculateBaseAmount(
+        newAmount,
+        oldT.currency,
+        oldT.targetAmount,
+        oldT.targetCurrency,
+        oldT.baseCurrency,
+      );
+    }
 
     StorageService.saveTransaction(oldT);
     history.sort((a, b) => b.date.compareTo(a.date));
-    _invalidateCache();
     notifyListeners();
   }
 
@@ -354,137 +229,46 @@ class TransactionProvider extends ChangeNotifier {
 
     history.removeWhere((item) => item.id == t.id);
     StorageService.removeTransaction(t.id);
-    _invalidateCache();
-    notifyListeners();
-  }
-
-  void addTransactionDirectly(Transaction tx) {
-    // 👇 НОВА ЛОГІКА: Миттєве обчислення кастомного курсу
-    if (_settingsProv != null) {
-      final currentBase = _settingsProv!.baseCurrency;
-
-      // Якщо це мультивалютна транзакція (користувач ввів обидві суми)
-      if (tx.targetAmount != null &&
-          tx.targetCurrency != null &&
-          tx.currency != tx.targetCurrency) {
-        if (tx.targetCurrency == currentBase) {
-          tx.exchangeRate =
-              tx.targetAmount! / tx.amount; // Вираховуємо точний кастомний курс
-          tx.rateBaseCurrency = currentBase;
-        } else if (tx.currency == currentBase) {
-          tx.exchangeRate = 1.0;
-          tx.rateBaseCurrency = currentBase;
-        } else {
-          // Якщо обидві валюти іноземні - беремо тимчасовий живий курс
-          double txRate = _settingsProv!.exchangeRates[tx.currency] ?? 1.0;
-          double baseRate = _settingsProv!.exchangeRates[currentBase] ?? 1.0;
-          tx.exchangeRate = baseRate / txRate;
-          tx.rateBaseCurrency = currentBase;
-        }
-      } else {
-        // Звичайна одновалютна транзакція
-        if (tx.currency == currentBase) {
-          tx.exchangeRate = 1.0;
-          tx.rateBaseCurrency = currentBase;
-        } else {
-          double txRate = _settingsProv!.exchangeRates[tx.currency] ?? 1.0;
-          double baseRate = _settingsProv!.exchangeRates[currentBase] ?? 1.0;
-          tx.exchangeRate = baseRate / txRate;
-          tx.rateBaseCurrency = currentBase;
-        }
-      }
-    }
-
-    _updateAccountBalance(tx.fromId, -tx.amount);
-    _updateAccountBalance(tx.toId, tx.targetAmount ?? tx.amount);
-
-    int insertIndex = 0;
-    for (int i = 0; i < history.length; i++) {
-      if (tx.date.isAfter(history[i].date) ||
-          tx.date.isAtSameMomentAs(history[i].date)) {
-        insertIndex = i;
-        break;
-      }
-      if (i == history.length - 1) insertIndex = history.length;
-    }
-
-    history.insert(insertIndex, tx);
-    StorageService.saveTransaction(tx);
-
-    // Асинхронно підтягуємо точний історичний курс через API, якщо транзакція в минулому
-    _fetchAndSetExactRate(tx);
-
-    _invalidateCache();
     notifyListeners();
   }
 
   // =======================================================
-  // СКРИПТ МІГРАЦІЇ: Оновлення старих транзакцій
+  // МІГРАЦІЯ ПОТОЧНОГО МІСЯЦЯ (При зміні базової валюти)
   // =======================================================
-  Future<int> runExchangeRateMigration() async {
-    if (_settingsProv == null) return 0;
-
-    final baseCurrency = _settingsProv!.baseCurrency;
-    int migratedCount = 0;
-
-    // 1. Знаходимо транзакції, де курс не зафіксовано, АБО де базова валюта курсу не збігається з поточною базою додатка!
-    final transactionsToMigrate = history
-        .where(
-          (tx) =>
-              tx.currency != baseCurrency &&
-              (tx.exchangeRate == 1.0 || tx.rateBaseCurrency != baseCurrency),
-        )
+  Future<void> _migrateCurrentMonthBaseCurrency(String newBase) async {
+    final now = DateTime.now();
+    // Вибираємо тільки транзакції поточного місяця
+    final currentMonthTxs = history
+        .where((tx) => tx.date.year == now.year && tx.date.month == now.month)
         .toList();
 
-    if (transactionsToMigrate.isEmpty) {
-      return 0; // Міграція не потрібна
+    if (currentMonthTxs.isEmpty) return;
+
+    isMigrating = true;
+    notifyListeners();
+
+    for (var tx in currentMonthTxs) {
+      if (tx.baseCurrency == newBase) continue;
+
+      tx.baseAmount = _calculateBaseAmount(
+        tx.amount,
+        tx.currency,
+        tx.targetAmount,
+        tx.targetCurrency,
+        newBase,
+      );
+      tx.baseCurrency = newBase;
+
+      StorageService.saveTransaction(tx);
     }
 
-    // 2. Проходимося по кожній і підтягуємо історичний курс
-    for (var tx in transactionsToMigrate) {
-      try {
-        double? historicalRate = await _settingsProv!.getRateForDate(
-          tx.currency,
-          tx.date,
-        );
-        double? historicalBase = await _settingsProv!.getRateForDate(
-          baseCurrency,
-          tx.date,
-        );
-
-        if (historicalRate != null) {
-          double bRate = historicalBase ?? 1.0;
-          double newRate = bRate / historicalRate;
-
-          // Оновлюємо і зберігаємо
-          tx.exchangeRate = newRate;
-          StorageService.saveTransaction(tx);
-          migratedCount++;
-
-          // ВАЖЛИВО: Робимо маленьку паузу (200 мілісекунд).
-          // Якщо старих транзакцій багато (наприклад 100+), ми не хочемо
-          // "заспамити" безкоштовне API курсів валют, щоб воно нас не заблокувало.
-          await Future.delayed(const Duration(milliseconds: 200));
-        }
-      } catch (e) {
-        debugPrint("Помилка міграції для транзакції ${tx.id}: $e");
-      }
-    }
-
-    // 3. Очищаємо кеш і оновлюємо UI після масових змін
-    if (migratedCount > 0) {
-      _invalidateCache();
-      notifyListeners();
-    }
-
-    return migratedCount;
+    isMigrating = false;
+    notifyListeners();
   }
-  // =======================================================
 
   Future<void> clearAllTransactions() async {
     history.clear();
     await StorageService.saveHistory([]);
-    _invalidateCache();
     notifyListeners();
   }
 }

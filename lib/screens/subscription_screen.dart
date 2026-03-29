@@ -10,7 +10,7 @@ import '../models/subscription_model.dart';
 import '../models/app_currency.dart';
 import '../models/category_model.dart';
 import '../utils/app_constants.dart';
-import '../utils/date_formatter.dart'; // Використовується!
+import '../utils/date_formatter.dart';
 import '../widgets/dialogs/premium_date_picker.dart';
 import '../theme/app_colors_extension.dart';
 
@@ -167,7 +167,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     ctrl.text = list.firstWhereOrNull((c) => c.id == id)?.name ?? '';
   }
 
-  // 👇 ВИПРАВЛЕНО: Використовуємо наш новий DateFormatter
   void _updateDateText(DateTime date) {
     _dateCtrl.text = DateFormatter.formatFull(date);
   }
@@ -825,7 +824,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       inputFormatters: isNumber
           ? [
               TextInputFormatter.withFunction((oldValue, newValue) {
-                // Видаляємо пробіли і коми для чистої логіки
                 String text = newValue.text
                     .replaceAll(',', '.')
                     .replaceAll(' ', '');
@@ -854,7 +852,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   decPart = decPart.substring(0, 2);
                 }
 
-                // Додаємо пробіли кожні 3 цифри в цілу частину
                 String formattedInt = intPart.replaceAllMapped(
                   RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
                   (Match m) => '${m[1]} ',
@@ -992,7 +989,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    final catProv = context.watch<CategoryProvider>();
+    // 👇 ОПТИМІЗАЦІЯ: Змінено watch на read для уникнення зайвих перемальовувань
+    final catProv = context.read<CategoryProvider>();
     final isEditing = widget.subscription != null;
 
     final currencySymbol = AppCurrency.fromCode(

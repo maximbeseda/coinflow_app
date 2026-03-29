@@ -7,7 +7,7 @@ import '../models/subscription_model.dart';
 import '../models/category_model.dart';
 import '../models/app_currency.dart';
 import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart'; // <-- ДОДАНО: Імпорт нашої утиліти
+import '../utils/date_formatter.dart';
 import '../screens/subscription_screen.dart';
 import '../theme/app_colors_extension.dart';
 
@@ -42,8 +42,6 @@ class SubscriptionsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subProv = context.watch<SubscriptionProvider>();
-    final catProv = context.watch<CategoryProvider>();
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Container(
@@ -103,8 +101,11 @@ class SubscriptionsScreen extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: subProv.subscriptions.isEmpty
-                  ? Center(
+              // 👇 ОПТИМІЗАЦІЯ: Перемальовуємо тільки список, і тільки коли змінюються підписки або категорії
+              child: Consumer2<SubscriptionProvider, CategoryProvider>(
+                builder: (context, subProv, catProv, child) {
+                  if (subProv.subscriptions.isEmpty) {
+                    return Center(
                       child: Text(
                         'no_subscriptions'.tr(),
                         style: TextStyle(
@@ -112,342 +113,336 @@ class SubscriptionsScreen extends StatelessWidget {
                           fontSize: 16,
                         ),
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: subProv.subscriptions.length,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
-                      itemBuilder: (context, index) {
-                        final sub = subProv.subscriptions[index];
-                        final bool accountExists = catProv.accounts.any(
-                          (c) => c.id == sub.accountId,
-                        );
-                        final bool expenseExists = catProv.expenses.any(
-                          (c) => c.id == sub.categoryId,
-                        );
-                        final bool isBroken = !accountExists || !expenseExists;
+                    );
+                  }
 
-                        final category = catProv.expenses.firstWhere(
-                          (c) => c.id == sub.categoryId,
-                          orElse: () => Category(
-                            id: '',
-                            type: CategoryType.expense,
-                            name: 'unknown'.tr(),
-                            icon: Icons.help_outline,
-                            bgColor: colors.iconBg,
-                            iconColor: colors.textSecondary,
-                          ),
-                        );
+                  return ListView.builder(
+                    itemCount: subProv.subscriptions.length,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    itemBuilder: (context, index) {
+                      final sub = subProv.subscriptions[index];
+                      final bool accountExists = catProv.accounts.any(
+                        (c) => c.id == sub.accountId,
+                      );
+                      final bool expenseExists = catProv.expenses.any(
+                        (c) => c.id == sub.categoryId,
+                      );
+                      final bool isBroken = !accountExists || !expenseExists;
 
-                        final displayIcon = sub.customIconCodePoint != null
-                            ? IconData(
-                                sub.customIconCodePoint!,
-                                fontFamily: 'MaterialIcons',
-                              )
-                            : category.icon;
+                      final category = catProv.expenses.firstWhere(
+                        (c) => c.id == sub.categoryId,
+                        orElse: () => Category(
+                          id: '',
+                          type: CategoryType.expense,
+                          name: 'unknown'.tr(),
+                          icon: Icons.help_outline,
+                          bgColor: colors.iconBg,
+                          iconColor: colors.textSecondary,
+                        ),
+                      );
 
-                        final now = DateTime.now();
-                        final today = DateTime(now.year, now.month, now.day);
-                        final paymentDate = DateTime(
-                          sub.nextPaymentDate.year,
-                          sub.nextPaymentDate.month,
-                          sub.nextPaymentDate.day,
-                        );
-                        final isDue =
-                            paymentDate.isBefore(today) ||
-                            paymentDate.isAtSameMomentAs(today);
+                      final displayIcon = sub.customIconCodePoint != null
+                          ? IconData(
+                              sub.customIconCodePoint!,
+                              fontFamily: 'MaterialIcons',
+                            )
+                          : category.icon;
 
-                        final currencySymbol = AppCurrency.fromCode(
-                          sub.currency,
-                        ).symbol;
+                      final now = DateTime.now();
+                      final today = DateTime(now.year, now.month, now.day);
+                      final paymentDate = DateTime(
+                        sub.nextPaymentDate.year,
+                        sub.nextPaymentDate.month,
+                        sub.nextPaymentDate.day,
+                      );
+                      final isDue =
+                          paymentDate.isBefore(today) ||
+                          paymentDate.isAtSameMomentAs(today);
 
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
-                            color: colors.cardBg,
+                      final currencySymbol = AppCurrency.fromCode(
+                        sub.currency,
+                      ).symbol;
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: colors.cardBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: isBroken
+                              ? Border.all(
+                                  color: colors.expense.withValues(alpha: 0.5),
+                                  width: 1.5,
+                                )
+                              : null,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
                             borderRadius: BorderRadius.circular(12),
-                            border: isBroken
-                                ? Border.all(
-                                    color: colors.expense.withValues(
-                                      alpha: 0.5,
-                                    ),
-                                    width: 1.5,
-                                  )
-                                : null,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(12),
-                              onTap: () => _showSubscriptionDialog(
-                                context,
-                                subscription: sub,
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          width: 50,
-                                          height: 50,
-                                          decoration: BoxDecoration(
-                                            color: category.bgColor,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            displayIcon,
-                                            color: category.iconColor,
-                                            size: 24,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                sub.name,
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: colors.textMain,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.event,
-                                                    size: 14,
-                                                    color: isDue
-                                                        ? colors.expense
-                                                        : colors.textSecondary,
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  Flexible(
-                                                    // ЗМІНЕНО: Використовуємо DateFormatter
-                                                    child: Text(
-                                                      DateFormatter.formatFull(
-                                                        sub.nextPaymentDate,
-                                                      ),
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                        color: isDue
-                                                            ? colors.expense
-                                                            : colors
-                                                                  .textSecondary,
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          "-${CurrencyFormatter.format(sub.amount)} $currencySymbol",
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w900,
-                                            color: colors.expense,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (isDue) ...[
-                                      const SizedBox(height: 12),
+                            onTap: () => _showSubscriptionDialog(
+                              context,
+                              subscription: sub,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
                                       Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
+                                        width: 50,
+                                        height: 50,
                                         decoration: BoxDecoration(
-                                          color: colors.expense.withValues(
-                                            alpha: 0.05,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          border: Border.all(
-                                            color: colors.expense.withValues(
-                                              alpha: 0.2,
-                                            ),
-                                          ),
+                                          color: category.bgColor,
+                                          shape: BoxShape.circle,
                                         ),
-                                        child: Row(
+                                        child: Icon(
+                                          displayIcon,
+                                          color: category.iconColor,
+                                          size: 24,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            Expanded(
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.warning_amber_rounded,
-                                                    color: colors.expense,
-                                                    size: 18,
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Flexible(
-                                                    child: Text(
-                                                      'needs_payment'.tr(),
-                                                      style: TextStyle(
-                                                        color: colors.expense,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 13,
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ],
+                                            Text(
+                                              sub.name,
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: colors.textMain,
                                               ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            const SizedBox(width: 12),
-                                            ConstrainedBox(
-                                              constraints: const BoxConstraints(
-                                                maxWidth: 100,
-                                              ),
-                                              child: SizedBox(
-                                                height: 32,
-                                                child: ElevatedButton(
-                                                  style: ElevatedButton.styleFrom(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 12,
-                                                        ),
-                                                    backgroundColor:
-                                                        colors.expense,
-                                                    foregroundColor:
-                                                        Colors.white,
-                                                    elevation: 0,
-                                                  ),
-                                                  onPressed: () async {
-                                                    final (
-                                                      success,
-                                                      message,
-                                                    ) = await subProv
-                                                        .confirmSubscriptionPayment(
-                                                          sub,
-                                                          sub.amount,
-                                                        );
-                                                    if (!context.mounted) {
-                                                      return;
-                                                    }
-                                                    ScaffoldMessenger.of(
-                                                      context,
-                                                    ).clearSnackBars();
-                                                    ScaffoldMessenger.of(
-                                                      context,
-                                                    ).showSnackBar(
-                                                      SnackBar(
-                                                        behavior:
-                                                            SnackBarBehavior
-                                                                .floating,
-                                                        backgroundColor:
-                                                            colors.cardBg,
-                                                        elevation: 4,
-                                                        margin:
-                                                            const EdgeInsets.all(
-                                                              20,
-                                                            ),
-                                                        shape: RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                12,
-                                                              ),
-                                                          side: BorderSide(
-                                                            color: success
-                                                                ? colors.income
-                                                                : colors
-                                                                      .expense,
-                                                            width: 1.0,
-                                                          ),
-                                                        ),
-                                                        content: Row(
-                                                          children: [
-                                                            Icon(
-                                                              success
-                                                                  ? Icons
-                                                                        .check_circle_outline
-                                                                  : Icons
-                                                                        .error_outline,
-                                                              color: success
-                                                                  ? colors
-                                                                        .income
-                                                                  : colors
-                                                                        .expense,
-                                                              size: 20,
-                                                            ),
-                                                            const SizedBox(
-                                                              width: 12,
-                                                            ),
-                                                            Expanded(
-                                                              child: Text(
-                                                                message,
-                                                                style: TextStyle(
-                                                                  color: colors
-                                                                      .textMain,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w500,
-                                                                ),
-                                                                maxLines: 2,
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
+                                            const SizedBox(height: 4),
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.event,
+                                                  size: 14,
+                                                  color: isDue
+                                                      ? colors.expense
+                                                      : colors.textSecondary,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Flexible(
                                                   child: Text(
-                                                    'pay'.tr(),
-                                                    style: const TextStyle(
+                                                    DateFormatter.formatFull(
+                                                      sub.nextPaymentDate,
+                                                    ),
+                                                    style: TextStyle(
                                                       fontSize: 13,
                                                       fontWeight:
-                                                          FontWeight.bold,
+                                                          FontWeight.w500,
+                                                      color: isDue
+                                                          ? colors.expense
+                                                          : colors
+                                                                .textSecondary,
                                                     ),
                                                     maxLines: 1,
                                                     overflow:
                                                         TextOverflow.ellipsis,
                                                   ),
                                                 ),
-                                              ),
+                                              ],
                                             ),
                                           ],
                                         ),
                                       ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        "-${CurrencyFormatter.format(sub.amount)} $currencySymbol",
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w900,
+                                          color: colors.expense,
+                                        ),
+                                      ),
                                     ],
+                                  ),
+                                  if (isDue) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: colors.expense.withValues(
+                                          alpha: 0.05,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: colors.expense.withValues(
+                                            alpha: 0.2,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.warning_amber_rounded,
+                                                  color: colors.expense,
+                                                  size: 18,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Flexible(
+                                                  child: Text(
+                                                    'needs_payment'.tr(),
+                                                    style: TextStyle(
+                                                      color: colors.expense,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 13,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          ConstrainedBox(
+                                            constraints: const BoxConstraints(
+                                              maxWidth: 100,
+                                            ),
+                                            child: SizedBox(
+                                              height: 32,
+                                              child: ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                      ),
+                                                  backgroundColor:
+                                                      colors.expense,
+                                                  foregroundColor: Colors.white,
+                                                  elevation: 0,
+                                                ),
+                                                onPressed: () async {
+                                                  final (
+                                                    success,
+                                                    message,
+                                                  ) = await subProv
+                                                      .confirmSubscriptionPayment(
+                                                        sub,
+                                                        sub.amount,
+                                                      );
+                                                  if (!context.mounted) {
+                                                    return;
+                                                  }
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).clearSnackBars();
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    SnackBar(
+                                                      behavior: SnackBarBehavior
+                                                          .floating,
+                                                      backgroundColor:
+                                                          colors.cardBg,
+                                                      elevation: 4,
+                                                      margin:
+                                                          const EdgeInsets.all(
+                                                            20,
+                                                          ),
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                        side: BorderSide(
+                                                          color: success
+                                                              ? colors.income
+                                                              : colors.expense,
+                                                          width: 1.0,
+                                                        ),
+                                                      ),
+                                                      content: Row(
+                                                        children: [
+                                                          Icon(
+                                                            success
+                                                                ? Icons
+                                                                      .check_circle_outline
+                                                                : Icons
+                                                                      .error_outline,
+                                                            color: success
+                                                                ? colors.income
+                                                                : colors
+                                                                      .expense,
+                                                            size: 20,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 12,
+                                                          ),
+                                                          Expanded(
+                                                            child: Text(
+                                                              message,
+                                                              style: TextStyle(
+                                                                color: colors
+                                                                    .textMain,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                              ),
+                                                              maxLines: 2,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                                child: Text(
+                                                  'pay'.tr(),
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ],
-                                ),
+                                ],
                               ),
                             ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),

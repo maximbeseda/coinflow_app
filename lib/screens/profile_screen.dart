@@ -17,7 +17,7 @@ class ProfileScreen extends StatelessWidget {
   Future<void> _showClearDataDialog(BuildContext context) async {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // Зберігаємо змінні до асинхронних викликів
+    // Зберігаємо змінні до асинхронних викликів (Senior рівень роботи з Context)
     final txProv = context.read<TransactionProvider>();
     final subProv = context.read<SubscriptionProvider>();
     final catProv = context.read<CategoryProvider>();
@@ -149,8 +149,6 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final settingsProvider = Provider.of<SettingsProvider>(context);
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Scaffold(
@@ -198,23 +196,28 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    _buildSettingsRow(
-                      colors: colors,
-                      icon: Icons.palette_outlined,
-                      title: 'interface_theme'.tr(),
-                      dropdownValue: themeProvider.currentThemeId,
-                      items: AppTheme.allThemes.entries.map((entry) {
-                        return DropdownMenuItem(
-                          value: entry.key,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            entry.value.tr(),
-                            style: TextStyle(color: colors.textMain),
-                          ),
+                    // ОПТИМІЗАЦІЯ: Ізольовано оновлення теми
+                    Consumer<ThemeProvider>(
+                      builder: (context, themeProvider, child) {
+                        return _buildSettingsRow(
+                          colors: colors,
+                          icon: Icons.palette_outlined,
+                          title: 'interface_theme'.tr(),
+                          dropdownValue: themeProvider.currentThemeId,
+                          items: AppTheme.allThemes.entries.map((entry) {
+                            return DropdownMenuItem(
+                              value: entry.key,
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                entry.value.tr(),
+                                style: TextStyle(color: colors.textMain),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) =>
+                              val != null ? themeProvider.setTheme(val) : null,
                         );
-                      }).toList(),
-                      onChanged: (val) =>
-                          val != null ? themeProvider.setTheme(val) : null,
+                      },
                     ),
 
                     Divider(
@@ -224,6 +227,7 @@ class ProfileScreen extends StatelessWidget {
                       color: colors.textSecondary.withValues(alpha: 0.1),
                     ),
 
+                    // Мова (easy_localization автоматично оновлює контекст, тому залишаємо як є)
                     _buildSettingsRow(
                       colors: colors,
                       icon: Icons.language_outlined,
@@ -237,7 +241,7 @@ class ProfileScreen extends StatelessWidget {
                             AppConstants.languages[locale.languageCode] ??
                                 locale.languageCode.toUpperCase(),
                             style: const TextStyle(
-                              color: Colors.blue,
+                              color: Colors.blueAccent,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -254,27 +258,34 @@ class ProfileScreen extends StatelessWidget {
                       color: colors.textSecondary.withValues(alpha: 0.1),
                     ),
 
-                    _buildSettingsRow(
-                      colors: colors,
-                      icon: Icons.monetization_on_outlined,
-                      title: 'base_currency'.tr(),
-                      dropdownValue: settingsProvider.baseCurrency,
-                      items: AppCurrency.supportedCurrencies.map((currency) {
-                        return DropdownMenuItem(
-                          value: currency.code,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            "${currency.code} (${currency.symbol})",
-                            style: TextStyle(
-                              color: colors.income,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                    // ОПТИМІЗАЦІЯ: Ізольовано оновлення валюти
+                    Consumer<SettingsProvider>(
+                      builder: (context, settingsProvider, child) {
+                        return _buildSettingsRow(
+                          colors: colors,
+                          icon: Icons.monetization_on_outlined,
+                          title: 'base_currency'.tr(),
+                          dropdownValue: settingsProvider.baseCurrency,
+                          items: AppCurrency.supportedCurrencies.map((
+                            currency,
+                          ) {
+                            return DropdownMenuItem(
+                              value: currency.code,
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                "${currency.code} (${currency.symbol})",
+                                style: TextStyle(
+                                  color: colors.income,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) => val != null
+                              ? settingsProvider.setBaseCurrency(val)
+                              : null,
                         );
-                      }).toList(),
-                      onChanged: (val) => val != null
-                          ? settingsProvider.setBaseCurrency(val)
-                          : null,
+                      },
                     ),
 
                     Divider(
@@ -284,7 +295,7 @@ class ProfileScreen extends StatelessWidget {
                       color: colors.textSecondary.withValues(alpha: 0.1),
                     ),
 
-                    // 👇 ДОДАНО: Кнопка очищення даних
+                    // Кнопка очищення даних
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 20,

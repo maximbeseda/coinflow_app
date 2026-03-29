@@ -58,6 +58,12 @@
   "no_transactions": "Keine Transaktionen",
   "no_expenses_month": "Keine Ausgaben in diesem Monat 👏",
   "no_incomes_month": "Keine Einnahmen in diesem Monat 😔",
+  "monthly_view": "Monat",
+  "trends_view": "Trends",
+  "trend_in": "Trend in",
+  "no_data": "Keine Daten verfügbar",
+  "history_trends": "Einnahmen- und Ausgabenverlauf",
+  "average_for_year": "Durchschnittswerte für {}",
 
   "new_category": "Neue Kategorie",
   "initial_balance": "Anfangssaldo",
@@ -136,5 +142,9 @@
   "include_in_total": "Zum Gesamtsaldo hinzufügen",
   "include_in_total_desc": "Betrag im Kopfbereich auf dem Startbildschirm anzeigen",
   "loading_rate": "Kurs wird aktualisiert...",
-  "rate_not_found": "Kurs nicht verfügbar"
+  "rate_not_found": "Kurs nicht verfügbar",
+  "rate_unavailable": "Kurs für dieses Datum nicht verfügbar.",
+  "enter_manually": "Betrag manuell eingeben.",
+  "rates_updated_success": "Kurse erfolgreich aktualisiert!",
+  "rates_update_error": "Aktualisierung fehlgeschlagen. Verbindung prüfen!"
 }

@@ -17,65 +17,70 @@ class Transaction extends HiveObject {
   String title;
 
   @HiveField(4)
-  double amount;
-
-  @HiveField(5)
   DateTime date;
 
-  @HiveField(6, defaultValue: 'UAH')
+  // --- 1. SOURCE (Списання) ---
+  @HiveField(5)
+  double amount;
+
+  @HiveField(6)
   final String currency;
 
-  @HiveField(7, defaultValue: 1.0)
-  double exchangeRate;
-
-  @HiveField(8)
+  // --- 2. TARGET (Зарахування) ---
+  @HiveField(7)
   double? targetAmount;
 
-  @HiveField(9)
+  @HiveField(8)
   final String? targetCurrency;
 
-  // 👇 ДОДАНО: Валюта, відносно якої був збережений exchangeRate (захист від зміни базової валюти)
+  // --- 3. BASE (Еквівалент для статистики) ---
+  @HiveField(9, defaultValue: 0.0)
+  double baseAmount;
+
   @HiveField(10)
-  String? rateBaseCurrency;
+  String baseCurrency;
 
   Transaction({
     required this.id,
     required this.fromId,
     required this.toId,
     required this.title,
-    required this.amount,
     required this.date,
-    this.currency = 'UAH',
-    this.exchangeRate = 1.0,
+    // Source
+    required this.amount,
+    required this.currency,
+    // Target
     this.targetAmount,
     this.targetCurrency,
-    this.rateBaseCurrency, // ДОДАНО
+    // Base
+    required this.baseAmount,
+    required this.baseCurrency,
   });
 
   Transaction copyWith({
     String? fromId,
     String? toId,
     String? title,
-    double? amount,
     DateTime? date,
+    double? amount,
     String? currency,
-    double? exchangeRate,
     double? targetAmount,
     String? targetCurrency,
-    String? rateBaseCurrency, // ДОДАНО
+    double? baseAmount,
+    String? baseCurrency,
   }) {
     return Transaction(
       id: id,
       fromId: fromId ?? this.fromId,
       toId: toId ?? this.toId,
       title: title ?? this.title,
-      amount: amount ?? this.amount,
       date: date ?? this.date,
+      amount: amount ?? this.amount,
       currency: currency ?? this.currency,
-      exchangeRate: exchangeRate ?? this.exchangeRate,
       targetAmount: targetAmount ?? this.targetAmount,
       targetCurrency: targetCurrency ?? this.targetCurrency,
-      rateBaseCurrency: rateBaseCurrency ?? this.rateBaseCurrency, // ДОДАНО
+      baseAmount: baseAmount ?? this.baseAmount,
+      baseCurrency: baseCurrency ?? this.baseCurrency,
     );
   }
 
@@ -84,13 +89,13 @@ class Transaction extends HiveObject {
     'fromId': fromId,
     'toId': toId,
     'title': title,
-    'amount': amount,
     'date': date.toIso8601String(),
+    'amount': amount,
     'currency': currency,
-    'exchangeRate': exchangeRate,
     'targetAmount': targetAmount,
     'targetCurrency': targetCurrency,
-    'rateBaseCurrency': rateBaseCurrency, // ДОДАНО
+    'baseAmount': baseAmount,
+    'baseCurrency': baseCurrency,
   };
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
@@ -99,13 +104,13 @@ class Transaction extends HiveObject {
       fromId: json['fromId'],
       toId: json['toId'],
       title: json['title'],
-      amount: (json['amount'] as num).toDouble(),
       date: DateTime.parse(json['date']),
-      currency: json['currency'] ?? 'UAH',
-      exchangeRate: (json['exchangeRate'] as num?)?.toDouble() ?? 1.0,
+      amount: (json['amount'] as num).toDouble(),
+      currency: json['currency'] as String,
       targetAmount: (json['targetAmount'] as num?)?.toDouble(),
       targetCurrency: json['targetCurrency'],
-      rateBaseCurrency: json['rateBaseCurrency'], // ДОДАНО
+      baseAmount: (json['baseAmount'] as num?)?.toDouble() ?? 0.0,
+      baseCurrency: json['baseCurrency'] as String,
     );
   }
 }

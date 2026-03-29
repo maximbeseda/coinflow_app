@@ -123,37 +123,26 @@ class SubscriptionProvider extends ChangeNotifier {
       return (false, 'error_category_deleted'.tr());
     }
 
-    double subRate =
-        await _settingsProv!.getRateForDate(
-          sub.currency,
-          sub.nextPaymentDate,
-        ) ??
-        _settingsProv!.exchangeRates[sub.currency] ??
-        1.0;
+    // МИТТЄВИЙ ЛОКАЛЬНИЙ КЕШ замість API-запитів
+    double subRate = _settingsProv!.exchangeRates[sub.currency] ?? 1.0;
     double accRate =
-        await _settingsProv!.getRateForDate(
-          sourceAccount.currency,
-          sub.nextPaymentDate,
-        ) ??
-        _settingsProv!.exchangeRates[sourceAccount.currency] ??
-        1.0;
+        _settingsProv!.exchangeRates[sourceAccount.currency] ?? 1.0;
     double expRate =
-        await _settingsProv!.getRateForDate(
-          targetExpense.currency,
-          sub.nextPaymentDate,
-        ) ??
-        _settingsProv!.exchangeRates[targetExpense.currency] ??
-        1.0;
+        _settingsProv!.exchangeRates[targetExpense.currency] ?? 1.0;
+
+    if (accRate == 0) accRate = 1.0;
+    if (expRate == 0) expRate = 1.0;
 
     double accountDeduction = finalAmount;
     if (sourceAccount.currency != sub.currency) {
-      double exactAmount = finalAmount * (accRate / subRate);
+      // Виправлена математична формула (Валюта1 -> Валюта2)
+      double exactAmount = finalAmount * (subRate / accRate);
       accountDeduction = double.parse(exactAmount.toStringAsFixed(2));
     }
 
     double expenseAddition = finalAmount;
     if (targetExpense.currency != sub.currency) {
-      double exactAmount = finalAmount * (expRate / subRate);
+      double exactAmount = finalAmount * (subRate / expRate);
       expenseAddition = double.parse(exactAmount.toStringAsFixed(2));
     }
 
@@ -173,6 +162,9 @@ class SubscriptionProvider extends ChangeNotifier {
       currency: sourceAccount.currency,
       targetAmount: isMultiCurrency ? expenseAddition : null,
       targetCurrency: isMultiCurrency ? targetExpense.currency : null,
+      // Делегуємо провайдеру транзакцій обчислення базової суми
+      baseAmount: 0.0,
+      baseCurrency: '',
     );
 
     _txProv!.addTransactionDirectly(newTx);
@@ -209,8 +201,47 @@ class SubscriptionProvider extends ChangeNotifier {
     DateTime today = DateTime(now.year, now.month, now.day);
     bool processedAny = false;
 
+    // Кешуємо транзакції, щоб додати їх усі разом
+    List<Transaction> pendingTransactions = [];
+
     for (var sub in subscriptions) {
       if (!sub.isAutoPay) continue;
+
+      final all = _catProv!.allCategoriesList;
+      final account = all.where((c) => c.id == sub.accountId).firstOrNull;
+      final expense = all.where((c) => c.id == sub.categoryId).firstOrNull;
+
+      if (account == null ||
+          expense == null ||
+          account.isArchived ||
+          expense.isArchived) {
+        continue; // Акаунт або категорія відсутні/архівовані
+      }
+
+      double subRate = _settingsProv!.exchangeRates[sub.currency] ?? 1.0;
+      double accRate = _settingsProv!.exchangeRates[account.currency] ?? 1.0;
+      double expRate = _settingsProv!.exchangeRates[expense.currency] ?? 1.0;
+
+      if (accRate == 0) accRate = 1.0;
+      if (expRate == 0) expRate = 1.0;
+
+      double accountDeduction = sub.amount;
+      if (account.currency != sub.currency) {
+        double exactAmount = sub.amount * (accRate / subRate);
+        accountDeduction = double.parse(exactAmount.toStringAsFixed(2));
+      }
+
+      double expenseAddition = sub.amount;
+      if (expense.currency != sub.currency) {
+        double exactAmount = sub.amount * (expRate / subRate);
+        expenseAddition = double.parse(exactAmount.toStringAsFixed(2));
+      }
+
+      bool isMultiCurrency = account.currency != expense.currency;
+
+      // 👇 ЛОКАЛЬНА змінна для відстеження балансу (ВИПРАВЛЕНО БАГ!)
+      double currentBalance = account.amount;
+      bool subUpdated = false;
 
       while (true) {
         DateTime pDate = DateTime(
@@ -221,65 +252,66 @@ class SubscriptionProvider extends ChangeNotifier {
 
         if (pDate.isAfter(today)) break;
 
-        final all = _catProv!.allCategoriesList;
-        final account = all.where((c) => c.id == sub.accountId).firstOrNull;
-        final expense = all.where((c) => c.id == sub.categoryId).firstOrNull;
+        // Перевіряємо, чи вистачає поточного балансу
+        if (currentBalance >= accountDeduction) {
+          final newTx = Transaction(
+            id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}_${pDate.millisecondsSinceEpoch}",
+            fromId: account.id,
+            toId: expense.id,
+            title: 'auto_payment_marker'.tr(args: [sub.name]),
+            amount: accountDeduction,
+            date: sub.nextPaymentDate,
+            currency: account.currency,
+            targetAmount: isMultiCurrency ? expenseAddition : null,
+            targetCurrency: isMultiCurrency ? expense.currency : null,
+            baseAmount: 0.0, // Делегуємо провайдеру транзакцій
+            baseCurrency: '',
+          );
 
-        if (account != null &&
-            expense != null &&
-            !account.isArchived &&
-            !expense.isArchived) {
-          double subRate =
-              await _settingsProv!.getRateForDate(sub.currency, pDate) ??
-              _settingsProv!.exchangeRates[sub.currency] ??
-              1.0;
-          double accRate =
-              await _settingsProv!.getRateForDate(account.currency, pDate) ??
-              _settingsProv!.exchangeRates[account.currency] ??
-              1.0;
-          double expRate =
-              await _settingsProv!.getRateForDate(expense.currency, pDate) ??
-              _settingsProv!.exchangeRates[expense.currency] ??
-              1.0;
+          pendingTransactions.add(newTx);
+          currentBalance -=
+              accountDeduction; // Віднімаємо гроші локально, щоб цикл був чесним
 
-          double accountDeduction = sub.amount;
-          if (account.currency != sub.currency) {
-            double exactAmount = sub.amount * (accRate / subRate);
-            accountDeduction = double.parse(exactAmount.toStringAsFixed(2));
-          }
+          // Оновлюємо реальні баланси в провайдері категорій
+          _catProv!.updateCategoryAmount(account.id, -accountDeduction);
+          _catProv!.updateCategoryAmount(expense.id, expenseAddition);
 
-          double expenseAddition = sub.amount;
-          if (expense.currency != sub.currency) {
-            double exactAmount = sub.amount * (expRate / subRate);
-            expenseAddition = double.parse(exactAmount.toStringAsFixed(2));
-          }
-
-          if (account.amount >= accountDeduction) {
-            bool isMultiCurrency = account.currency != expense.currency;
-
-            final newTx = Transaction(
-              id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}_${pDate.millisecondsSinceEpoch}",
-              fromId: account.id,
-              toId: expense.id,
-              title: 'auto_payment_marker'.tr(args: [sub.name]),
-              amount: accountDeduction,
-              date: sub.nextPaymentDate,
-              currency: account.currency,
-              targetAmount: isMultiCurrency ? expenseAddition : null,
-              targetCurrency: isMultiCurrency ? expense.currency : null,
+          // 👇 Обчислюємо нову дату платежу ЛОКАЛЬНО в пам'яті (БЕЗ Hive)
+          if (sub.periodicity == 'monthly') {
+            int nextMonth = pDate.month == 12 ? 1 : pDate.month + 1;
+            int nextYear = pDate.month == 12 ? pDate.year + 1 : pDate.year;
+            int nextDay = sub.nextPaymentDate.day;
+            final lastDayOfNextMonth = DateTime(nextYear, nextMonth + 1, 0).day;
+            if (nextDay > lastDayOfNextMonth) nextDay = lastDayOfNextMonth;
+            sub.nextPaymentDate = DateTime(nextYear, nextMonth, nextDay);
+          } else if (sub.periodicity == 'yearly') {
+            sub.nextPaymentDate = DateTime(
+              pDate.year + 1,
+              pDate.month,
+              pDate.day,
             );
-
-            _txProv!.addTransactionDirectly(newTx);
-            await SubscriptionService.advanceOnePeriod(sub);
-            processedAny = true;
-          } else {
-            break;
+          } else if (sub.periodicity == 'weekly') {
+            sub.nextPaymentDate = pDate.add(const Duration(days: 7));
           }
+
+          subUpdated = true;
+          processedAny = true;
         } else {
-          break;
+          break; // Гроші закінчилися — зупиняємось
         }
       }
+
+      // 👇 ЗБЕРІГАЄМО ПІДПИСКУ В БАЗУ ЛИШЕ 1 РАЗ ПІСЛЯ ЦИКЛУ
+      if (subUpdated) {
+        await StorageService.saveSubscription(sub);
+      }
     }
+
+    // 👇 ЗБЕРІГАЄМО ВСІ СТВОРЕНІ ТРАНЗАКЦІЇ
+    for (var tx in pendingTransactions) {
+      _txProv!.addTransactionDirectly(tx);
+    }
+
     if (processedAny) notifyListeners();
   }
 
@@ -295,7 +327,6 @@ class SubscriptionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 👇 ДОДАНО: Очистити всі підписки
   Future<void> clearAllSubscriptions() async {
     for (var sub in subscriptions) {
       await StorageService.deleteSubscription(sub.id);
