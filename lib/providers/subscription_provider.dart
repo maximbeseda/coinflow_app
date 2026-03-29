@@ -102,7 +102,7 @@ class SubscriptionProvider extends ChangeNotifier {
 
   Future<(bool, String)> confirmSubscriptionPayment(
     Subscription sub,
-    int finalAmount, // 👇 ЗМІНЕНО: тепер int
+    int finalAmount,
   ) async {
     if (_catProv == null || _txProv == null || _settingsProv == null) {
       return (false, 'error_category_not_found'.tr());
@@ -133,7 +133,6 @@ class SubscriptionProvider extends ChangeNotifier {
     if (accRate == 0) accRate = 1.0;
     if (expRate == 0) expRate = 1.0;
 
-    // 👇 ЗМІНЕНО: Розрахунок через .round() для точності копійок
     int accountDeduction = finalAmount;
     if (sourceAccount.currency != sub.currency) {
       accountDeduction = (finalAmount * (subRate / accRate)).round();
@@ -148,6 +147,11 @@ class SubscriptionProvider extends ChangeNotifier {
       return (false, 'not_enough_funds'.tr(args: [sourceAccount.name]));
     }
 
+    // 👇 ДОДАНО: Оновлюємо баланси в CategoryProvider
+    // Віднімаємо від рахунку, додаємо до категорії витрат
+    _catProv!.updateCategoryAmount(sourceAccount.id, -accountDeduction);
+    _catProv!.updateCategoryAmount(targetExpense.id, expenseAddition);
+
     bool isMultiCurrency = sourceAccount.currency != targetExpense.currency;
 
     final newTx = Transaction(
@@ -160,7 +164,7 @@ class SubscriptionProvider extends ChangeNotifier {
       currency: sourceAccount.currency,
       targetAmount: isMultiCurrency ? expenseAddition : null,
       targetCurrency: isMultiCurrency ? targetExpense.currency : null,
-      baseAmount: 0, // 👇 ЗМІНЕНО: ціле число
+      baseAmount: 0,
       baseCurrency: '',
     );
 
