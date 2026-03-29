@@ -10,8 +10,9 @@ class Subscription extends HiveObject {
   @HiveField(1)
   String name;
 
+  // 👇 ЗМІНЕНО: Тепер int (в копійках/центах)
   @HiveField(2)
-  double amount;
+  int amount;
 
   @HiveField(3)
   String categoryId;
@@ -50,7 +51,7 @@ class Subscription extends HiveObject {
 
   Subscription copyWith({
     String? name,
-    double? amount,
+    int? amount, // 👇 ЗМІНЕНО: Тепер int?
     String? categoryId,
     String? accountId,
     DateTime? nextPaymentDate,
@@ -84,7 +85,7 @@ class Subscription extends HiveObject {
       'periodicity': periodicity,
       'customIconCodePoint': customIconCodePoint,
       'isAutoPay': isAutoPay,
-      'currency': currency, // ДОДАНО
+      'currency': currency,
     };
   }
 
@@ -92,14 +93,14 @@ class Subscription extends HiveObject {
     return Subscription(
       id: json['id'],
       name: json['name'],
-      amount: (json['amount'] as num).toDouble(),
+      amount: (json['amount'] as num).toInt(), // 👇 ЗМІНЕНО: на .toInt()
       categoryId: json['categoryId'],
       accountId: json['accountId'],
       nextPaymentDate: DateTime.parse(json['nextPaymentDate']),
       periodicity: json['periodicity'] ?? 'monthly',
       customIconCodePoint: json['customIconCodePoint'],
       isAutoPay: json['isAutoPay'] ?? false,
-      currency: json['currency'] ?? 'UAH', // Міграція
+      currency: json['currency'] ?? 'UAH',
     );
   }
 }

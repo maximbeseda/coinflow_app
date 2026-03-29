@@ -22,11 +22,11 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       toId: fields[2] as String,
       title: fields[3] as String,
       date: fields[4] as DateTime,
-      amount: fields[5] as double,
+      amount: fields[5] as int,
       currency: fields[6] as String,
-      targetAmount: fields[7] as double?,
+      targetAmount: fields[7] as int?,
       targetCurrency: fields[8] as String?,
-      baseAmount: fields[9] == null ? 0.0 : fields[9] as double,
+      baseAmount: fields[9] == null ? 0 : fields[9] as int,
       baseCurrency: fields[10] as String,
     );
   }

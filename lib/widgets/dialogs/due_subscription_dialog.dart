@@ -32,14 +32,15 @@ class DueSubscriptionDialog extends StatelessWidget {
 
     bool canPay = false;
     if (account != null && !account.isArchived) {
-      double accountAmountBase = settings.convertToBase(
-        account.amount,
-        account.currency,
-      );
-      double subAmountBase = settings.convertToBase(
-        subscription.amount,
-        subscription.currency,
-      );
+      // Конвертуємо в базову валюту і округлюємо до цілих копійок
+      int accountAmountBase = settings
+          .convertToBase(account.amount, account.currency)
+          .round();
+
+      int subAmountBase = settings
+          .convertToBase(subscription.amount, subscription.currency)
+          .round();
+
       canPay = accountAmountBase >= subAmountBase;
     }
 

@@ -1,16 +1,18 @@
 // lib/utils/currency_formatter.dart
 class CurrencyFormatter {
-  // ДОДАНО: параметр isHeader зі значенням за замовчуванням false
-  static String format(double amount, {bool isHeader = false}) {
-    if (amount.abs() < 0.005) amount = 0;
+  // 👇 ЗМІНЕНО: Тепер приймаємо int (копійки/центи)
+  static String format(int amount, {bool isHeader = false}) {
+    // 👇 ДОДАНО: Конвертуємо копійки у звичні дроби для виводу на екран
+    double displayAmount = amount / 100.0;
 
-    double absAmount = amount.abs();
-    String sign = amount < 0 ? "-" : "";
+    if (displayAmount.abs() < 0.005) displayAmount = 0;
+
+    double absAmount = displayAmount.abs();
+    String sign = displayAmount < 0 ? "-" : "";
 
     if (absAmount >= 100000000000) return "${sign}99 999М+";
 
     // ПЕРЕВІРКА НА МІЛЬЙОНИ
-    // ЗМІНЕНО: Якщо це шапка, то поріг 100 млн. Інакше — 1 млн (як і було).
     double millionThreshold = isHeader ? 100000000 : 1000000;
 
     if (absAmount >= millionThreshold) {
@@ -42,7 +44,8 @@ class CurrencyFormatter {
   }
 
   // Форматування бюджету
-  static String formatBudget(double amount) {
+  // 👇 ЗМІНЕНО: Тепер приймає int
+  static String formatBudget(int amount) {
     String formatted = format(amount);
 
     if (formatted.contains(',') && !formatted.contains('М')) {

@@ -99,7 +99,8 @@ class _StatsScreenState extends State<StatsScreen> {
     final Map<String, Category> categoryMap = {
       for (var c in allCategories) c.id: c,
     };
-    // 👇 ЗМІНЕНО: розрахунки йдуть через StatsProvider
+
+    // Отримуємо Map<String, int>
     final categoryTotals = statsProv.calculateCategoryTotalsForMonth(
       _statsMonth,
       _showExpenses,
@@ -107,12 +108,14 @@ class _StatsScreenState extends State<StatsScreen> {
 
     List<Category> activeCategories = [];
     categoryTotals.forEach((categoryId, amountInBaseCurrency) {
+      // amountInBaseCurrency тепер int
       if (amountInBaseCurrency > 0 && categoryMap.containsKey(categoryId)) {
         activeCategories.add(
           categoryMap[categoryId]!.copyWith(amount: amountInBaseCurrency),
         );
       }
     });
+    // Сортування цілих чисел (int)
     activeCategories.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
     return activeCategories;
   }
@@ -307,7 +310,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   children: [
                     _toggleItem(
                       'income'.tr(),
-                      allMonthTotals['incomes'] ?? 0.0,
+                      (allMonthTotals['incomes'] ?? 0).toInt(),
                       !txProv.isMigrating,
                       !_showExpenses,
                       colors.income,
@@ -317,7 +320,7 @@ class _StatsScreenState extends State<StatsScreen> {
                     ),
                     _toggleItem(
                       'stats_expenses'.tr(),
-                      allMonthTotals['expenses'] ?? 0.0,
+                      (allMonthTotals['expenses'] ?? 0).toInt(),
                       !txProv.isMigrating,
                       _showExpenses,
                       colors.expense,
@@ -337,7 +340,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
   Widget _toggleItem(
     String label,
-    double amount,
+    int amount,
     bool isReady,
     bool isActive,
     Color activeColor,
@@ -425,9 +428,10 @@ class _StatsScreenState extends State<StatsScreen> {
       builder: (context, catProv, txProv, statsProv, child) {
         // 👇 ЗМІНЕНО: передаємо statsProv всередину
         final activeData = _getSortedActiveCategories(catProv, statsProv);
-        double activeTotal = activeData.fold(
-          0.0,
-          (sum, item) => sum + item.amount.abs(),
+        // Рахуємо суму в цілих копійках
+        int activeTotal = activeData.fold(
+          0,
+          (sum, item) => sum + item.amount.abs().toInt(),
         );
 
         return GestureDetector(
@@ -513,8 +517,9 @@ class _StatsScreenState extends State<StatsScreen> {
                               sectionsSpace: 2,
                               centerSpaceRadius: 38,
                               sections: activeData.map((cat) {
-                                final value = cat.amount.abs();
-                                final percentage = (value / activeTotal) * 100;
+                                final value = cat.amount.abs() / 100.0;
+                                final percentage =
+                                    (value / (activeTotal / 100.0)) * 100;
                                 return PieChartSectionData(
                                   color: _getUniqueColor(cat.id, catProv),
                                   value: value,
@@ -627,7 +632,7 @@ class _StatsScreenState extends State<StatsScreen> {
 }
 
 class _TrendsCarousel extends StatefulWidget {
-  final Map<String, Map<String, Map<String, double>>> trends;
+  final Map<String, Map<String, Map<String, int>>> trends;
   final AppColorsExtension colors;
 
   const _TrendsCarousel({required this.trends, required this.colors});
@@ -786,7 +791,7 @@ class TextDotPainter extends FlDotPainter {
 
 class _TrendCardWidget extends StatefulWidget {
   final String currency;
-  final Map<String, Map<String, double>> data;
+  final Map<String, Map<String, int>> data;
   final AppColorsExtension colors;
 
   const _TrendCardWidget({
@@ -811,10 +816,13 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
     super.initState();
     months = widget.data.keys.toList();
 
-    maxY = 0;
+    maxY = 0.0;
     for (var m in widget.data.values) {
-      if ((m['incomes'] ?? 0) > maxY) maxY = m['incomes']!;
-      if ((m['expenses'] ?? 0) > maxY) maxY = m['expenses']!;
+      // Конвертуємо копійки (int) у double для визначення межі графіка
+      double inc = (m['incomes'] ?? 0) / 100.0;
+      double exp = (m['expenses'] ?? 0) / 100.0;
+      if (inc > maxY) maxY = inc;
+      if (exp > maxY) maxY = exp;
     }
     if (maxY == 0) maxY = 100;
     maxY = maxY * 1.2;
@@ -843,9 +851,11 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
 
   LineChartBarData _lineData(String key, Color color, bool isIncome) {
     int i = 0;
-    List<FlSpot> spots = widget.data.values
-        .map((v) => FlSpot((i++).toDouble(), v[key] ?? 0.0))
-        .toList();
+    List<FlSpot> spots = widget.data.values.map((v) {
+      // v[key] — це int (копійки), ділимо на 100 для графіка
+      double val = (v[key] ?? 0) / 100.0;
+      return FlSpot((i++).toDouble(), val);
+    }).toList();
 
     return LineChartBarData(
       spots: spots,
@@ -859,8 +869,10 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
         getDotPainter: (spot, percent, barData, index) {
           bool isFocused = index == _focusedIndex;
 
-          double incVal = widget.data.values.elementAt(index)['incomes'] ?? 0;
-          double expVal = widget.data.values.elementAt(index)['expenses'] ?? 0;
+          double incVal =
+              (widget.data.values.elementAt(index)['incomes'] ?? 0) / 100.0;
+          double expVal =
+              (widget.data.values.elementAt(index)['expenses'] ?? 0) / 100.0;
 
           double offset = -14.0;
           if ((incVal - expVal).abs() < (maxY * 0.15)) {
@@ -873,7 +885,8 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
 
           String label = "";
           if (isFocused) {
-            label = CurrencyFormatter.format(spot.y);
+            // Перетворюємо координату графіка (одиниці) назад у копійки (int)
+            label = CurrencyFormatter.format((spot.y * 100).round());
           }
 
           return TextDotPainter(
@@ -927,13 +940,16 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
     var yearData = widget.data.entries
         .where((e) => e.key.startsWith(focusedYear))
         .toList();
-    double totalInc = 0, totalExp = 0;
+    int totalInc = 0, totalExp = 0; // Сумуємо в int
     for (var m in yearData) {
       totalInc += (m.value['incomes'] ?? 0);
       totalExp += (m.value['expenses'] ?? 0);
     }
     int monthCount = yearData.isEmpty ? 1 : yearData.length;
-    double avgInc = totalInc / monthCount, avgExp = totalExp / monthCount;
+
+    // Середнє значення — це завжди double
+    double avgInc = totalInc / monthCount;
+    double avgExp = totalExp / monthCount;
 
     String maxLabel = NumberFormat.compact(
       locale: context.locale.languageCode,
@@ -1224,7 +1240,7 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            "${CurrencyFormatter.format(avgInc)} $symbol",
+                            "${CurrencyFormatter.format(avgInc.round())} $symbol",
                             style: TextStyle(
                               color: widget.colors.income,
                               fontWeight: FontWeight.bold,
@@ -1253,7 +1269,7 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            "${CurrencyFormatter.format(avgExp)} $symbol",
+                            "${CurrencyFormatter.format(avgExp.round())} $symbol",
                             style: TextStyle(
                               color: widget.colors.expense,
                               fontWeight: FontWeight.bold,

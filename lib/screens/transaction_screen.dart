@@ -15,8 +15,8 @@ class TransactionScreen extends StatefulWidget {
   final Category source;
   final Category target;
 
-  final double? initialAmount;
-  final double? initialTargetAmount;
+  final int? initialAmount;
+  final int? initialTargetAmount;
   final DateTime? initialDate;
   final String? initialNote;
 
@@ -181,11 +181,15 @@ class _TransactionScreenState extends State<TransactionScreen> {
 
     if (!_isEditingTarget) {
       double targetVal = currentVal * _currentExchangeRate;
-      _targetAmount = _formatAmount(targetVal);
+      _targetAmount = _formatDoubleForInput(
+        targetVal,
+      ); // Спеціальний метод для double
       _targetExpression = _targetAmount;
     } else {
       double sourceVal = currentVal / _currentExchangeRate;
-      _sourceAmount = _formatAmount(sourceVal);
+      _sourceAmount = _formatDoubleForInput(
+        sourceVal,
+      ); // Спеціальний метод для double
       _sourceExpression = _sourceAmount;
     }
   }
@@ -208,8 +212,15 @@ class _TransactionScreenState extends State<TransactionScreen> {
     }
   }
 
-  String _formatAmount(double val) {
+  // 👇 ЗМІНЕНО: тепер приймає int (копійки) і готує їх для відображення в полі вводу
+  String _formatAmount(int val) {
     if (val == 0) return "0";
+    double displayVal = val / 100.0;
+    return _formatDoubleForInput(displayVal);
+  }
+
+  // Допоміжний метод для форматування результатів розрахунків (double) у рядок вводу
+  String _formatDoubleForInput(double val) {
     String formatted = val.toStringAsFixed(2);
     if (formatted.endsWith('.00')) {
       return formatted.substring(0, formatted.length - 3);
@@ -412,15 +423,19 @@ class _TransactionScreenState extends State<TransactionScreen> {
       cleanTarget = cleanTarget.substring(0, cleanTarget.length - 1);
     }
 
-    double finalSourceAmount =
+    double sourceDouble =
         double.tryParse(CalculatorHelper.calculate(cleanSource)) ?? 0.0;
-    double finalTargetAmount =
+    double targetDouble =
         double.tryParse(CalculatorHelper.calculate(cleanTarget)) ?? 0.0;
 
+    // 👇 МАГІЯ: конвертуємо double назад у цілі копійки через .round() перед поверненням
+    int finalSourceAmount = (sourceDouble * 100).round();
+    int finalTargetAmount = (targetDouble * 100).round();
+
     Navigator.pop(context, {
-      'amount': finalSourceAmount,
+      'amount': finalSourceAmount, // Тепер це int
       'targetAmount': widget.source.currency != widget.target.currency
-          ? finalTargetAmount
+          ? finalTargetAmount // Тепер це int
           : null,
       'date': _selectedDate,
       'comment': _commentCtrl.text.trim(),

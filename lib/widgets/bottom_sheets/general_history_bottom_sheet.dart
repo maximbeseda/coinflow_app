@@ -137,8 +137,9 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
 
                       if (isDefaultTitle) customNote = '';
 
-                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ ---
-                      double displayAmount = t.amount;
+                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ (в копійках) ---
+                      int displayAmount =
+                          t.amount; // Тепер очікуємо int від моделі
                       String currencyCode = t.currency;
 
                       if (widget.filterType == CategoryType.expense &&

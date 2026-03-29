@@ -38,8 +38,13 @@ class _CategoryScreenState extends State<CategoryScreen> {
     _nameCtrl = TextEditingController(text: widget.category?.name ?? "");
     _currencyCtrl = TextEditingController();
 
-    String formatDouble(double val) {
-      String str = val.toStringAsFixed(2).replaceAll(RegExp(r'\.?0*$'), '');
+    // Функція тепер приймає int (копійки)
+    String formatInt(int val) {
+      double displayVal =
+          val / 100.0; // Перетворюємо в double лише для відображення
+      String str = displayVal
+          .toStringAsFixed(2)
+          .replaceAll(RegExp(r'\.?0*$'), '');
       var parts = str.split('.');
       String intPart = parts[0].replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -49,13 +54,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
     }
 
     _amountCtrl = TextEditingController(
-      text: widget.category != null
-          ? formatDouble(widget.category!.amount)
-          : "",
+      text: widget.category != null ? formatInt(widget.category!.amount) : "",
     );
     _budgetCtrl = TextEditingController(
       text: widget.category?.budget != null
-          ? formatDouble(widget.category!.budget!)
+          ? formatInt(widget.category!.budget!)
           : "",
     );
 
@@ -326,20 +329,29 @@ class _CategoryScreenState extends State<CategoryScreen> {
       return;
     }
 
-    double initialAmount =
+    // Парсимо введення користувача (наприклад "10.50")
+    double parsedAmount =
         double.tryParse(
           _amountCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
         ) ??
-        0;
-    double? budgetAmount = double.tryParse(
+        0.0;
+
+    // Перетворюємо в копійки (int) через .round()
+    int finalAmount = (parsedAmount * 100).round();
+
+    int? finalBudget;
+    double? parsedBudget = double.tryParse(
       _budgetCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
     );
+    if (parsedBudget != null) {
+      finalBudget = (parsedBudget * 100).round();
+    }
 
     Navigator.pop(context, {
       'name': _nameCtrl.text.trim(),
       'icon': _selectedIcon,
-      'amount': initialAmount,
-      'budget': budgetAmount,
+      'amount': finalAmount, // Тепер віддаємо int
+      'budget': finalBudget, // Тепер віддаємо int?
       'currency': _selectedCurrency,
       'includeInTotal': _includeInTotal,
     });

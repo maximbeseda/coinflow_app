@@ -35,8 +35,9 @@ class CoinWidget extends StatelessWidget {
     bool hasBudget = category.budget != null && category.budget! > 0;
 
     if (hasBudget) {
-      double amountAbs = category.amount.abs();
-      progress = (amountAbs / category.budget!).clamp(0.0, 1.0);
+      // 👇 Приводимо до double для правильного розрахунку відсотка
+      double amountAbs = category.amount.abs().toDouble();
+      progress = (amountAbs / category.budget!.toDouble()).clamp(0.0, 1.0);
 
       if (isIncome) {
         ringColor = progress >= 1.0 ? colors.income : Colors.blueAccent;
@@ -45,9 +46,11 @@ class CoinWidget extends StatelessWidget {
         int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
         int currentDay = now.day;
 
-        double expectedPace = (category.budget! / daysInMonth) * currentDay;
+        // 👇 Тут також використовуємо toDouble() для бюджету
+        double expectedPace =
+            (category.budget!.toDouble() / daysInMonth) * currentDay;
 
-        if (amountAbs >= category.budget!) {
+        if (amountAbs >= category.budget!.toDouble()) {
           ringColor = colors.expense;
         } else if (amountAbs > expectedPace) {
           ringColor = Colors.orange;

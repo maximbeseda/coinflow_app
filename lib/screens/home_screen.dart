@@ -25,7 +25,7 @@ import '../providers/settings_provider.dart';
 import '../providers/stats_provider.dart'; // 👇 ДОДАНО ІМПОРТ НОВОГО ПРОВАЙДЕРА
 import '../theme/app_colors_extension.dart';
 
-String formatCurrency(double amount) => CurrencyFormatter.format(amount);
+String formatCurrency(int amount) => CurrencyFormatter.format(amount);
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -138,8 +138,9 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) return;
 
     if (result != null) {
-      final amount = result['amount'] as double;
-      final targetAmount = result['targetAmount'] as double?;
+      // Тепер отримуємо суми як цілі числа (копійки)
+      final amount = result['amount'] as int;
+      final targetAmount = result['targetAmount'] as int?;
       final date = result['date'] as DateTime;
       final comment = result['comment'] as String;
 
@@ -156,14 +157,14 @@ class _HomeScreenState extends State<HomeScreen>
           fromId: source.id,
           toId: target.id,
           title: txTitle,
-          amount: amount,
+          amount: amount, // Передаємо int
           date: date,
           currency: source.currency,
-          targetAmount: targetAmount,
+          targetAmount: targetAmount, // Передаємо int?
           targetCurrency: source.currency != target.currency
               ? target.currency
               : null,
-          baseAmount: 0.0,
+          baseAmount: 0, // Провайдер сам перерахує це в int
           baseCurrency: '',
         );
 
@@ -290,8 +291,8 @@ class _HomeScreenState extends State<HomeScreen>
           type: type,
           name: result['name'],
           icon: result['icon'],
-          amount: result['amount'] ?? 0.0,
-          budget: result['budget'],
+          amount: (result['amount'] as num?)?.toInt() ?? 0, // Гарантуємо int
+          budget: (result['budget'] as num?)?.toInt(), // Гарантуємо int?
           bgColor: CategoryDefaults.getBgColor(type),
           iconColor: CategoryDefaults.getIconColor(type),
           currency:
@@ -374,20 +375,26 @@ class _HomeScreenState extends State<HomeScreen>
                             // 👇 ЗМІНЕНО: Викликаємо метод з statsProv
                             final monthTotals = statsProv
                                 .calculateTotalsForMonth(txProv.selectedMonth);
-                            double totalIncomes = monthTotals['incomes'] ?? 0.0;
-                            double totalExpenses =
-                                monthTotals['expenses'] ?? 0.0;
 
-                            double totalBalance = catProv.accounts
+                            // Тепер ці дані приходять як int з StatsProvider
+                            int totalIncomes =
+                                monthTotals['incomes']?.toInt() ?? 0;
+                            int totalExpenses =
+                                monthTotals['expenses']?.toInt() ?? 0;
+
+                            // Рахуємо загальний баланс у копійках
+                            int totalBalance = catProv.accounts
                                 .where((item) => item.includeInTotal)
                                 .fold(
-                                  0.0,
+                                  0,
                                   (sum, item) =>
                                       sum +
-                                      settings.convertToBase(
-                                        item.amount,
-                                        item.currency,
-                                      ),
+                                      settings
+                                          .convertToBase(
+                                            item.amount,
+                                            item.currency,
+                                          )
+                                          .round(), // Обов'язково .round() до цілих копійок
                                 );
 
                             return SummaryHeader(
@@ -467,7 +474,9 @@ class _HomeScreenState extends State<HomeScreen>
                             );
                         final displayIncomes = catProv.incomes
                             .map(
-                              (c) => c.copyWith(amount: incomeMap[c.id] ?? 0.0),
+                              (c) => c.copyWith(
+                                amount: incomeMap[c.id]?.toInt() ?? 0,
+                              ),
                             )
                             .toList();
                         return _buildSection(
@@ -507,7 +516,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   final displayExpenses = catProv.expenses
                                       .map(
                                         (c) => c.copyWith(
-                                          amount: expenseMap[c.id] ?? 0.0,
+                                          amount:
+                                              expenseMap[c.id]?.toInt() ?? 0,
                                         ),
                                       )
                                       .toList();

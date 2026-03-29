@@ -34,11 +34,13 @@ class Category extends HiveObject {
   @HiveField(5)
   final Color iconColor;
 
+  // 👇 ЗМІНЕНО: Тепер int (в копійках)
   @HiveField(6)
-  final double amount;
+  final int amount;
 
+  // 👇 ЗМІНЕНО: Тепер int? (в копійках)
   @HiveField(7)
-  final double? budget;
+  final int? budget;
 
   @HiveField(8)
   final bool isArchived;
@@ -58,10 +60,10 @@ class Category extends HiveObject {
     required this.icon,
     required this.bgColor,
     required this.iconColor,
-    this.amount = 0.0,
+    this.amount = 0, // 👇 ЗМІНЕНО: 0 замість 0.0
     this.budget,
     this.isArchived = false,
-    this.currency = 'UAH', // Захист для існуючих рахунків
+    this.currency = 'UAH',
     this.includeInTotal = true,
   });
 
@@ -70,8 +72,8 @@ class Category extends HiveObject {
     IconData? icon,
     Color? bgColor,
     Color? iconColor,
-    double? amount,
-    double? budget,
+    int? amount, // 👇 ЗМІНЕНО
+    int? budget, // 👇 ЗМІНЕНО
     bool? isArchived,
     String? currency,
     bool? includeInTotal,
@@ -101,8 +103,8 @@ class Category extends HiveObject {
     'amount': amount,
     'budget': budget,
     'isArchived': isArchived,
-    'currency': currency, // ДОДАНО в JSON
-    'includeInTotal': includeInTotal, // ДОДАНО в JSON
+    'currency': currency,
+    'includeInTotal': includeInTotal,
   };
 
   factory Category.fromJson(Map<String, dynamic> json) {
@@ -127,11 +129,13 @@ class Category extends HiveObject {
       icon: IconData(json['icon'], fontFamily: 'MaterialIcons'),
       bgColor: Color(json['bgColor'] ?? 0xFFE0E0E0),
       iconColor: Color(json['iconColor'] ?? 0xFF000000),
-      amount: (json['amount'] ?? 0.0).toDouble(),
-      budget: json['budget']?.toDouble(),
+      amount:
+          (json['amount'] as num?)?.toInt() ??
+          0, // 👇 ЗМІНЕНО на toInt() і дефолт 0
+      budget: (json['budget'] as num?)?.toInt(), // 👇 ЗМІНЕНО на toInt()
       isArchived: json['isArchived'] ?? false,
-      currency: json['currency'] ?? 'UAH', // Міграція старого JSON
-      includeInTotal: json['includeInTotal'] ?? true, // Міграція старого JSON
+      currency: json['currency'] ?? 'UAH',
+      includeInTotal: json['includeInTotal'] ?? true,
     );
   }
 }

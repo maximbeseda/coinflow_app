@@ -20,22 +20,25 @@ class Transaction extends HiveObject {
   DateTime date;
 
   // --- 1. SOURCE (Списання) ---
+  // 👇 ЗМІНЕНО: Тепер int (в копійках/центах)
   @HiveField(5)
-  double amount;
+  int amount;
 
   @HiveField(6)
   final String currency;
 
   // --- 2. TARGET (Зарахування) ---
+  // 👇 ЗМІНЕНО: Тепер int?
   @HiveField(7)
-  double? targetAmount;
+  int? targetAmount;
 
   @HiveField(8)
   final String? targetCurrency;
 
   // --- 3. BASE (Еквівалент для статистики) ---
-  @HiveField(9, defaultValue: 0.0)
-  double baseAmount;
+  // 👇 ЗМІНЕНО: defaultValue: 0 та тип int
+  @HiveField(9, defaultValue: 0)
+  int baseAmount;
 
   @HiveField(10)
   String baseCurrency;
@@ -62,11 +65,11 @@ class Transaction extends HiveObject {
     String? toId,
     String? title,
     DateTime? date,
-    double? amount,
+    int? amount, // 👇 ЗМІНЕНО на int?
     String? currency,
-    double? targetAmount,
+    int? targetAmount, // 👇 ЗМІНЕНО на int?
     String? targetCurrency,
-    double? baseAmount,
+    int? baseAmount, // 👇 ЗМІНЕНО на int?
     String? baseCurrency,
   }) {
     return Transaction(
@@ -105,11 +108,14 @@ class Transaction extends HiveObject {
       toId: json['toId'],
       title: json['title'],
       date: DateTime.parse(json['date']),
-      amount: (json['amount'] as num).toDouble(),
+      amount: (json['amount'] as num).toInt(), // 👇 ЗМІНЕНО на toInt()
       currency: json['currency'] as String,
-      targetAmount: (json['targetAmount'] as num?)?.toDouble(),
+      targetAmount: (json['targetAmount'] as num?)
+          ?.toInt(), // 👇 ЗМІНЕНО на toInt()
       targetCurrency: json['targetCurrency'],
-      baseAmount: (json['baseAmount'] as num?)?.toDouble() ?? 0.0,
+      baseAmount:
+          (json['baseAmount'] as num?)?.toInt() ??
+          0, // 👇 ЗМІНЕНО на toInt() і дефолт 0
       baseCurrency: json['baseCurrency'] as String,
     );
   }

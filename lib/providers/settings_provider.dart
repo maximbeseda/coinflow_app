@@ -132,12 +132,33 @@ class SettingsProvider with ChangeNotifier {
     return updated;
   }
 
-  double convertToBase(double amount, String fromCurrency) {
+  // 👇 ТЕПЕР ПРАЦЮЄМО ТІЛЬКИ З INT
+  int convertToBase(int amount, String fromCurrency) {
     if (fromCurrency == _baseCurrency) return amount;
 
     final rate = _exchangeRates[fromCurrency];
     if (rate == null || rate == 0) return amount;
 
-    return amount / rate;
+    // Ділимо на курс і округлюємо до найближчої цілої копійки
+    return (amount / rate).round();
+  }
+
+  int convertAmount({
+    required int amount,
+    required String fromCurrency,
+    required String toCurrency,
+  }) {
+    if (fromCurrency == toCurrency) return amount;
+
+    // Спершу переводимо в базу (USD/UAH), потім у цільову валюту
+    double inBase = fromCurrency == _baseCurrency
+        ? amount.toDouble()
+        : amount / (_exchangeRates[fromCurrency] ?? 1.0);
+
+    double result = toCurrency == _baseCurrency
+        ? inBase
+        : inBase * (_exchangeRates[toCurrency] ?? 1.0);
+
+    return result.round();
   }
 }

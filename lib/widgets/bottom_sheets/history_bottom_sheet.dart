@@ -118,8 +118,8 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
 
                       if (isDefaultTitle) customNote = '';
 
-                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ ---
-                      double displayAmount = isOut
+                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ (в копійках) ---
+                      int displayAmount = isOut
                           ? t.amount
                           : (t.targetAmount ?? t.amount);
 

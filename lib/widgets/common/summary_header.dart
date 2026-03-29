@@ -9,9 +9,9 @@ import '../../models/app_currency.dart'; // ДОДАНО: Для отриман�
 import 'animated_dots.dart';
 
 class SummaryHeader extends StatelessWidget {
-  final double totalBalance;
-  final double totalIncomes;
-  final double totalExpenses;
+  final int totalBalance; // 👇 ЗМІНЕНО
+  final int totalIncomes; // 👇 ЗМІНЕНО
+  final int totalExpenses; // 👇 ЗМІНЕНО
   final VoidCallback onBalanceTap;
   final VoidCallback onIncomesTap;
   final VoidCallback onExpensesTap;
@@ -121,7 +121,7 @@ class SummaryHeader extends StatelessWidget {
 
   Widget _item(
     IconData icon,
-    double amount,
+    int amount,
     Color color,
     VoidCallback onTap,
     AppColorsExtension colors,

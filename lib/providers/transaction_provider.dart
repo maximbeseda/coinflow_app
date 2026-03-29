@@ -33,7 +33,6 @@ class TransactionProvider extends ChangeNotifier {
     if (_settingsProv != null) {
       final currentBase = _settingsProv!.baseCurrency;
 
-      // Якщо базову валюту змінено — запускаємо міграцію ТІЛЬКИ для поточного місяця
       if (_lastKnownBaseCurrency != null &&
           _lastKnownBaseCurrency != currentBase) {
         _migrateCurrentMonthBaseCurrency(currentBase);
@@ -52,8 +51,6 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   Future<void> loadHistory() async {
-    // 👇 ДОДАЙ ЦЕЙ РЯДОК ТІЛЬКИ ДЛЯ ТЕСТУ:
-    await Future.delayed(const Duration(seconds: 2));
     final loadedHistory = await StorageService.loadHistory();
     loadedHistory.sort((a, b) => b.date.compareTo(a.date));
     history = loadedHistory;
@@ -76,35 +73,30 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   // =======================================================
-  // ВНУТРІШНІЙ МЕТОД: Підрахунок базової суми з жорстким заокругленням
+  // ВНУТРІШНІЙ МЕТОД: Підрахунок базової суми (ТЕПЕР В INT)
   // =======================================================
-  double _calculateBaseAmount(
-    double amount,
+  // 👇 ЗМІНЕНО: Повертає int, приймає int
+  int _calculateBaseAmount(
+    int amount,
     String currency,
-    double? targetAmount,
+    int? targetAmount,
     String? targetCurrency,
     String baseCur,
   ) {
-    // 1. Якщо валюта списання — це і є базова валюта
     if (currency == baseCur) return amount;
-
-    // 2. Якщо валюта зарахування — це і є базова валюта
     if (targetCurrency == baseCur && targetAmount != null) return targetAmount;
 
-    // 3. Інакше рахуємо крос-курс через кеш
     double fromRate = _settingsProv?.exchangeRates[currency] ?? 1.0;
     double toRate = _settingsProv?.exchangeRates[baseCur] ?? 1.0;
 
-    if (fromRate == 0) fromRate = 1.0; // Захист від ділення на нуль
+    if (fromRate == 0) fromRate = 1.0;
 
-    // 👇 ПРАВИЛЬНА МАТЕМАТИКА ДЛЯ ІНВЕРТОВАНИХ КУРСІВ API
-    double calculated = amount * (toRate / fromRate);
-
-    // Жорстке обрізання до копійок для точності double
-    return double.parse(calculated.toStringAsFixed(2));
+    // 👇 ПРАВИЛЬНА МАТЕМАТИКА: множимо int на double і округлюємо до найближчого цілого (копійки)
+    return (amount * (toRate / fromRate)).round();
   }
 
-  void _updateAccountBalance(String categoryId, double delta) {
+  // 👇 ЗМІНЕНО: delta тепер int
+  void _updateAccountBalance(String categoryId, int delta) {
     if (_catProv == null) return;
     final category = _catProv!.allCategoriesList
         .where((c) => c.id == categoryId)
@@ -122,7 +114,6 @@ class TransactionProvider extends ChangeNotifier {
     if (_settingsProv == null) return;
     final currentBase = _settingsProv!.baseCurrency;
 
-    // Гарантуємо, що транзакція збережеться з ідеальними базовими значеннями
     tx.baseCurrency = currentBase;
     tx.baseAmount = _calculateBaseAmount(
       tx.amount,
@@ -140,9 +131,9 @@ class TransactionProvider extends ChangeNotifier {
   void addTransfer(
     Category source,
     Category target,
-    double amount,
+    int amount, // 👇 ЗМІНЕНО на int
     DateTime date, {
-    double? targetAmount,
+    int? targetAmount, // 👇 ЗМІНЕНО на int?
   }) {
     if (source.type == CategoryType.account) {
       _catProv?.updateCategoryAmount(source.id, -amount);
@@ -181,21 +172,23 @@ class TransactionProvider extends ChangeNotifier {
 
   void editTransaction(
     Transaction oldT,
-    double newAmount,
+    int newAmount, // 👇 ЗМІНЕНО на int
     DateTime newDate, {
-    double? newTargetAmount,
+    int? newTargetAmount, // 👇 ЗМІНЕНО на int?
   }) {
     _updateAccountBalance(oldT.fromId, oldT.amount);
     _updateAccountBalance(oldT.toId, -(oldT.targetAmount ?? oldT.amount));
 
-    final double previousAmount = oldT.amount;
+    final int previousAmount = oldT.amount; // 👇 ЗМІНЕНО на int
     oldT.amount = newAmount;
     oldT.date = newDate;
 
     if (newTargetAmount != null) {
       oldT.targetAmount = newTargetAmount;
     } else if (oldT.targetAmount != null && previousAmount > 0) {
-      oldT.targetAmount = oldT.targetAmount! * (newAmount / previousAmount);
+      // 👇 ЗМІНЕНО: розрахунок через double-коефіцієнт з фінальним round()
+      oldT.targetAmount = (oldT.targetAmount! * (newAmount / previousAmount))
+          .round();
     } else {
       oldT.targetAmount = newAmount;
     }
@@ -203,12 +196,11 @@ class TransactionProvider extends ChangeNotifier {
     _updateAccountBalance(oldT.fromId, -oldT.amount);
     _updateAccountBalance(oldT.toId, oldT.targetAmount ?? oldT.amount);
 
-    // Зберігаємо стару базову валюту (історичність!), але пропорційно змінюємо суму
     if (previousAmount > 0) {
-      double scaledBase = oldT.baseAmount * (newAmount / previousAmount);
-      oldT.baseAmount = double.parse(scaledBase.toStringAsFixed(2));
+      // 👇 ЗМІНЕНО: точне масштабування базової суми
+      oldT.baseAmount = (oldT.baseAmount * (newAmount / previousAmount))
+          .round();
     } else {
-      // Запасний варіант, якщо попередня сума була 0
       oldT.baseAmount = _calculateBaseAmount(
         newAmount,
         oldT.currency,
@@ -237,7 +229,6 @@ class TransactionProvider extends ChangeNotifier {
   // =======================================================
   Future<void> _migrateCurrentMonthBaseCurrency(String newBase) async {
     final now = DateTime.now();
-    // Вибираємо тільки транзакції поточного місяця
     final currentMonthTxs = history
         .where((tx) => tx.date.year == now.year && tx.date.month == now.month)
         .toList();

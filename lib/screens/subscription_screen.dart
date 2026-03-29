@@ -52,8 +52,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final sub = widget.subscription;
 
     _nameCtrl = TextEditingController(text: sub?.name ?? '');
-    String formatDouble(double val) {
-      String str = val.toStringAsFixed(2).replaceAll(RegExp(r'\.?0*$'), '');
+    // Тепер функція працює з int (копійками)
+    String formatInt(int val) {
+      double displayVal = val / 100.0; // Конвертуємо лише для UI
+      String str = displayVal
+          .toStringAsFixed(2)
+          .replaceAll(RegExp(r'\.?0*$'), '');
       var parts = str.split('.');
       String intPart = parts[0].replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -63,7 +67,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
 
     _amountCtrl = TextEditingController(
-      text: sub != null ? formatDouble(sub.amount) : '',
+      text: sub != null ? formatInt(sub.amount) : '',
     );
 
     _currencyCtrl = TextEditingController();
@@ -626,15 +630,20 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   void _save() {
     FocusManager.instance.primaryFocus?.unfocus();
-    double amount =
+
+    // Спочатку отримуємо double з тексту
+    double parsedAmount =
         double.tryParse(
           _amountCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
         ) ??
         0.0;
 
+    // Конвертуємо у цілі копійки через .round()
+    int amountInCents = (parsedAmount * 100).round();
+
     setState(() {
       _showNameError = _nameCtrl.text.trim().isEmpty;
-      _showAmountError = amount <= 0;
+      _showAmountError = amountInCents <= 0; // Перевірка тепер в int
       _showAccountError = _selectedAccountId == null;
       _showExpenseError = _selectedExpenseId == null;
     });
@@ -654,7 +663,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           widget.subscription?.id ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       name: _nameCtrl.text.trim(),
-      amount: amount,
+      amount: amountInCents, // Передаємо ціле число
       categoryId: _selectedExpenseId!,
       accountId: _selectedAccountId!,
       nextPaymentDate: _selectedDate,

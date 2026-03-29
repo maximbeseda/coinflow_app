@@ -22,8 +22,6 @@ class CategoryProvider extends ChangeNotifier {
   }
 
   Future<void> loadCategories() async {
-    // 👇 ДОДАЙ ЦЕЙ РЯДОК ТІЛЬКИ ДЛЯ ТЕСТУ:
-    await Future.delayed(const Duration(seconds: 2));
     final savedCats = await StorageService.loadCategories();
 
     if (savedCats.isNotEmpty) {
@@ -43,7 +41,8 @@ class CategoryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateCategoryAmount(String id, double delta) {
+  // 👇 ЗМІНЕНО: delta тепер int
+  void updateCategoryAmount(String id, int delta) {
     final all = allCategoriesList;
     final index = all.indexWhere((c) => c.id == id);
     if (index == -1) return;
@@ -65,8 +64,6 @@ class CategoryProvider extends ChangeNotifier {
     StorageService.saveCategory(updatedCategory);
     notifyListeners();
   }
-
-  // МЕТОД recalculateMonthTotals ПОВНІСТЮ ВИДАЛЕНО!
 
   void addOrUpdateCategory(Category cat) {
     List<Category> targetList;
@@ -126,17 +123,18 @@ class CategoryProvider extends ChangeNotifier {
   }
 
   Future<void> resetAllBalances() async {
+    // 👇 ЗМІНЕНО: 0 замість 0.0 в усіх циклах
     for (var i = 0; i < incomes.length; i++) {
-      incomes[i] = incomes[i].copyWith(amount: 0.0);
+      incomes[i] = incomes[i].copyWith(amount: 0);
     }
     for (var i = 0; i < accounts.length; i++) {
-      accounts[i] = accounts[i].copyWith(amount: 0.0);
+      accounts[i] = accounts[i].copyWith(amount: 0);
     }
     for (var i = 0; i < expenses.length; i++) {
-      expenses[i] = expenses[i].copyWith(amount: 0.0);
+      expenses[i] = expenses[i].copyWith(amount: 0);
     }
     for (var i = 0; i < archivedCategories.length; i++) {
-      archivedCategories[i] = archivedCategories[i].copyWith(amount: 0.0);
+      archivedCategories[i] = archivedCategories[i].copyWith(amount: 0);
     }
     await StorageService.saveCategories(allCategoriesList);
     notifyListeners();

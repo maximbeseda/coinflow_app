@@ -102,18 +102,19 @@ class SubscriptionProvider extends ChangeNotifier {
 
   Future<(bool, String)> confirmSubscriptionPayment(
     Subscription sub,
-    double finalAmount,
+    int finalAmount, // 👇 ЗМІНЕНО: тепер int
   ) async {
     if (_catProv == null || _txProv == null || _settingsProv == null) {
       return (false, 'error_category_not_found'.tr());
     }
 
     final all = _catProv!.allCategoriesList;
-    Category? sourceAccount;
-    Category? targetExpense;
-
-    sourceAccount = all.firstWhereOrNull((c) => c.id == sub.accountId);
-    targetExpense = all.firstWhereOrNull((c) => c.id == sub.categoryId);
+    Category? sourceAccount = all.firstWhereOrNull(
+      (c) => c.id == sub.accountId,
+    );
+    Category? targetExpense = all.firstWhereOrNull(
+      (c) => c.id == sub.categoryId,
+    );
 
     if (sourceAccount == null || targetExpense == null) {
       return (false, 'error_category_not_found'.tr());
@@ -123,7 +124,6 @@ class SubscriptionProvider extends ChangeNotifier {
       return (false, 'error_category_deleted'.tr());
     }
 
-    // МИТТЄВИЙ ЛОКАЛЬНИЙ КЕШ замість API-запитів
     double subRate = _settingsProv!.exchangeRates[sub.currency] ?? 1.0;
     double accRate =
         _settingsProv!.exchangeRates[sourceAccount.currency] ?? 1.0;
@@ -133,17 +133,15 @@ class SubscriptionProvider extends ChangeNotifier {
     if (accRate == 0) accRate = 1.0;
     if (expRate == 0) expRate = 1.0;
 
-    double accountDeduction = finalAmount;
+    // 👇 ЗМІНЕНО: Розрахунок через .round() для точності копійок
+    int accountDeduction = finalAmount;
     if (sourceAccount.currency != sub.currency) {
-      // Виправлена математична формула (Валюта1 -> Валюта2)
-      double exactAmount = finalAmount * (subRate / accRate);
-      accountDeduction = double.parse(exactAmount.toStringAsFixed(2));
+      accountDeduction = (finalAmount * (subRate / accRate)).round();
     }
 
-    double expenseAddition = finalAmount;
+    int expenseAddition = finalAmount;
     if (targetExpense.currency != sub.currency) {
-      double exactAmount = finalAmount * (subRate / expRate);
-      expenseAddition = double.parse(exactAmount.toStringAsFixed(2));
+      expenseAddition = (finalAmount * (subRate / expRate)).round();
     }
 
     if (sourceAccount.amount < accountDeduction) {
@@ -162,8 +160,7 @@ class SubscriptionProvider extends ChangeNotifier {
       currency: sourceAccount.currency,
       targetAmount: isMultiCurrency ? expenseAddition : null,
       targetCurrency: isMultiCurrency ? targetExpense.currency : null,
-      // Делегуємо провайдеру транзакцій обчислення базової суми
-      baseAmount: 0.0,
+      baseAmount: 0, // 👇 ЗМІНЕНО: ціле число
       baseCurrency: '',
     );
 
@@ -201,7 +198,6 @@ class SubscriptionProvider extends ChangeNotifier {
     DateTime today = DateTime(now.year, now.month, now.day);
     bool processedAny = false;
 
-    // Кешуємо транзакції, щоб додати їх усі разом
     List<Transaction> pendingTransactions = [];
 
     for (var sub in subscriptions) {
@@ -215,7 +211,7 @@ class SubscriptionProvider extends ChangeNotifier {
           expense == null ||
           account.isArchived ||
           expense.isArchived) {
-        continue; // Акаунт або категорія відсутні/архівовані
+        continue;
       }
 
       double subRate = _settingsProv!.exchangeRates[sub.currency] ?? 1.0;
@@ -225,22 +221,21 @@ class SubscriptionProvider extends ChangeNotifier {
       if (accRate == 0) accRate = 1.0;
       if (expRate == 0) expRate = 1.0;
 
-      double accountDeduction = sub.amount;
+      // 👇 ЗМІНЕНО: Розрахунок через .round()
+      int accountDeduction = sub.amount;
       if (account.currency != sub.currency) {
-        double exactAmount = sub.amount * (accRate / subRate);
-        accountDeduction = double.parse(exactAmount.toStringAsFixed(2));
+        accountDeduction = (sub.amount * (subRate / accRate)).round();
       }
 
-      double expenseAddition = sub.amount;
+      int expenseAddition = sub.amount;
       if (expense.currency != sub.currency) {
-        double exactAmount = sub.amount * (expRate / subRate);
-        expenseAddition = double.parse(exactAmount.toStringAsFixed(2));
+        expenseAddition = (sub.amount * (subRate / expRate)).round();
       }
 
       bool isMultiCurrency = account.currency != expense.currency;
 
-      // 👇 ЛОКАЛЬНА змінна для відстеження балансу (ВИПРАВЛЕНО БАГ!)
-      double currentBalance = account.amount;
+      // 👇 ПРАЦЮЄМО З INT: currentBalance тепер автоматично int
+      int currentBalance = account.amount;
       bool subUpdated = false;
 
       while (true) {
@@ -252,7 +247,6 @@ class SubscriptionProvider extends ChangeNotifier {
 
         if (pDate.isAfter(today)) break;
 
-        // Перевіряємо, чи вистачає поточного балансу
         if (currentBalance >= accountDeduction) {
           final newTx = Transaction(
             id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}_${pDate.millisecondsSinceEpoch}",
@@ -264,19 +258,16 @@ class SubscriptionProvider extends ChangeNotifier {
             currency: account.currency,
             targetAmount: isMultiCurrency ? expenseAddition : null,
             targetCurrency: isMultiCurrency ? expense.currency : null,
-            baseAmount: 0.0, // Делегуємо провайдеру транзакцій
+            baseAmount: 0, // 👇 ЗМІНЕНО
             baseCurrency: '',
           );
 
           pendingTransactions.add(newTx);
-          currentBalance -=
-              accountDeduction; // Віднімаємо гроші локально, щоб цикл був чесним
+          currentBalance -= accountDeduction;
 
-          // Оновлюємо реальні баланси в провайдері категорій
           _catProv!.updateCategoryAmount(account.id, -accountDeduction);
           _catProv!.updateCategoryAmount(expense.id, expenseAddition);
 
-          // 👇 Обчислюємо нову дату платежу ЛОКАЛЬНО в пам'яті (БЕЗ Hive)
           if (sub.periodicity == 'monthly') {
             int nextMonth = pDate.month == 12 ? 1 : pDate.month + 1;
             int nextYear = pDate.month == 12 ? pDate.year + 1 : pDate.year;
@@ -297,17 +288,15 @@ class SubscriptionProvider extends ChangeNotifier {
           subUpdated = true;
           processedAny = true;
         } else {
-          break; // Гроші закінчилися — зупиняємось
+          break;
         }
       }
 
-      // 👇 ЗБЕРІГАЄМО ПІДПИСКУ В БАЗУ ЛИШЕ 1 РАЗ ПІСЛЯ ЦИКЛУ
       if (subUpdated) {
         await StorageService.saveSubscription(sub);
       }
     }
 
-    // 👇 ЗБЕРІГАЄМО ВСІ СТВОРЕНІ ТРАНЗАКЦІЇ
     for (var tx in pendingTransactions) {
       _txProv!.addTransactionDirectly(tx);
     }

@@ -7,10 +7,9 @@ class StatsProvider extends ChangeNotifier {
   TransactionProvider? _txProv;
   CategoryProvider? _catProv;
 
-  // Наш кеш для трендів
-  Map<String, Map<String, Map<String, double>>>? _cachedTrends;
+  // 👇 ЗМІНЕНО: Map тепер зберігає int (копійки)
+  Map<String, Map<String, Map<String, int>>>? _cachedTrends;
 
-  // Запам'ятовуємо "зліпок" історії, щоб знати, коли скидати кеш
   int _lastHistoryHash = 0;
 
   void updateDependencies(
@@ -20,10 +19,9 @@ class StatsProvider extends ChangeNotifier {
     _txProv = txProv;
     _catProv = catProv;
 
-    // Якщо історія транзакцій змінилася (додали/видалили), хеш буде іншим
     int currentHash = Object.hashAll(_txProv?.history ?? []);
     if (_lastHistoryHash != currentHash) {
-      _cachedTrends = null; // Скидаємо кеш
+      _cachedTrends = null;
       _lastHistoryHash = currentHash;
     }
   }
@@ -31,11 +29,12 @@ class StatsProvider extends ChangeNotifier {
   // =======================================================
   // АНАЛІТИКА ТРЕНДІВ (ДЛЯ ГРАФІКІВ)
   // =======================================================
-  Map<String, Map<String, Map<String, double>>> calculateTrends() {
+  // 👇 ЗМІНЕНО: Повертає int
+  Map<String, Map<String, Map<String, int>>> calculateTrends() {
     if (_cachedTrends != null) return _cachedTrends!;
     if (_catProv == null || _txProv == null) return {};
 
-    Map<String, Map<String, Map<String, double>>> trends = {};
+    Map<String, Map<String, Map<String, int>>> trends = {};
 
     var sortedHistory = List<Transaction>.from(_txProv!.history)
       ..sort((a, b) => a.date.compareTo(b.date));
@@ -48,7 +47,7 @@ class StatsProvider extends ChangeNotifier {
       trends.putIfAbsent(epoch, () => {});
       trends[epoch]!.putIfAbsent(
         monthKey,
-        () => {'incomes': 0.0, 'expenses': 0.0},
+        () => {'incomes': 0, 'expenses': 0}, // 👇 ЗМІНЕНО: 0 замість 0.0
       );
 
       bool isExpense = _catProv!.expenses.any((c) => c.id == tx.toId);
@@ -71,15 +70,15 @@ class StatsProvider extends ChangeNotifier {
   // =======================================================
   // АНАЛІТИКА КРУГОВОЇ ДІАГРАМИ ТА ЗАГАЛЬНИХ СУМ
   // =======================================================
-  Map<String, double> calculateTotalsForMonth(DateTime month) {
-    double totalExpenses = 0.0;
-    double totalIncomes = 0.0;
+  // 👇 ЗМІНЕНО: Повертає int
+  Map<String, int> calculateTotalsForMonth(DateTime month) {
+    int totalExpenses = 0; // 👇 ЗМІНЕНО: int
+    int totalIncomes = 0; // 👇 ЗМІНЕНО: int
 
     if (_catProv == null || _txProv == null) {
-      return {'expenses': 0.0, 'incomes': 0.0};
+      return {'expenses': 0, 'incomes': 0};
     }
 
-    // Відфільтровуємо транзакції за обраний місяць
     final monthHistory = _txProv!.history.where(
       (t) => t.date.year == month.year && t.date.month == month.month,
     );
@@ -92,18 +91,17 @@ class StatsProvider extends ChangeNotifier {
       if (isIncome) totalIncomes += tx.baseAmount;
     }
 
-    return {
-      'expenses': double.parse(totalExpenses.toStringAsFixed(2)),
-      'incomes': double.parse(totalIncomes.toStringAsFixed(2)),
-    };
+    return {'expenses': totalExpenses, 'incomes': totalIncomes};
+    // 👇 ВИДАЛЕНО: double.parse(...toStringAsFixed(2)), воно більше не потрібне!
   }
 
-  Map<String, double> calculateCategoryTotalsForMonth(
+  // 👇 ЗМІНЕНО: Повертає int
+  Map<String, int> calculateCategoryTotalsForMonth(
     DateTime month,
     bool isExpenses, {
     bool inBaseCurrency = true,
   }) {
-    Map<String, double> totals = {};
+    Map<String, int> totals = {};
     if (_catProv == null || _txProv == null) return totals;
 
     final monthHistory = _txProv!.history.where(
@@ -114,25 +112,24 @@ class StatsProvider extends ChangeNotifier {
       if (isExpenses) {
         bool isExpenseCat = _catProv!.expenses.any((c) => c.id == tx.toId);
         if (isExpenseCat) {
-          double value = inBaseCurrency
+          int value =
+              inBaseCurrency // 👇 ЗМІНЕНО: int
               ? tx.baseAmount
               : (tx.targetAmount ?? tx.amount);
-          totals[tx.toId] = (totals[tx.toId] ?? 0.0) + value;
+          totals[tx.toId] = (totals[tx.toId] ?? 0) + value;
         }
       } else {
         bool isIncomeCat = _catProv!.incomes.any((c) => c.id == tx.fromId);
         if (isIncomeCat) {
-          double value = inBaseCurrency ? tx.baseAmount : tx.amount;
-          totals[tx.fromId] = (totals[tx.fromId] ?? 0.0) + value;
+          int value = inBaseCurrency
+              ? tx.baseAmount
+              : tx.amount; // 👇 ЗМІНЕНО: int
+          totals[tx.fromId] = (totals[tx.fromId] ?? 0) + value;
         }
       }
     }
 
-    // Заокруглюємо результати для уникнення артефактів double
-    totals.forEach((key, value) {
-      totals[key] = double.parse(value.toStringAsFixed(2));
-    });
-
+    // 👇 ВИДАЛЕНО: цикл з заокругленням. Цілі числа і так ідеально точні.
     return totals;
   }
 }
