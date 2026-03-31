@@ -1,11 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
+import 'package:encrypt/encrypt.dart' as enc; // ДОДАНО: Пакет для шифрування
+import 'package:crypto/crypto.dart';
+
 import '../providers/category_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/subscription_provider.dart';
@@ -16,6 +20,16 @@ import '../models/subscription_model.dart';
 import '../theme/app_colors_extension.dart';
 
 class BackupService {
+  // Фіксований вектор ініціалізації
+  static final _iv = enc.IV.fromLength(16);
+
+  // Динамічний генератор ключа з пароля користувача (SHA-256 робить рівно 32 байти)
+  static enc.Key _generateKeyFromPassword(String password) {
+    final bytes = utf8.encode(password);
+    final digest = sha256.convert(bytes);
+    return enc.Key(Uint8List.fromList(digest.bytes));
+  }
+
   static void _showCustomSnackBar(
     BuildContext context,
     String message,
@@ -67,7 +81,8 @@ class BackupService {
     );
   }
 
-  static Future<void> exportData(BuildContext context) async {
+  // ДОДАНО ПАРАМЕТР password
+  static Future<void> exportData(BuildContext context, String password) async {
     try {
       final catProv = context.read<CategoryProvider>();
       final txProv = context.read<TransactionProvider>();
@@ -79,13 +94,25 @@ class BackupService {
         'subscriptions': subProv.subscriptions.map((s) => s.toJson()).toList(),
       };
 
-      final String jsonString = jsonEncode(data);
+      // 1. Створюємо звичайний JSON
+      final String plainJsonString = jsonEncode(data);
+
+      // 2. Створюємо шифратор на основі пароля і шифруємо
+      final key = _generateKeyFromPassword(password);
+      final encrypter = enc.Encrypter(enc.AES(key));
+
+      final encrypted = encrypter.encrypt(plainJsonString, iv: _iv);
+      final encryptedBase64 = encrypted.base64;
+
       final directory = await getTemporaryDirectory();
       final dateStr =
           "${DateTime.now().day}_${DateTime.now().month}_${DateTime.now().year}";
-      final file = File('${directory.path}/coinflow_backup_$dateStr.json');
 
-      await file.writeAsString(jsonString);
+      // ЗМІНЕНО: Розширення .cfbak замість .json
+      final file = File('${directory.path}/coinflow_backup_$dateStr.cfbak');
+
+      // 3. Записуємо зашифрований рядок у файл
+      await file.writeAsString(encryptedBase64);
 
       final xFile = XFile(file.path);
       await SharePlus.instance.share(
@@ -98,7 +125,8 @@ class BackupService {
     }
   }
 
-  static Future<void> importData(BuildContext context) async {
+  // ДОДАНО ПАРАМЕТР password
+  static Future<void> importData(BuildContext context, String password) async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.any,
@@ -107,16 +135,31 @@ class BackupService {
       if (result != null && result.files.single.path != null) {
         final file = File(result.files.single.path!);
 
-        if (!file.path.endsWith('.json')) {
-          throw Exception("Невірний формат файлу. Очікується .json");
+        if (!file.path.endsWith('.cfbak') && !file.path.endsWith('.json')) {
+          throw Exception('invalid_backup_format'.tr());
         }
 
-        final String jsonString = await file.readAsString();
+        // 1. Читаємо файл
+        final String fileContent = await file.readAsString();
+        String jsonString;
+
+        try {
+          // 2. Створюємо дешифратор на основі введеного пароля
+          final key = _generateKeyFromPassword(password);
+          final encrypter = enc.Encrypter(enc.AES(key));
+
+          jsonString = encrypter.decrypt64(fileContent, iv: _iv);
+        } catch (e) {
+          // Фоллбек: якщо старий бекап без пароля або введено неправильний пароль
+          // (У майбутньому тут можна додати викидання помилки "Невірний пароль")
+          jsonString = fileContent;
+        }
+
         final Map<String, dynamic> data = jsonDecode(jsonString);
 
         if (!data.containsKey('categories') ||
             !data.containsKey('transactions')) {
-          throw Exception("Файл пошкоджено або це не бекап CoinFlow");
+          throw Exception('corrupted_backup'.tr());
         }
 
         List<Category> importedCategories = (data['categories'] as List)
@@ -141,7 +184,6 @@ class BackupService {
           await StorageService.saveSubscription(sub);
         }
 
-        // Перша перевірка: перед тим як читати провайдери
         if (!context.mounted) return;
         final catProv = context.read<CategoryProvider>();
         final txProv = context.read<TransactionProvider>();
@@ -151,7 +193,6 @@ class BackupService {
         await txProv.loadHistory();
         await subProv.loadSubscriptions();
 
-        // ДРУГА ПЕРЕВІРКА: перед тим як показувати SnackBar (бо вище були await)
         if (!context.mounted) return;
         _showCustomSnackBar(context, 'backup_success'.tr(), true);
       }

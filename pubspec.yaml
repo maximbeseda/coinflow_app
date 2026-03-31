@@ -52,6 +52,13 @@ dependencies:
   http: ^1.6.0
   math_expressions: ^2.5.0
   collection: ^1.18.0
+  local_auth: ^3.0.1
+  local_auth_android: ^2.0.0
+  local_auth_ios: ^1.1.0
+  flutter_secure_storage: ^10.0.0
+  crypto: ^3.0.7
+  encrypt: ^5.0.3
+  
 
 dev_dependencies:
   flutter_test:
@@ -108,3 +115,6 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+dependency_overrides:
+  intl: ^0.20.2

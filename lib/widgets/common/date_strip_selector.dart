@@ -225,23 +225,35 @@ class _DateStripSelectorState extends State<DateStripSelector> {
                   AnimatedBuilder(
                     animation: _pageController,
                     builder: (context, child) {
+                      // 👇 МИ ПРИБРАЛИ NotificationListener! Він нам більше не потрібен.
                       return PageView.builder(
                         controller: _pageController,
                         physics: const CustomSnappingScrollPhysics(),
                         pageSnapping: false,
                         onPageChanged: (index) {
-                          // 👇 ВИПРАВЛЕНО: Якщо крутить календар, ми не відправляємо дату назад
                           if (_isProgrammaticScroll) return;
 
+                          // Оновлюємо індекс для анімації самої стрічки
                           setState(() => _currentIndex = index);
-                          final newDate = _baseDate.add(
-                            Duration(days: index - _baseIndex),
+
+                          // 👇 ПОВЕРТАЄМО МИТТЄВУ ВІДПРАВКУ ДАТИ
+                          final newDate = DateTime(
+                            _baseDate.year,
+                            _baseDate.month,
+                            _baseDate.day + (index - _baseIndex),
                           );
+
+                          // Відправляємо дату в TransactionScreen ВЖЕ ЗАРАЗ, під час польоту!
+                          // Оскільки батько має таймер, він не буде гальмувати скрол,
+                          // але кнопка "Зберегти" ЗАВЖДИ матиме актуальну дату з екрана.
                           widget.onDateChanged(newDate);
                         },
                         itemBuilder: (context, index) {
-                          final date = _baseDate.add(
-                            Duration(days: index - _baseIndex),
+                          // Формуємо дату для відображення
+                          final date = DateTime(
+                            _baseDate.year,
+                            _baseDate.month,
+                            _baseDate.day + (index - _baseIndex),
                           );
 
                           double pageOffset = 0;

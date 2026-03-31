@@ -10,6 +10,8 @@ import '../models/app_currency.dart';
 import '../theme/app_colors_extension.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_constants.dart';
+import '../services/security_service.dart';
+import 'lock_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -295,6 +297,8 @@ class ProfileScreen extends StatelessWidget {
                       color: colors.textSecondary.withValues(alpha: 0.1),
                     ),
 
+                    const SecuritySettingsSection(),
+
                     // Кнопка очищення даних
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(
@@ -365,6 +369,144 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class SecuritySettingsSection extends StatefulWidget {
+  const SecuritySettingsSection({super.key});
+
+  @override
+  State<SecuritySettingsSection> createState() =>
+      _SecuritySettingsSectionState();
+}
+
+class _SecuritySettingsSectionState extends State<SecuritySettingsSection> {
+  bool _isPinSet = false;
+  bool _isBiometricsEnabled = false;
+  bool _canUseBiometrics = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSecuritySettings();
+  }
+
+  Future<void> _loadSecuritySettings() async {
+    final isPinSet = await SecurityService.isPinSet();
+    final isBioEnabled = await SecurityService.isBiometricsEnabled();
+    final canUseBio = await SecurityService.canUseBiometrics();
+
+    if (mounted) {
+      setState(() {
+        _isPinSet = isPinSet;
+        _isBiometricsEnabled = isBioEnabled;
+        _canUseBiometrics = canUseBio;
+      });
+    }
+  }
+
+  Future<void> _togglePin(bool enable) async {
+    if (enable) {
+      // Вмикаємо: створюємо новий ПІН
+      final success = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const LockScreen(isSetupMode: true)),
+      );
+      if (success == true) _loadSecuritySettings();
+    } else {
+      // Вимикаємо: просимо ввести поточний ПІН для підтвердження
+      final success = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const LockScreen(isSetupMode: false)),
+      );
+      if (success == true) {
+        await SecurityService.disableSecurity();
+        _loadSecuritySettings();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 20, top: 24, bottom: 8),
+          child: Text(
+            'security'.tr().toUpperCase(),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: colors.textSecondary,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: colors.cardBg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              SwitchListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                title: Text(
+                  'pin_code'.tr(),
+                  style: TextStyle(
+                    color: colors.textMain,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                secondary: Icon(Icons.lock_outline, color: colors.textMain),
+                value: _isPinSet,
+                activeThumbColor: colors.accent,
+                onChanged: _togglePin,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              if (_isPinSet && _canUseBiometrics) ...[
+                Divider(
+                  height: 1,
+                  color: colors.textSecondary.withValues(alpha: 0.1),
+                ),
+                SwitchListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  title: Text(
+                    'biometrics'.tr(),
+                    style: TextStyle(
+                      color: colors.textMain,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  secondary: Icon(Icons.fingerprint, color: colors.textMain),
+                  value: _isBiometricsEnabled,
+                  activeThumbColor: colors.accent,
+                  onChanged: (val) async {
+                    await SecurityService.setBiometricsEnabled(val);
+                    _loadSecuritySettings();
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

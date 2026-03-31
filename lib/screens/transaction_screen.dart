@@ -449,12 +449,18 @@ class _TransactionScreenState extends State<TransactionScreen> {
       return;
     }
 
-    setState(() => _selectedDate = newDate);
+    // 👇 1. ТИХЕ ОНОВЛЕННЯ ДАТИ (Магія тут!)
+    // Ми просто перезаписуємо змінну в пам'яті БЕЗ виклику setState().
+    // - Кнопка "Зберегти" завжди матиме найсвіжішу дату.
+    // - Але екран НЕ перемальовується і НЕ гальмує анімацію скролу!
+    _selectedDate = newDate;
 
+    // 2. Таймер курсу валют залишається без змін
     _rateDebounceTimer?.cancel();
-    _rateDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+    _rateDebounceTimer = Timer(const Duration(milliseconds: 500), () {
       if (mounted) {
         _fetchRateForDate(newDate);
+        // ☝️ Тільки коли курс завантажиться, екран перемалюється (бо всередині _fetchRateForDate є свій setState)
       }
     });
   }

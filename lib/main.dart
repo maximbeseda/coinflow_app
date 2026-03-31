@@ -11,6 +11,7 @@ import 'dart:ui';
 import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart'; // <-- ДОДАНО: Імпорт екрану онбордінгу
+import 'screens/lock_screen.dart';
 import 'providers/category_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/subscription_provider.dart';
@@ -19,6 +20,7 @@ import 'providers/settings_provider.dart';
 import 'providers/stats_provider.dart';
 import 'theme/app_theme.dart';
 import 'services/storage_service.dart';
+import 'services/security_service.dart';
 
 void main() async {
   // 1. Гарантуємо ініціалізацію Flutter
@@ -64,8 +66,11 @@ void main() async {
 
   const bool showPreview = false;
 
-  // 👇 ДОДАНО: Перевіряємо, чи завершено онбордінг
+  // Перевіряємо статус онбордінгу
   final bool hasCompletedOnboarding = StorageService.hasCompletedOnboarding();
+
+  // ДОДАНО: Перевіряємо, чи встановлено ПІН-код
+  final bool isPinSet = await SecurityService.isPinSet();
 
   runApp(
     EasyLocalization(
@@ -119,7 +124,10 @@ void main() async {
         child: DevicePreview(
           enabled: !kReleaseMode && showPreview,
           // 👇 ЗМІНЕНО: Передаємо статус онбордінгу в MyApp
-          builder: (context) => MyApp(showOnboarding: !hasCompletedOnboarding),
+          builder: (context) => MyApp(
+            showOnboarding: !hasCompletedOnboarding,
+            requirePin: isPinSet, // Передаємо статус ПІН-коду
+          ),
 
           // ДЛЯ ПЕРЕВІРКИ ЕКРАНУ ОНБОРДИНГУ:
           // builder: (context) =>
@@ -131,12 +139,14 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  final bool showOnboarding; // <-- ДОДАНО: Параметр для контролю екрану
+  final bool showOnboarding;
+  final bool requirePin; // ДОДАНО: Параметр для ПІН-коду
 
   const MyApp({
     super.key,
     required this.showOnboarding,
-  }); // <-- ДОДАНО: Конструктор
+    this.requirePin = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -199,8 +209,10 @@ class MyApp extends StatelessWidget {
         },
       ),
 
-      // 👇 ЗМІНЕНО: Визначаємо домашній екран
-      home: showOnboarding ? const OnboardingScreen() : const HomeScreen(),
+      // Логіка: Онбордінг -> ПІН-код -> Головний екран
+      home: showOnboarding
+          ? const OnboardingScreen()
+          : (requirePin ? const LockScreen() : const HomeScreen()),
     );
   }
 }

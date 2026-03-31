@@ -1,7 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <application
-        android:label="coin_flow"
+        android:label="CoinFlow"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

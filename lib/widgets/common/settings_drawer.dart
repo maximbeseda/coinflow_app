@@ -16,7 +16,6 @@ class SettingsDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // ДОДАНО: Слухаємо провайдер, щоб знати, чи є відкладені платежі
     final hasPendingSubscriptions = context
         .watch<SubscriptionProvider>()
         .hasPendingPayments;
@@ -132,85 +131,23 @@ class SettingsDrawer extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               onTap: () {
-                final safeContext = context;
+                final navContext = Navigator.of(context).context;
                 final sheetColors = Theme.of(
                   context,
                 ).extension<AppColorsExtension>()!;
 
+                Navigator.pop(context);
+
                 showModalBottomSheet(
-                  context: context,
+                  context: navContext,
                   backgroundColor: sheetColors.cardBg,
-                  builder: (ctx) {
-                    return SafeArea(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(height: 8),
-                          Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: sheetColors.textSecondary.withValues(
-                                alpha: 0.3,
-                              ),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          ListTile(
-                            leading: Icon(
-                              Icons.upload_file,
-                              color: sheetColors.textMain,
-                            ),
-                            title: Text(
-                              'export'.tr(),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: sheetColors.textMain,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'export_subtitle'.tr(),
-                              style: TextStyle(
-                                color: sheetColors.textSecondary,
-                              ),
-                            ),
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              BackupService.exportData(safeContext);
-                            },
-                          ),
-                          ListTile(
-                            leading: Icon(
-                              Icons.download,
-                              color: sheetColors.expense,
-                            ),
-                            title: Text(
-                              'import'.tr(),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: sheetColors.textMain,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'warning_overwrite'.tr(),
-                              style: TextStyle(color: sheetColors.expense),
-                            ),
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              BackupService.importData(safeContext);
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    );
-                  },
+                  isScrollControlled: true,
+                  builder: (ctx) => const _BackupBottomSheet(),
                 );
               },
             ),
 
-            // КНОПКА ПІДПИСОК (З ІНДИКАТОРОМ)
+            // КНОПКА ПІДПИСОК
             ListTile(
               leading: Icon(Icons.autorenew, color: colors.textMain),
               title: Text(
@@ -223,7 +160,6 @@ class SettingsDrawer extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              // ДОДАНО: Червона крапочка, якщо є борги
               trailing: hasPendingSubscriptions
                   ? Container(
                       width: 10,
@@ -253,6 +189,211 @@ class SettingsDrawer extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// INLINE BOTTOM SHEET ДЛЯ БЕКАПУ
+// ==========================================
+enum _ExpandedMode { none, export, import }
+
+class _BackupBottomSheet extends StatefulWidget {
+  const _BackupBottomSheet();
+
+  @override
+  State<_BackupBottomSheet> createState() => _BackupBottomSheetState();
+}
+
+class _BackupBottomSheetState extends State<_BackupBottomSheet> {
+  _ExpandedMode _expandedMode = _ExpandedMode.none;
+  bool _isObscured = true;
+  final TextEditingController _passwordCtrl = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _toggleExpand(_ExpandedMode mode) {
+    setState(() {
+      if (_expandedMode == mode) {
+        _expandedMode = _ExpandedMode.none;
+        _focusNode.unfocus();
+      } else {
+        _expandedMode = mode;
+        _passwordCtrl.clear();
+        _isObscured = true;
+        Future.delayed(const Duration(milliseconds: 150), () {
+          if (mounted) _focusNode.requestFocus();
+        });
+      }
+    });
+  }
+
+  void _submit() {
+    // 👇 ПРИБРАЛИ .trim(), щоб пароль передавався точно так, як його ввели, з усіма пробілами!
+    final pwd = _passwordCtrl.text;
+    if (pwd.isEmpty) return;
+
+    final mode = _expandedMode;
+    final rootContext = Navigator.of(context).context;
+
+    Navigator.pop(context);
+
+    if (mode == _ExpandedMode.export) {
+      BackupService.exportData(rootContext, pwd);
+    } else if (mode == _ExpandedMode.import) {
+      BackupService.importData(rootContext, pwd);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.textSecondary.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // --- ПУНКТ ЕКСПОРТУ ---
+            ListTile(
+              leading: Icon(Icons.upload_file, color: colors.textMain),
+              title: Text(
+                'export'.tr(),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: colors.textMain,
+                ),
+              ),
+              subtitle: Text(
+                'export_subtitle'.tr(),
+                style: TextStyle(color: colors.textSecondary),
+              ),
+              onTap: () => _toggleExpand(_ExpandedMode.export),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: _expandedMode == _ExpandedMode.export
+                  ? _buildInlinePasswordField(colors)
+                  : const SizedBox.shrink(),
+            ),
+
+            // --- ПУНКТ ІМПОРТУ ---
+            ListTile(
+              leading: Icon(Icons.download, color: colors.expense),
+              title: Text(
+                'import'.tr(),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: colors.textMain,
+                ),
+              ),
+              subtitle: Text(
+                'warning_overwrite'.tr(),
+                style: TextStyle(color: colors.expense),
+              ),
+              onTap: () => _toggleExpand(_ExpandedMode.import),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: _expandedMode == _ExpandedMode.import
+                  ? _buildInlinePasswordField(colors)
+                  : const SizedBox.shrink(),
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- ВБУДОВАНЕ ПОЛЕ З ПІДКАЗКОЮ ТА ГЛОБАЛЬНИМ ДИЗАЙНОМ ---
+  Widget _buildInlinePasswordField(AppColorsExtension colors) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              _expandedMode == _ExpandedMode.export
+                  ? 'enter_password_export'.tr()
+                  : 'enter_password_import'.tr(),
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          TextField(
+            controller: _passwordCtrl,
+            focusNode: _focusNode,
+            obscureText: _isObscured,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+            style: TextStyle(color: colors.textMain, fontSize: 16),
+
+            // 👇 ПРИБРАЛИ ВСІ КАСТОМНІ РАМКИ ТА КОЛЬОРИ
+            // Тепер поле автоматично використає твої глобальні налаштування
+            // (той самий правильний синій колір і правильні кути)
+            decoration: InputDecoration(
+              hintText: 'password'.tr(),
+              hintStyle: TextStyle(
+                color: colors.textSecondary.withValues(alpha: 0.5),
+              ),
+
+              // Залишаємо тільки іконки з правого боку
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      _isObscured ? Icons.visibility_off : Icons.visibility,
+                      color: colors.textSecondary,
+                      size: 22,
+                    ),
+                    onPressed: () => setState(() => _isObscured = !_isObscured),
+                  ),
+                  // Точно така сама галочка, як у коментарях!
+                  IconButton(
+                    icon: Icon(
+                      Icons.check_circle,
+                      color: colors.textMain,
+                      size: 28,
+                    ),
+                    onPressed: _submit,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
