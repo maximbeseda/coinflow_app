@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import '../services/storage_service.dart';
-import '../services/currency_service.dart';
+import '../services/currency_repository.dart'; // 👇 Підключили новий файл
 
 class SettingsProvider with ChangeNotifier {
+  // 👇 ОСЬ ВОНО! НАШ АДАПТЕР!
+  // Якщо колись зміниш API, просто напишеш: final CurrencyRepository _api = NewPaidApi();
+  // І більше ЖОДНОГО рядка коду в додатку міняти не доведеться.
+  final CurrencyRepository _api = FawazahmedApi();
+
   String _baseCurrency = 'UAH';
   List<String> _selectedCurrencies = ['UAH', 'USD', 'EUR'];
   Map<String, double> _exchangeRates = {};
   DateTime? _lastRatesUpdate;
-
-  // ДОДАНО: Локальна змінна для історичного кешу
   Map<String, dynamic> _historicalCache = {};
 
   String get baseCurrency => _baseCurrency;
@@ -28,31 +31,24 @@ class SettingsProvider with ChangeNotifier {
 
     _exchangeRates = StorageService.getExchangeRates();
     _lastRatesUpdate = StorageService.getLastRatesUpdateTime();
-
-    // ДОДАНО: Завантажуємо історичний кеш при старті
     _historicalCache = StorageService.getHistoricalRatesCache();
 
     notifyListeners();
 
-    bool updated = await CurrencyService.updateRatesIfNeeded(_baseCurrency);
-    if (updated) {
-      _exchangeRates = StorageService.getExchangeRates();
-      _lastRatesUpdate = StorageService.getLastRatesUpdateTime();
-      notifyListeners();
+    // 👇 Логіка перевірки "чи пройшло 12 годин" тепер живе тут
+    final now = DateTime.now();
+    if (_lastRatesUpdate == null ||
+        now.difference(_lastRatesUpdate!).inHours >= 12) {
+      await forceUpdateRates();
     }
   }
 
-  // =======================================================
-  // 👇 ПОВНІСТЮ ОНОВЛЕНО: "Ліниве завантаження" історії
-  // =======================================================
   Future<double?> getRateForDate(String currencyCode, DateTime date) async {
     if (currencyCode == _baseCurrency) return 1.0;
 
-    // Формуємо ключ, наприклад: "2026-03-15"
     String dateKey =
         "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
 
-    // 1. ШУКАЄМО В ЛОКАЛЬНОМУ КЕШІ (0 мілісекунд)
     if (_historicalCache.containsKey(dateKey)) {
       final dayRates = _historicalCache[dateKey] as Map;
       if (dayRates.containsKey(currencyCode)) {
@@ -61,22 +57,20 @@ class SettingsProvider with ChangeNotifier {
     }
 
     final now = DateTime.now();
-    // 2. Якщо це майбутня дата або сьогодні — беремо поточний кеш (це норма)
     if ((date.year == now.year &&
             date.month == now.month &&
             date.day == now.day) ||
         date.isAfter(now)) {
-      return _exchangeRates[currencyCode]; // Може повернути null, тоді спрацює "Страховка" в UI
+      return _exchangeRates[currencyCode];
     }
 
-    // 3. ЯКЩО НЕМАЄ - ЙДЕМО В ІНТЕРНЕТ (API)
-    final historicalRates = await CurrencyService.getHistoricalRates(
+    // 👇 Звертаємось до API через абстрактний інтерфейс
+    final historicalRates = await _api.fetchHistoricalRates(
       _baseCurrency,
       date,
     );
 
     if (historicalRates != null && historicalRates.isNotEmpty) {
-      // 4. ЗБЕРІГАЄМО ВЕСЬ СЛОВНИК В КЕШ НАЗАВЖДИ
       _historicalCache[dateKey] = historicalRates;
       await StorageService.saveHistoricalRatesCache(_historicalCache);
 
@@ -85,7 +79,6 @@ class SettingsProvider with ChangeNotifier {
       }
     }
 
-    // 5. Якщо курсу за цю дату немає в API — чесно повертаємо null
     return null;
   }
 
@@ -103,7 +96,6 @@ class SettingsProvider with ChangeNotifier {
     _enforceBaseCurrencyAtTop();
     await StorageService.setSelectedCurrencies(_selectedCurrencies);
 
-    // 👇 ДОДАНО: Очищаємо кеш історії, бо Якір змінився!
     _historicalCache.clear();
     await StorageService.saveHistoricalRatesCache({});
 
@@ -113,7 +105,7 @@ class SettingsProvider with ChangeNotifier {
 
   Future<void> toggleSelectedCurrency(String code) async {
     if (_selectedCurrencies.contains(code)) {
-      if (code == _baseCurrency) return; // Захист: не можна видалити базову
+      if (code == _baseCurrency) return;
       _selectedCurrencies.remove(code);
     } else {
       _selectedCurrencies.add(code);
@@ -123,23 +115,31 @@ class SettingsProvider with ChangeNotifier {
   }
 
   Future<bool> forceUpdateRates() async {
-    bool updated = await CurrencyService.forceUpdateRates(_baseCurrency);
-    if (updated) {
-      _exchangeRates = StorageService.getExchangeRates();
-      _lastRatesUpdate = StorageService.getLastRatesUpdateTime();
+    debugPrint('Завантаження нових курсів валют для бази: $_baseCurrency...');
+
+    // 👇 Отримуємо курси з нашого Адаптера
+    final newRates = await _api.fetchLatestRates(_baseCurrency);
+
+    if (newRates != null) {
+      _exchangeRates = newRates;
+      _lastRatesUpdate = DateTime.now();
+
+      await StorageService.saveExchangeRates(_exchangeRates);
+      await StorageService.setLastRatesUpdateTime(_lastRatesUpdate!);
+
       notifyListeners();
+      debugPrint('Курси валют успішно оновлено!');
+      return true;
     }
-    return updated;
+
+    debugPrint('Всі сервери курсів валют недоступні.');
+    return false;
   }
 
-  // 👇 ТЕПЕР ПРАЦЮЄМО ТІЛЬКИ З INT
   int convertToBase(int amount, String fromCurrency) {
     if (fromCurrency == _baseCurrency) return amount;
-
     final rate = _exchangeRates[fromCurrency];
     if (rate == null || rate == 0) return amount;
-
-    // Ділимо на курс і округлюємо до найближчої цілої копійки
     return (amount / rate).round();
   }
 
@@ -150,7 +150,6 @@ class SettingsProvider with ChangeNotifier {
   }) {
     if (fromCurrency == toCurrency) return amount;
 
-    // Спершу переводимо в базу (USD/UAH), потім у цільову валюту
     double inBase = fromCurrency == _baseCurrency
         ? amount.toDouble()
         : amount / (_exchangeRates[fromCurrency] ?? 1.0);

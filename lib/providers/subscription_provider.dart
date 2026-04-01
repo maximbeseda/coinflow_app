@@ -135,12 +135,12 @@ class SubscriptionProvider extends ChangeNotifier {
 
     int accountDeduction = finalAmount;
     if (sourceAccount.currency != sub.currency) {
-      accountDeduction = (finalAmount * (subRate / accRate)).round();
+      accountDeduction = (finalAmount * (accRate / subRate)).round();
     }
 
     int expenseAddition = finalAmount;
     if (targetExpense.currency != sub.currency) {
-      expenseAddition = (finalAmount * (subRate / expRate)).round();
+      expenseAddition = (finalAmount * (expRate / subRate)).round();
     }
 
     if (sourceAccount.amount < accountDeduction) {
@@ -228,12 +228,12 @@ class SubscriptionProvider extends ChangeNotifier {
       // 👇 ЗМІНЕНО: Розрахунок через .round()
       int accountDeduction = sub.amount;
       if (account.currency != sub.currency) {
-        accountDeduction = (sub.amount * (subRate / accRate)).round();
+        accountDeduction = (sub.amount * (accRate / subRate)).round();
       }
 
       int expenseAddition = sub.amount;
       if (expense.currency != sub.currency) {
-        expenseAddition = (sub.amount * (subRate / expRate)).round();
+        expenseAddition = (sub.amount * (expRate / subRate)).round();
       }
 
       bool isMultiCurrency = account.currency != expense.currency;
