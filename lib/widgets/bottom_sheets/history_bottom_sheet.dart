@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
-import '../../models/category_model.dart';
-import '../../models/transaction_model.dart';
+import '../../database/app_database.dart';
 import '../../models/app_currency.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/date_formatter.dart';
@@ -172,10 +171,16 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                           },
                           leading: otherCat != null
                               ? CircleAvatar(
-                                  backgroundColor: otherCat.bgColor,
+                                  // 👇 КОНВЕРТУЄМО int у Color
+                                  backgroundColor: Color(otherCat.bgColor),
                                   child: Icon(
-                                    otherCat.icon,
-                                    color: otherCat.iconColor,
+                                    // 👇 КОНВЕРТУЄМО int у IconData
+                                    IconData(
+                                      otherCat.icon,
+                                      fontFamily: 'MaterialIcons',
+                                    ),
+                                    // 👇 КОНВЕРТУЄМО int у Color
+                                    color: Color(otherCat.iconColor),
                                     size: 20,
                                   ),
                                 )

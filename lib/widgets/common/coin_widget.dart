@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../utils/currency_formatter.dart';
-import '../../models/category_model.dart';
-import '../../models/app_currency.dart'; // ДОДАНО: Для отримання символу валюти
+import '../../database/app_database.dart';
+import '../../models/app_currency.dart';
 import '../../theme/app_colors_extension.dart';
 
 class CoinWidget extends StatelessWidget {
@@ -22,9 +22,15 @@ class CoinWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    String displayAmount = CurrencyFormatter.format(category.amount);
+    // 👇 КОНВЕРТАЦІЯ ТИПІВ DRIFT (int) НА ОБ'ЄКТИ FLUTTER
+    final Color catBgColor = Color(category.bgColor);
+    final Color catIconColor = Color(category.iconColor);
+    final IconData catIconData = IconData(
+      category.icon,
+      fontFamily: 'MaterialIcons',
+    );
 
-    // ДОДАНО: Отримуємо символ валюти для цієї конкретної категорії
+    String displayAmount = CurrencyFormatter.format(category.amount);
     String currencySymbol = AppCurrency.fromCode(category.currency).symbol;
 
     bool isIncome = category.type == CategoryType.income;
@@ -35,7 +41,6 @@ class CoinWidget extends StatelessWidget {
     bool hasBudget = category.budget != null && category.budget! > 0;
 
     if (hasBudget) {
-      // 👇 Приводимо до double для правильного розрахунку відсотка
       double amountAbs = category.amount.abs().toDouble();
       progress = (amountAbs / category.budget!.toDouble()).clamp(0.0, 1.0);
 
@@ -46,7 +51,6 @@ class CoinWidget extends StatelessWidget {
         int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
         int currentDay = now.day;
 
-        // 👇 Тут також використовуємо toDouble() для бюджету
         double expectedPace =
             (category.budget!.toDouble() / daysInMonth) * currentDay;
 
@@ -66,7 +70,7 @@ class CoinWidget extends StatelessWidget {
       width: 55,
       height: 55,
       decoration: BoxDecoration(
-        color: category.bgColor,
+        color: catBgColor, // ЗМІНЕНО: використовуємо Color
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
@@ -80,7 +84,11 @@ class CoinWidget extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Icon(category.icon, color: category.iconColor, size: 24),
+          Icon(
+            catIconData,
+            color: catIconColor,
+            size: 24,
+          ), // ЗМІНЕНО: IconData та Color
           if (hasBudget)
             Positioned(
               bottom: 6,
@@ -88,7 +96,7 @@ class CoinWidget extends StatelessWidget {
                 CurrencyFormatter.formatBudget(category.budget!),
                 style: TextStyle(
                   fontSize: 8,
-                  color: category.iconColor.withValues(alpha: 0.7),
+                  color: catIconColor.withValues(alpha: 0.7), // ТЕПЕР ПРАЦЮЄ
                 ),
               ),
             ),
@@ -101,7 +109,7 @@ class CoinWidget extends StatelessWidget {
       height: 55,
       decoration: BoxDecoration(color: colors.iconBg, shape: BoxShape.circle),
       child: Icon(
-        category.icon,
+        catIconData, // ЗМІНЕНО: IconData
         color: colors.textSecondary.withValues(alpha: 0.3),
         size: 24,
       ),
@@ -180,7 +188,7 @@ class CoinWidget extends StatelessWidget {
                 );
               },
               child: Text(
-                "$displayAmount $currencySymbol", // ЗМІНЕНО: Динамічна валюта замість ₴
+                "$displayAmount $currencySymbol",
                 key: ValueKey<String>("$displayAmount $currencySymbol"),
                 textAlign: TextAlign.center,
                 maxLines: 1,

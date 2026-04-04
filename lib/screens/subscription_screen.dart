@@ -6,9 +6,8 @@ import 'package:collection/collection.dart';
 import '../providers/category_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/settings_provider.dart';
-import '../models/subscription_model.dart';
+import '../database/app_database.dart';
 import '../models/app_currency.dart';
-import '../models/category_model.dart';
 import '../utils/app_constants.dart';
 import '../utils/date_formatter.dart';
 import '../widgets/dialogs/premium_date_picker.dart';
@@ -385,10 +384,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: cat.bgColor,
+                          // 👇 КОНВЕРТУЄМО int у Color
+                          color: Color(cat.bgColor),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(cat.icon, size: 18, color: cat.iconColor),
+                        child: Icon(
+                          // 👇 КОНВЕРТУЄМО int у IconData
+                          IconData(cat.icon, fontFamily: 'MaterialIcons'),
+                          size: 18,
+                          // 👇 КОНВЕРТУЄМО int у Color
+                          color: Color(cat.iconColor),
+                        ),
                       ),
                       title: Text(
                         cat.name,
@@ -1020,8 +1026,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           (c) => c.id == _selectedExpenseId,
         );
         if (cat != null) {
-          displayColor = cat.bgColor;
-          displayIconColor = cat.iconColor;
+          // 👇 КОНВЕРТУЄМО int у Color
+          displayColor = Color(cat.bgColor);
+          displayIconColor = Color(cat.iconColor);
         }
       }
     } else if (_selectedExpenseId != null) {
@@ -1029,9 +1036,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         (c) => c.id == _selectedExpenseId,
       );
       if (cat != null) {
-        displayIcon = cat.icon;
-        displayColor = cat.bgColor;
-        displayIconColor = cat.iconColor;
+        // 👇 КОНВЕРТУЄМО int у IconData та Color
+        displayIcon = IconData(cat.icon, fontFamily: 'MaterialIcons');
+        displayColor = Color(cat.bgColor);
+        displayIconColor = Color(cat.iconColor);
       }
     }
 

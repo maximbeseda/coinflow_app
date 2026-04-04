@@ -1,13 +1,12 @@
 import 'package:coin_flow/theme/category_defaults.dart';
 import 'package:flutter/material.dart';
+import 'package:drift/drift.dart' as drift;
 import 'dart:math' as math;
 import 'package:vibration/vibration.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
-import '../models/category_model.dart';
-import '../models/transaction_model.dart';
-import '../models/subscription_model.dart';
+import '../database/app_database.dart';
 import '../widgets/common/coin_widget.dart';
 import '../widgets/bottom_sheets/history_bottom_sheet.dart';
 import '../widgets/common/summary_header.dart';
@@ -226,14 +225,18 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted || result == null) return;
 
     final finance = context.read<TransactionProvider>();
-
     final comment = result['comment'] as String;
-    t.title = comment.trim().isNotEmpty
+
+    // Створюємо новий заголовок
+    final newTitle = comment.trim().isNotEmpty
         ? comment.trim()
         : '${'transfer'.tr()} ${sourceCat.name} ➡️ ${targetCat.name}';
 
+    // 👇 Створюємо оновлений об'єкт через copyWith
+    final updatedT = t.copyWith(title: newTitle);
+
     finance.editTransaction(
-      t,
+      updatedT, // Передаємо оновлену транзакцію
       result['amount'],
       result['date'],
       newTargetAmount: result['targetAmount'],
@@ -290,22 +293,26 @@ class _HomeScreenState extends State<HomeScreen>
           id: "${prefix}_${DateTime.now().millisecondsSinceEpoch}",
           type: type,
           name: result['name'],
-          icon: result['icon'],
-          amount: (result['amount'] as num?)?.toInt() ?? 0, // Гарантуємо int
-          budget: (result['budget'] as num?)?.toInt(), // Гарантуємо int?
-          bgColor: CategoryDefaults.getBgColor(type),
-          iconColor: CategoryDefaults.getIconColor(type),
+          icon: result['icon'], // Тут уже приходить int з CategoryScreen
+          amount: (result['amount'] as num?)?.toInt() ?? 0,
+          budget: (result['budget'] as num?)?.toInt(),
+          isArchived: false, // 👇 ДОДАНО: Обов'язкове поле для Drift
+          // 👇 КОНВЕРТАЦІЯ: Перетворюємо Color у int через .toARGB32()
+          bgColor: CategoryDefaults.getBgColor(type).toARGB32(),
+          iconColor: CategoryDefaults.getIconColor(type).toARGB32(),
           currency:
               result['currency'] ??
               context.read<SettingsProvider>().baseCurrency,
           includeInTotal: result['includeInTotal'] ?? true,
+          sortOrder: 0,
         );
         catProv.addOrUpdateCategory(n);
       } else {
         final updatedCategory = c.copyWith(
           name: result['name'],
           icon: result['icon'],
-          budget: result['budget'],
+          // Якщо budget може бути null, Drift очікує drift.Value(val)
+          budget: drift.Value(result['budget']),
           amount: type == CategoryType.account
               ? (result['amount'] ?? c.amount)
               : c.amount,

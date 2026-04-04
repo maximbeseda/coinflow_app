@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
-import '../models/category_model.dart';
+import '../database/app_database.dart';
 import '../models/app_currency.dart';
 import '../theme/app_colors_extension.dart';
 import '../widgets/common/custom_numpad.dart';
@@ -558,17 +558,26 @@ class _TransactionScreenState extends State<TransactionScreen> {
   }
 
   Widget _buildMiniCategory(Category cat, AppColorsExtension colors) {
+    // 👇 КОНВЕРТАЦІЯ: перетворюємо int назад у Color та IconData
+    final Color catColor = Color(cat.bgColor);
+    final Color iconColor = Color(cat.iconColor);
+    final IconData iconData = IconData(cat.icon, fontFamily: 'MaterialIcons');
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
-        color: cat.bgColor,
+        color: catColor, // Тепер тут об'єкт Color
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(cat.icon, color: cat.iconColor, size: 14),
+          Icon(
+            iconData,
+            color: iconColor,
+            size: 14,
+          ), // Тепер тут IconData та Color
           const SizedBox(width: 4),
           Flexible(
             child: Text(
@@ -576,7 +585,7 @@ class _TransactionScreenState extends State<TransactionScreen> {
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
               style: TextStyle(
-                color: cat.iconColor,
+                color: iconColor, // Тепер тут об'єкт Color
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),

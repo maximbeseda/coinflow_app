@@ -91,7 +91,7 @@ class SettingsProvider with ChangeNotifier {
     if (_baseCurrency == code) return;
 
     _baseCurrency = code;
-    await StorageService.setBaseCurrency(code);
+    await StorageService.saveBaseCurrency(code);
 
     _enforceBaseCurrencyAtTop();
     await StorageService.setSelectedCurrencies(_selectedCurrencies);

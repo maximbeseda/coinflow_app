@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/category_model.dart';
-import '../models/transaction_model.dart';
+import 'package:drift/drift.dart' as drift;
+import '../database/app_database.dart';
 import '../services/storage_service.dart';
 import 'category_provider.dart';
 import 'settings_provider.dart';
@@ -114,17 +114,27 @@ class TransactionProvider extends ChangeNotifier {
     if (_settingsProv == null) return;
     final currentBase = _settingsProv!.baseCurrency;
 
-    tx.baseCurrency = currentBase;
-    tx.baseAmount = _calculateBaseAmount(
-      tx.amount,
-      tx.currency,
-      tx.targetAmount,
-      tx.targetCurrency,
-      currentBase,
+    // Створюємо нову копію об'єкта з оновленими полями
+    final updatedTx = tx.copyWith(
+      baseCurrency: currentBase,
+      baseAmount: _calculateBaseAmount(
+        tx.amount,
+        tx.currency,
+        tx.targetAmount,
+        tx.targetCurrency,
+        currentBase,
+      ),
     );
 
-    history.add(tx);
-    StorageService.saveHistory(history);
+    // Додаємо оновлений об'єкт у список історії
+    history.add(updatedTx);
+
+    // Сортуємо історію, щоб нові транзакції були зверху
+    history.sort((a, b) => b.date.compareTo(a.date));
+
+    // Зберігаємо нову транзакцію в базу даних
+    StorageService.saveTransaction(updatedTx);
+
     notifyListeners();
   }
 
@@ -165,53 +175,75 @@ class TransactionProvider extends ChangeNotifier {
       baseCurrency: currentBase,
     );
 
-    history.add(newTx);
-    StorageService.saveHistory(history);
+    history.insert(0, newTx); // Додаємо на початок
+    StorageService.saveTransaction(newTx); // Зберігаємо ТІЛЬКИ її
     notifyListeners();
   }
 
   void editTransaction(
     Transaction oldT,
-    int newAmount, // 👇 ЗМІНЕНО на int
+    int newAmount,
     DateTime newDate, {
-    int? newTargetAmount, // 👇 ЗМІНЕНО на int?
+    int? newTargetAmount,
   }) {
+    // 1. Повертаємо баланси до стану "до цієї транзакції"
     _updateAccountBalance(oldT.fromId, oldT.amount);
     _updateAccountBalance(oldT.toId, -(oldT.targetAmount ?? oldT.amount));
 
-    final int previousAmount = oldT.amount; // 👇 ЗМІНЕНО на int
-    oldT.amount = newAmount;
-    oldT.date = newDate;
+    final int previousAmount = oldT.amount;
 
+    // 2. Вираховуємо нове значення targetAmount
+    int finalTargetAmount;
     if (newTargetAmount != null) {
-      oldT.targetAmount = newTargetAmount;
+      finalTargetAmount = newTargetAmount;
     } else if (oldT.targetAmount != null && previousAmount > 0) {
-      // 👇 ЗМІНЕНО: розрахунок через double-коефіцієнт з фінальним round()
-      oldT.targetAmount = (oldT.targetAmount! * (newAmount / previousAmount))
+      finalTargetAmount = (oldT.targetAmount! * (newAmount / previousAmount))
           .round();
     } else {
-      oldT.targetAmount = newAmount;
+      finalTargetAmount = newAmount;
     }
 
-    _updateAccountBalance(oldT.fromId, -oldT.amount);
-    _updateAccountBalance(oldT.toId, oldT.targetAmount ?? oldT.amount);
-
+    // 3. Вираховуємо нове значення baseAmount
+    int finalBaseAmount;
     if (previousAmount > 0) {
-      // 👇 ЗМІНЕНО: точне масштабування базової суми
-      oldT.baseAmount = (oldT.baseAmount * (newAmount / previousAmount))
+      finalBaseAmount = (oldT.baseAmount * (newAmount / previousAmount))
           .round();
     } else {
-      oldT.baseAmount = _calculateBaseAmount(
+      finalBaseAmount = _calculateBaseAmount(
         newAmount,
         oldT.currency,
-        oldT.targetAmount,
+        finalTargetAmount, // використовуємо вже нове значення
         oldT.targetCurrency,
         oldT.baseCurrency,
       );
     }
 
-    StorageService.saveTransaction(oldT);
+    // 4. Створюємо НОВИЙ об'єкт на основі старого
+    final updatedT = oldT.copyWith(
+      amount: newAmount,
+      date: newDate,
+      targetAmount: drift.Value(
+        finalTargetAmount,
+      ), // Drift використовує Value() для nullable полів у copyWith
+      baseAmount: finalBaseAmount,
+    );
+
+    // 5. Оновлюємо баланси з новими значеннями
+    _updateAccountBalance(updatedT.fromId, -updatedT.amount);
+    _updateAccountBalance(
+      updatedT.toId,
+      updatedT.targetAmount ?? updatedT.amount,
+    );
+
+    // 6. Оновлюємо об'єкт у списку history та базі даних
+    int index = history.indexWhere((t) => t.id == oldT.id);
+    if (index != -1) {
+      history[index] = updatedT;
+    }
+
+    StorageService.saveTransaction(updatedT);
     history.sort((a, b) => b.date.compareTo(a.date));
+
     notifyListeners();
   }
 
@@ -238,17 +270,26 @@ class TransactionProvider extends ChangeNotifier {
     isMigrating = true;
     notifyListeners();
 
-    for (var tx in currentMonthTxs) {
+    for (int i = 0; i < currentMonthTxs.length; i++) {
+      var tx = currentMonthTxs[i];
       if (tx.baseCurrency == newBase) continue;
 
-      tx.baseAmount = _calculateBaseAmount(
-        tx.amount,
-        tx.currency,
-        tx.targetAmount,
-        tx.targetCurrency,
-        newBase,
+      // Створюємо оновлену копію транзакції
+      tx = tx.copyWith(
+        baseAmount: _calculateBaseAmount(
+          tx.amount,
+          tx.currency,
+          tx.targetAmount,
+          tx.targetCurrency,
+          newBase,
+        ),
+        baseCurrency: newBase,
       );
-      tx.baseCurrency = newBase;
+
+      // Оновлюємо в масивах і зберігаємо
+      currentMonthTxs[i] = tx;
+      int mainIndex = history.indexWhere((t) => t.id == tx.id);
+      if (mainIndex != -1) history[mainIndex] = tx;
 
       StorageService.saveTransaction(tx);
     }

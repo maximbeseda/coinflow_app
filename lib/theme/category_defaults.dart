@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/category_model.dart';
+import '../database/app_database.dart';
 
 class CategoryDefaults {
   static const Color incomeBg = Colors.black;

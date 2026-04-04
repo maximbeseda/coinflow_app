@@ -12,7 +12,7 @@ import '../models/app_currency.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/date_formatter.dart';
 import '../widgets/dialogs/month_picker_dialog.dart';
-import '../models/category_model.dart';
+import '../database/app_database.dart';
 import '../theme/app_colors_extension.dart';
 import '../widgets/common/animated_dots.dart';
 
@@ -556,7 +556,11 @@ class _StatsScreenState extends State<StatsScreen> {
                                       radius: 12,
                                       backgroundColor: rowColor.withAlpha(30),
                                       child: Icon(
-                                        cat.icon,
+                                        // Конвертуємо int назад у об'єкт IconData
+                                        IconData(
+                                          cat.icon,
+                                          fontFamily: 'MaterialIcons',
+                                        ),
                                         size: 14,
                                         color: rowColor,
                                       ),

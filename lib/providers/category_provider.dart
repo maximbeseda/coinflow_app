@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/category_model.dart';
+import '../database/app_database.dart';
 import '../services/storage_service.dart';
 
 class CategoryProvider extends ChangeNotifier {
@@ -25,16 +25,19 @@ class CategoryProvider extends ChangeNotifier {
     final savedCats = await StorageService.loadCategories();
 
     if (savedCats.isNotEmpty) {
-      incomes = savedCats
+      final sorted = List<Category>.from(savedCats)
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+      incomes = sorted
           .where((c) => c.type == CategoryType.income && !c.isArchived)
           .toList();
-      accounts = savedCats
+      accounts = sorted
           .where((c) => c.type == CategoryType.account && !c.isArchived)
           .toList();
-      expenses = savedCats
+      expenses = sorted
           .where((c) => c.type == CategoryType.expense && !c.isArchived)
           .toList();
-      archivedCategories = savedCats.where((c) => c.isArchived).toList();
+      archivedCategories = sorted.where((c) => c.isArchived).toList();
     }
 
     isLoading = false;
@@ -77,9 +80,12 @@ class CategoryProvider extends ChangeNotifier {
 
     int index = targetList.indexWhere((c) => c.id == cat.id);
     if (index == -1) {
-      targetList.add(cat);
+      final newCat = cat.copyWith(sortOrder: targetList.length);
+      targetList.add(newCat);
+      StorageService.saveCategory(newCat);
     } else {
       targetList[index] = cat;
+      StorageService.saveCategory(cat);
     }
 
     StorageService.saveCategory(cat);
@@ -117,7 +123,13 @@ class CategoryProvider extends ChangeNotifier {
     if (oldIndex != -1 && newIndex != -1 && oldIndex != newIndex) {
       final item = targetList.removeAt(oldIndex);
       targetList.insert(newIndex, item);
-      StorageService.saveCategories(allCategoriesList);
+      // 👇 МАГІЯ ТУТ: оновлюємо sortOrder для всіх категорій у списку
+      for (int i = 0; i < targetList.length; i++) {
+        targetList[i] = targetList[i].copyWith(sortOrder: i);
+      }
+
+      // Зберігаємо весь оновлений список у базу через StorageService
+      StorageService.saveCategories(targetList);
       notifyListeners();
     }
   }

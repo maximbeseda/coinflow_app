@@ -1,4 +1,4 @@
-import '../models/subscription_model.dart';
+import '../database/app_database.dart';
 import 'storage_service.dart';
 
 class SubscriptionService {
@@ -30,7 +30,7 @@ class SubscriptionService {
       }
     }
 
-    sub.nextPaymentDate = nextDate;
+    sub = sub.copyWith(nextPaymentDate: nextDate);
     await StorageService.saveSubscription(sub);
   }
 
@@ -53,7 +53,7 @@ class SubscriptionService {
       nextDate = nextDate.add(const Duration(days: 7));
     }
 
-    sub.nextPaymentDate = nextDate;
+    sub = sub.copyWith(nextPaymentDate: nextDate);
     await StorageService.saveSubscription(sub);
   }
 }

@@ -21,55 +21,42 @@ import 'providers/stats_provider.dart';
 import 'theme/app_theme.dart';
 import 'services/storage_service.dart';
 import 'services/security_service.dart';
+import 'database/app_database.dart';
+import 'database/migration_service.dart';
+
+// ГЛОБАЛЬНА ЗМІННА БАЗИ ДАНИХ (Тимчасово, поки не додамо Riverpod)
+late AppDatabase appDb;
 
 void main() async {
-  // 1. Гарантуємо ініціалізацію Flutter
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 2. Ініціалізуємо локалізацію
   await EasyLocalization.ensureInitialized();
 
-  // 3. Фіксуємо орієнтацію екрана
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // 4. Ініціалізуємо базу даних Hive
+  // 1. Ініціалізуємо Hive ТІЛЬКИ для налаштувань (Settings)
   await Hive.initFlutter();
+  await Hive.openBox('settings'); // Відкриваємо тільки бокс налаштувань
 
-  // Реєструємо всі адаптери через наш сервіс
-  StorageService.registerAdapters();
+  // 2. ІНІЦІАЛІЗУЄМО DRIFT БАЗУ ДАНИХ
+  appDb = AppDatabase();
 
-  // Відкриваємо всі необхідні бокси
-  await Future.wait([
-    Hive.openBox('categories'),
-    Hive.openBox('transactions'),
-    Hive.openBox('subscriptions'),
-    Hive.openBox('settings'),
-  ]);
+  // 3. МАГІЯ: Переливаємо дані з Hive у Drift (якщо ще не робили цього)
+  await MigrationService.runMigrationIfNeeded(appDb);
 
-  // ==========================================
-  // Глобальний менеджер міграцій баз даних
-  // ==========================================
-  // Виконується строго ПІСЛЯ відкриття боксів, але ДО запуску UI
-  await StorageService.runMigrationsIfNeeded();
+  // 4. Твоя стара логіка (тимчасово залишаємо, щоб апка не зламалася прямо зараз)
+  // У НАСТУПНОМУ КРОЦІ ми перепишемо StorageService!
+  // StorageService.registerAdapters(); // <-- ЦЕ МОЖНА ВИДАЛИТИ, старі адаптери вже не потрібні
 
-  // ==========================================
-  // АВТО-СИНХРОНІЗАЦІЯ ДИЗАЙНУ
-  // Перефарбовує старі категорії у актуальні кольори
-  // ==========================================
-  await StorageService.syncSystemDesign();
+  // ВАЖЛИВО: Оскільки StorageService все ще очікує Hive, додаток зараз може підкреслювати помилки в StorageService.
+  // Але ти можеш видалити стару папку models/ (окрім app_currency, вона потрібна).
 
-  // 5. Ініціалізуємо формати дат
   await initializeDateFormatting('uk_UA', null);
-
   const bool showPreview = false;
 
-  // Перевіряємо статус онбордінгу
   final bool hasCompletedOnboarding = StorageService.hasCompletedOnboarding();
-
-  // ДОДАНО: Перевіряємо, чи встановлено ПІН-код
   final bool isPinSet = await SecurityService.isPinSet();
 
   runApp(

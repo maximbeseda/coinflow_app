@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../../models/subscription_model.dart';
+import '../../database/app_database.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/settings_provider.dart';

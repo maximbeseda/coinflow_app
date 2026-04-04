@@ -3,8 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../providers/category_provider.dart';
 import '../providers/subscription_provider.dart';
-import '../models/subscription_model.dart';
-import '../models/category_model.dart';
+import '../database/app_database.dart';
 import '../models/app_currency.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/date_formatter.dart';
@@ -132,24 +131,39 @@ class SubscriptionsScreen extends StatelessWidget {
                       );
                       final bool isBroken = !accountExists || !expenseExists;
 
+                      // 1. ВИПРАВЛЕНО: Створюємо дефолтну категорію з усіма обов'язковими полями Drift
                       final category = catProv.expenses.firstWhere(
                         (c) => c.id == sub.categoryId,
                         orElse: () => Category(
                           id: '',
                           type: CategoryType.expense,
                           name: 'unknown'.tr(),
-                          icon: Icons.help_outline,
-                          bgColor: colors.iconBg,
-                          iconColor: colors.textSecondary,
+                          icon: Icons.help_outline.codePoint, // Передаємо int
+                          bgColor: colors.iconBg.toARGB32(), // Передаємо int
+                          iconColor: colors.textSecondary
+                              .toARGB32(), // Передаємо int
+                          amount: 0, // Обов'язкове поле в Drift
+                          isArchived: false, // Обов'язкове поле в Drift
+                          currency: 'UAH', // Обов'язкове поле в Drift
+                          includeInTotal: true, // Обов'язкове поле в Drift
+                          sortOrder: 0,
                         ),
                       );
 
-                      final displayIcon = sub.customIconCodePoint != null
+                      // 2. ВИПРАВЛЕНО: Конвертуємо кольори та іконки з int назад у об'єкти Flutter
+                      final Color catBgColor = Color(category.bgColor);
+                      final Color catIconColor = Color(category.iconColor);
+
+                      final IconData displayIcon =
+                          sub.customIconCodePoint != null
                           ? IconData(
                               sub.customIconCodePoint!,
                               fontFamily: 'MaterialIcons',
                             )
-                          : category.icon;
+                          : IconData(
+                              category.icon,
+                              fontFamily: 'MaterialIcons',
+                            );
 
                       final now = DateTime.now();
                       final today = DateTime(now.year, now.month, now.day);
@@ -203,12 +217,12 @@ class SubscriptionsScreen extends StatelessWidget {
                                         width: 50,
                                         height: 50,
                                         decoration: BoxDecoration(
-                                          color: category.bgColor,
+                                          color: catBgColor,
                                           shape: BoxShape.circle,
                                         ),
                                         child: Icon(
                                           displayIcon,
-                                          color: category.iconColor,
+                                          color: catIconColor,
                                           size: 24,
                                         ),
                                       ),

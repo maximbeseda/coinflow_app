@@ -7,23 +7,19 @@ import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
-import 'package:encrypt/encrypt.dart' as enc; // ДОДАНО: Пакет для шифрування
+import 'package:encrypt/encrypt.dart' as enc;
 import 'package:crypto/crypto.dart';
 
 import '../providers/category_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../services/storage_service.dart';
-import '../models/category_model.dart';
-import '../models/transaction_model.dart';
-import '../models/subscription_model.dart';
+import '../database/app_database.dart';
 import '../theme/app_colors_extension.dart';
 
 class BackupService {
-  // Фіксований вектор ініціалізації
   static final _iv = enc.IV.fromLength(16);
 
-  // Динамічний генератор ключа з пароля користувача (SHA-256 робить рівно 32 байти)
   static enc.Key _generateKeyFromPassword(String password) {
     final bytes = utf8.encode(password);
     final digest = sha256.convert(bytes);
@@ -35,7 +31,9 @@ class BackupService {
     String message,
     bool isSuccess,
   ) {
+    // Перевірка на mounted вже є, це правильно
     if (!context.mounted) return;
+
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final accentColor = isSuccess ? colors.income : colors.expense;
 
@@ -81,7 +79,6 @@ class BackupService {
     );
   }
 
-  // ДОДАНО ПАРАМЕТР password
   static Future<void> exportData(BuildContext context, String password) async {
     try {
       final catProv = context.read<CategoryProvider>();
@@ -89,117 +86,118 @@ class BackupService {
       final subProv = context.read<SubscriptionProvider>();
 
       final data = {
+        'version': 1,
         'categories': catProv.allCategoriesList.map((c) => c.toJson()).toList(),
         'transactions': txProv.history.map((t) => t.toJson()).toList(),
         'subscriptions': subProv.subscriptions.map((s) => s.toJson()).toList(),
       };
 
-      // 1. Створюємо звичайний JSON
-      final String plainJsonString = jsonEncode(data);
-
-      // 2. Створюємо шифратор на основі пароля і шифруємо
+      final String jsonString = jsonEncode(data);
       final key = _generateKeyFromPassword(password);
       final encrypter = enc.Encrypter(enc.AES(key));
 
-      final encrypted = encrypter.encrypt(plainJsonString, iv: _iv);
+      final encrypted = encrypter.encrypt(jsonString, iv: _iv);
       final encryptedBase64 = encrypted.base64;
 
       final directory = await getTemporaryDirectory();
-      final dateStr =
-          "${DateTime.now().day}_${DateTime.now().month}_${DateTime.now().year}";
-
-      // ЗМІНЕНО: Розширення .cfbak замість .json
+      final dateStr = DateFormat('dd_MM_yyyy_HHmm').format(DateTime.now());
       final file = File('${directory.path}/coinflow_backup_$dateStr.cfbak');
 
-      // 3. Записуємо зашифрований рядок у файл
       await file.writeAsString(encryptedBase64);
 
-      final xFile = XFile(file.path);
+      // ВИПРАВЛЕНО для share_plus v12.0.1:
+      // Метод share тепер приймає ЛИШЕ один аргумент типу ShareParams
       await SharePlus.instance.share(
-        ShareParams(text: 'backup_share_text'.tr(), files: [xFile]),
+        ShareParams(text: 'backup_share_text'.tr(), files: [XFile(file.path)]),
       );
     } catch (e) {
       debugPrint("Помилка експорту: $e");
-      if (!context.mounted) return;
-      _showCustomSnackBar(context, 'backup_error'.tr(), false);
+      if (context.mounted) {
+        _showCustomSnackBar(context, 'backup_error'.tr(), false);
+      }
     }
   }
 
-  // ДОДАНО ПАРАМЕТР password
   static Future<void> importData(BuildContext context, String password) async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.any,
       );
 
-      if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
+      if (result == null || result.files.single.path == null) return;
 
-        if (!file.path.endsWith('.cfbak') && !file.path.endsWith('.json')) {
-          throw Exception('invalid_backup_format'.tr());
-        }
+      final file = File(result.files.single.path!);
+      final String fileContent = await file.readAsString();
+      String jsonString;
 
-        // 1. Читаємо файл
-        final String fileContent = await file.readAsString();
-        String jsonString;
-
+      if (file.path.endsWith('.cfbak')) {
         try {
-          // 2. Створюємо дешифратор на основі введеного пароля
           final key = _generateKeyFromPassword(password);
           final encrypter = enc.Encrypter(enc.AES(key));
-
           jsonString = encrypter.decrypt64(fileContent, iv: _iv);
         } catch (e) {
-          // Фоллбек: якщо старий бекап без пароля або введено неправильний пароль
-          // (У майбутньому тут можна додати викидання помилки "Невірний пароль")
-          jsonString = fileContent;
+          if (context.mounted) {
+            _showCustomSnackBar(
+              context,
+              'wrong_password_or_corrupted'.tr(),
+              false,
+            );
+          }
+          return;
         }
+      } else if (file.path.endsWith('.json')) {
+        jsonString = fileContent;
+      } else {
+        throw Exception('invalid_backup_format'.tr());
+      }
 
-        final Map<String, dynamic> data = jsonDecode(jsonString);
+      final Map<String, dynamic> data = jsonDecode(jsonString);
 
-        if (!data.containsKey('categories') ||
-            !data.containsKey('transactions')) {
-          throw Exception('corrupted_backup'.tr());
-        }
+      if (!data.containsKey('categories') ||
+          !data.containsKey('transactions')) {
+        throw Exception('corrupted_backup'.tr());
+      }
 
-        List<Category> importedCategories = (data['categories'] as List)
-            .map((e) => Category.fromJson(e))
+      List<Category> importedCategories = (data['categories'] as List)
+          .map((e) => Category.fromJson(e))
+          .toList();
+      List<Transaction> importedTransactions = (data['transactions'] as List)
+          .map((e) => Transaction.fromJson(e))
+          .toList();
+      List<Subscription> importedSubscriptions = [];
+      if (data.containsKey('subscriptions')) {
+        importedSubscriptions = (data['subscriptions'] as List)
+            .map((e) => Subscription.fromJson(e))
             .toList();
-        List<Transaction> importedTransactions = (data['transactions'] as List)
-            .map((e) => Transaction.fromJson(e))
-            .toList();
+      }
 
-        List<Subscription> importedSubscriptions = [];
-        if (data.containsKey('subscriptions')) {
-          importedSubscriptions = (data['subscriptions'] as List)
-              .map((e) => Subscription.fromJson(e))
-              .toList();
-        }
+      await StorageService.clearAll();
+      await StorageService.saveCategories(importedCategories);
+      await StorageService.saveHistory(importedTransactions);
+      for (var sub in importedSubscriptions) {
+        await StorageService.saveSubscription(sub);
+      }
 
-        await StorageService.clearAll();
+      // ВИПРАВЛЕНО: Додано перевірку context.mounted після асинхронних операцій
+      if (!context.mounted) return;
 
-        await StorageService.saveCategories(importedCategories);
-        await StorageService.saveHistory(importedTransactions);
-        for (var sub in importedSubscriptions) {
-          await StorageService.saveSubscription(sub);
-        }
+      final catProv = context.read<CategoryProvider>();
+      final txProv = context.read<TransactionProvider>();
+      final subProv = context.read<SubscriptionProvider>();
 
-        if (!context.mounted) return;
-        final catProv = context.read<CategoryProvider>();
-        final txProv = context.read<TransactionProvider>();
-        final subProv = context.read<SubscriptionProvider>();
+      await catProv.loadCategories();
+      await txProv.loadHistory();
+      await subProv.loadSubscriptions();
 
-        await catProv.loadCategories();
-        await txProv.loadHistory();
-        await subProv.loadSubscriptions();
-
-        if (!context.mounted) return;
+      // Ще одна перевірка перед фінальним SnackBar
+      if (context.mounted) {
         _showCustomSnackBar(context, 'backup_success'.tr(), true);
       }
     } catch (e) {
       debugPrint("Помилка імпорту: $e");
-      if (!context.mounted) return;
-      _showCustomSnackBar(context, 'import_error'.tr(), false);
+      if (context.mounted) {
+        _showCustomSnackBar(context, 'import_error'.tr(), false);
+      }
     }
   }
 }

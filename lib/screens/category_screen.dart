@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:provider/provider.dart';
-import '../models/category_model.dart';
+import '../database/app_database.dart';
 import '../utils/app_constants.dart';
 import '../theme/app_colors_extension.dart';
 import '../theme/category_defaults.dart';
@@ -62,10 +62,14 @@ class _CategoryScreenState extends State<CategoryScreen> {
           : "",
     );
 
-    _selectedIcon =
-        widget.category?.icon != null &&
-            AppConstants.allIcons.contains(widget.category!.icon)
-        ? widget.category!.icon
+    // 1. Спершу створюємо тимчасову змінну з IconData, якщо категорія існує
+    final IconData? iconFromDb = widget.category != null
+        ? IconData(widget.category!.icon, fontFamily: 'MaterialIcons')
+        : null;
+
+    // 2. Тепер ініціалізуємо _selectedIcon з перевіркою
+    _selectedIcon = (iconFromDb != null)
+        ? iconFromDb
         : AppConstants.groupedIcons.values.first.first;
 
     _nameCtrl.addListener(() {
@@ -329,14 +333,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
       return;
     }
 
-    // Парсимо введення користувача (наприклад "10.50")
     double parsedAmount =
         double.tryParse(
           _amountCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
         ) ??
         0.0;
-
-    // Перетворюємо в копійки (int) через .round()
     int finalAmount = (parsedAmount * 100).round();
 
     int? finalBudget;
@@ -349,9 +350,10 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
     Navigator.pop(context, {
       'name': _nameCtrl.text.trim(),
-      'icon': _selectedIcon,
-      'amount': finalAmount, // Тепер віддаємо int
-      'budget': finalBudget, // Тепер віддаємо int?
+      'icon':
+          _selectedIcon.codePoint, // <-- ЗМІНЕНО: передаємо код іконки (int)
+      'amount': finalAmount,
+      'budget': finalBudget,
       'currency': _selectedCurrency,
       'includeInTotal': _includeInTotal,
     });

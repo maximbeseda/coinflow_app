@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/transaction_model.dart';
+import '../database/app_database.dart';
 import 'transaction_provider.dart';
 import 'category_provider.dart';
 

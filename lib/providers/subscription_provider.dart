@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
-import '../models/category_model.dart';
-import '../models/transaction_model.dart';
-import '../models/subscription_model.dart';
+import '../database/app_database.dart';
 import '../services/storage_service.dart';
 import '../services/subscription_service.dart';
 import 'category_provider.dart';
@@ -51,7 +49,7 @@ class SubscriptionProvider extends ChangeNotifier {
   }
 
   Future<void> loadSubscriptions() async {
-    subscriptions = StorageService.getSubscriptions();
+    subscriptions = await StorageService.getSubscriptions();
     _ignoredSubIds = StorageService.getIgnoredSubscriptions().toSet();
 
     await processAutoPayments();
@@ -278,15 +276,17 @@ class SubscriptionProvider extends ChangeNotifier {
             int nextDay = sub.nextPaymentDate.day;
             final lastDayOfNextMonth = DateTime(nextYear, nextMonth + 1, 0).day;
             if (nextDay > lastDayOfNextMonth) nextDay = lastDayOfNextMonth;
-            sub.nextPaymentDate = DateTime(nextYear, nextMonth, nextDay);
+            sub = sub.copyWith(
+              nextPaymentDate: DateTime(nextYear, nextMonth, nextDay),
+            );
           } else if (sub.periodicity == 'yearly') {
-            sub.nextPaymentDate = DateTime(
-              pDate.year + 1,
-              pDate.month,
-              pDate.day,
+            sub = sub.copyWith(
+              nextPaymentDate: DateTime(pDate.year + 1, pDate.month, pDate.day),
             );
           } else if (sub.periodicity == 'weekly') {
-            sub.nextPaymentDate = pDate.add(const Duration(days: 7));
+            sub = sub.copyWith(
+              nextPaymentDate: pDate.add(const Duration(days: 7)),
+            );
           }
 
           subUpdated = true;
@@ -297,6 +297,8 @@ class SubscriptionProvider extends ChangeNotifier {
       }
 
       if (subUpdated) {
+        int index = subscriptions.indexWhere((s) => s.id == sub.id);
+        if (index != -1) subscriptions[index] = sub;
         await StorageService.saveSubscription(sub);
       }
     }
@@ -310,8 +312,7 @@ class SubscriptionProvider extends ChangeNotifier {
 
   Future<void> skipSubscriptionPayment(Subscription sub) async {
     await SubscriptionService.advanceOnePeriod(sub);
-    _checkDueSubscriptions();
-    notifyListeners();
+    await loadSubscriptions(); // Перезавантажуємо оновлені дані з бази
   }
 
   void ignoreSubscriptionForSession(String subId) {
