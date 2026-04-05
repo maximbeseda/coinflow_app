@@ -1,7 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:drift/drift.dart' as drift;
-import '../database/app_database.dart'; // Наша нова база
-import '../main.dart'; // Тут живе наша глобальна змінна appDb
+import '../database/app_database.dart';
 
 class StorageService {
   static const String _settingsBox = 'settings';
@@ -86,7 +85,7 @@ class StorageService {
   }
 
   // ==========================================
-  // ІГНОРОВАНІ ПІДПИСКИ (Тимчасовий стан UI)
+  // ІГНОРОВАНІ ПІДПИСКИ
   // ==========================================
   static List<String> getIgnoredSubscriptions() {
     final list = Hive.box(
@@ -99,87 +98,80 @@ class StorageService {
     await Hive.box(_settingsBox).put('ignored_subscriptions', ids);
   }
 
-  static Future<void> clearIgnoredSubscriptions() async {
-    await Hive.box(_settingsBox).put('ignored_subscriptions', <String>[]);
-  }
-
   // ==========================================
-  // БІЗНЕС-ДАНІ (Тепер працюють через Drift SQLite!)
+  // БІЗНЕС-ДАНІ (Drift SQLite)
+  // 👇 ТЕПЕР КОЖЕН МЕТОД ПРИЙМАЄ [db] ЯК ПАРАМЕТР
   // ==========================================
 
   // --- КАТЕГОРІЇ ---
-  static Future<List<Category>> loadCategories() async {
-    return await appDb.select(appDb.categories).get();
+  static Future<List<Category>> loadCategories(AppDatabase db) async {
+    return await db.select(db.categories).get();
   }
 
-  static Future<void> saveCategory(Category category) async {
-    await appDb
-        .into(appDb.categories)
+  static Future<void> saveCategory(AppDatabase db, Category category) async {
+    await db
+        .into(db.categories)
         .insert(category, mode: drift.InsertMode.replace);
   }
 
-  static Future<void> saveCategories(List<Category> categoriesList) async {
-    await appDb.batch((batch) {
+  static Future<void> saveCategories(
+    AppDatabase db,
+    List<Category> categoriesList,
+  ) async {
+    await db.batch((batch) {
       batch.insertAll(
-        appDb.categories,
+        db.categories,
         categoriesList,
         mode: drift.InsertMode.replace,
       );
     });
   }
 
+  static Future<void> deleteCategoryFromDb(AppDatabase db, String id) async {
+    await (db.delete(db.categories)..where((t) => t.id.equals(id))).go();
+  }
+
   // --- ТРАНЗАКЦІЇ ---
-  static Future<List<Transaction>> loadHistory() async {
-    return await appDb.select(appDb.transactions).get();
+  static Future<List<Transaction>> loadHistory(AppDatabase db) async {
+    return await db.select(db.transactions).get();
   }
 
-  static Future<void> saveTransaction(Transaction tx) async {
-    await appDb
-        .into(appDb.transactions)
-        .insert(tx, mode: drift.InsertMode.replace);
+  static Future<void> saveTransaction(AppDatabase db, Transaction tx) async {
+    await db.into(db.transactions).insert(tx, mode: drift.InsertMode.replace);
   }
 
-  static Future<void> saveHistory(List<Transaction> txs) async {
-    await appDb.batch((batch) {
-      batch.insertAll(appDb.transactions, txs, mode: drift.InsertMode.replace);
+  static Future<void> saveHistory(AppDatabase db, List<Transaction> txs) async {
+    await db.batch((batch) {
+      batch.insertAll(db.transactions, txs, mode: drift.InsertMode.replace);
     });
   }
 
-  static Future<void> removeTransaction(String id) async {
-    await (appDb.delete(
-      appDb.transactions,
-    )..where((t) => t.id.equals(id))).go();
+  static Future<void> removeTransaction(AppDatabase db, String id) async {
+    await (db.delete(db.transactions)..where((t) => t.id.equals(id))).go();
   }
 
   // --- ПІДПИСКИ ---
-  static Future<List<Subscription>> getSubscriptions() async {
-    return await appDb.select(appDb.subscriptions).get();
+  static Future<List<Subscription>> getSubscriptions(AppDatabase db) async {
+    return await db.select(db.subscriptions).get();
   }
 
-  static Future<void> saveSubscription(Subscription subscription) async {
-    await appDb
-        .into(appDb.subscriptions)
+  static Future<void> saveSubscription(
+    AppDatabase db,
+    Subscription subscription,
+  ) async {
+    await db
+        .into(db.subscriptions)
         .insert(subscription, mode: drift.InsertMode.replace);
   }
 
-  static Future<void> deleteSubscription(String id) async {
-    await (appDb.delete(
-      appDb.subscriptions,
-    )..where((s) => s.id.equals(id))).go();
+  static Future<void> deleteSubscription(AppDatabase db, String id) async {
+    await (db.delete(db.subscriptions)..where((s) => s.id.equals(id))).go();
   }
 
-  // --- ОЧИЩЕННЯ ТА ІНШЕ ---
-  static Future<void> clearAll() async {
-    await appDb.delete(appDb.transactions).go();
-    await appDb.delete(appDb.categories).go();
-    await appDb.delete(appDb.subscriptions).go();
-  }
-
-  static Future<void> runMigrationsIfNeeded() async {
-    // Більше не потрібна тут, логіка перенесена в MigrationService
-  }
-
-  static Future<void> syncSystemDesign() async {
-    // Поки залишаємо пустою
+  // --- ОЧИЩЕННЯ ---
+  static Future<void> clearAll(AppDatabase db) async {
+    await db.delete(db.transactions).go();
+    await db.delete(db.categories).go();
+    await db.delete(db.subscriptions).go();
   }
 }

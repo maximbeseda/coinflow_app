@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
+// 👇 ДОДАНО: Riverpod для реактивності
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../database/app_database.dart';
 import '../../models/app_currency.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/date_formatter.dart';
 import '../../theme/app_colors_extension.dart';
+// 👇 ДОДАНО: Наш хаб провайдерів
+import '../../providers/all_providers.dart';
 
-class GeneralHistoryBottomSheet extends StatefulWidget {
+// 👇 ЗМІНЕНО: Тепер це ConsumerStatefulWidget
+class GeneralHistoryBottomSheet extends ConsumerStatefulWidget {
   final String title;
   final CategoryType filterType;
+  // Ці змінні залишаємо для сумісності з викликом у home_screen.dart
   final List<Transaction> transactions;
   final List<Category> allCategories;
   final Function(Transaction) onDelete;
@@ -26,48 +33,34 @@ class GeneralHistoryBottomSheet extends StatefulWidget {
   });
 
   @override
-  State<GeneralHistoryBottomSheet> createState() =>
+  ConsumerState<GeneralHistoryBottomSheet> createState() =>
       _GeneralHistoryBottomSheetState();
 }
 
-class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
-  late List<Transaction> _filteredHistory;
+class _GeneralHistoryBottomSheetState
+    extends ConsumerState<GeneralHistoryBottomSheet> {
+  // ✂️ ВИДАЛЕНО: initState, didUpdateWidget та локальні списки.
 
   @override
-  void initState() {
-    super.initState();
-    _filterAndSortTransactions();
-  }
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-  @override
-  void didUpdateWidget(covariant GeneralHistoryBottomSheet oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Перераховуємо тільки якщо список транзакцій реально оновився (наприклад, після видалення)
-    if (oldWidget.transactions != widget.transactions ||
-        oldWidget.filterType != widget.filterType) {
-      _filterAndSortTransactions();
-    }
-  }
+    // 👇 МАГІЯ RIVERPOD: Отримуємо найсвіжіші дані безпосередньо з бази
+    final txState = ref.watch(transactionProvider);
+    final catState = ref.watch(categoryProvider);
 
-  void _filterAndSortTransactions() {
-    _filteredHistory = widget.transactions.where((t) {
-      final fromCat = widget.allCategories.firstWhereOrNull(
-        (c) => c.id == t.fromId,
-      );
-      final toCat = widget.allCategories.firstWhereOrNull(
-        (c) => c.id == t.toId,
-      );
+    final allCategories = catState.allCategoriesList;
+
+    // Фільтруємо та сортуємо "на льоту"
+    final filteredHistory = txState.history.where((t) {
+      final fromCat = allCategories.firstWhereOrNull((c) => c.id == t.fromId);
+      final toCat = allCategories.firstWhereOrNull((c) => c.id == t.toId);
 
       return fromCat?.type == widget.filterType ||
           toCat?.type == widget.filterType;
     }).toList();
 
-    _filteredHistory.sort((a, b) => b.date.compareTo(a.date));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+    filteredHistory.sort((a, b) => b.date.compareTo(a.date));
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -97,7 +90,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
           ),
           const SizedBox(height: 15),
           Expanded(
-            child: _filteredHistory.isEmpty
+            child: filteredHistory.isEmpty
                 ? Center(
                     child: Text(
                       'no_transactions_yet'.tr(),
@@ -105,14 +98,14 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                     ),
                   )
                 : ListView.builder(
-                    itemCount: _filteredHistory.length,
+                    itemCount: filteredHistory.length,
                     itemBuilder: (context, index) {
-                      final t = _filteredHistory[index];
+                      final t = filteredHistory[index];
 
-                      final fromCat = widget.allCategories.firstWhereOrNull(
+                      final fromCat = allCategories.firstWhereOrNull(
                         (c) => c.id == t.fromId,
                       );
-                      final toCat = widget.allCategories.firstWhereOrNull(
+                      final toCat = allCategories.firstWhereOrNull(
                         (c) => c.id == t.toId,
                       );
 
@@ -137,8 +130,7 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                       if (isDefaultTitle) customNote = '';
 
                       // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ (в копійках) ---
-                      int displayAmount =
-                          t.amount; // Тепер очікуємо int від моделі
+                      int displayAmount = t.amount;
                       String currencyCode = t.currency;
 
                       if (widget.filterType == CategoryType.expense &&
@@ -190,34 +182,26 @@ class _GeneralHistoryBottomSheetState extends State<GeneralHistoryBottomSheet> {
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         onDismissed: (_) {
-                          // СПОЧАТКУ миттєво видаляємо з локального списку для UI
-                          setState(() {
-                            _filteredHistory.removeWhere(
-                              (item) => item.id == t.id,
-                            );
-                          });
-                          // ПОТІМ передаємо команду на видалення з бази
+                          // 👇 ЗМІНЕНО: Більше ніяких setState.
+                          // Просто викликаємо видалення, а Riverpod сам оновить список на екрані.
                           widget.onDelete(t);
                         },
                         child: ListTile(
                           onTap: () async {
                             await widget.onEdit(t);
-                            if (mounted) setState(() {});
+                            // 👇 ЗМІНЕНО: setState більше не потрібен!
                           },
                           leading: CircleAvatar(
-                            // 👇 КОНВЕРТУЄМО int у Color
                             backgroundColor: toCat != null
                                 ? Color(toCat.bgColor)
                                 : colors.iconBg,
                             child: Icon(
-                              // 👇 КОНВЕРТУЄМО int у IconData
                               toCat != null
                                   ? IconData(
                                       toCat.icon,
                                       fontFamily: 'MaterialIcons',
                                     )
                                   : Icons.help_outline,
-                              // 👇 КОНВЕРТУЄМО int у Color
                               color: toCat != null
                                   ? Color(toCat.iconColor)
                                   : colors.textSecondary,

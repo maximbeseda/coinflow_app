@@ -2,17 +2,19 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+
+// 👇 1. Додали Riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:provider/provider.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:crypto/crypto.dart';
 
-import '../providers/category_provider.dart';
-import '../providers/transaction_provider.dart';
-import '../providers/subscription_provider.dart';
+// 👇 2. Імпортуємо наш єдиний хаб провайдерів
+import '../providers/all_providers.dart';
+
 import '../services/storage_service.dart';
 import '../database/app_database.dart';
 import '../theme/app_colors_extension.dart';
@@ -31,7 +33,6 @@ class BackupService {
     String message,
     bool isSuccess,
   ) {
-    // Перевірка на mounted вже є, це правильно
     if (!context.mounted) return;
 
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
@@ -79,17 +80,23 @@ class BackupService {
     );
   }
 
-  static Future<void> exportData(BuildContext context, String password) async {
+  static Future<void> exportData(
+    BuildContext context,
+    WidgetRef ref,
+    String password,
+  ) async {
     try {
-      final catProv = context.read<CategoryProvider>();
-      final txProv = context.read<TransactionProvider>();
-      final subProv = context.read<SubscriptionProvider>();
+      final catState = ref.read(categoryProvider);
+      final txState = ref.read(transactionProvider);
+      final subState = ref.read(subscriptionProvider);
 
       final data = {
         'version': 1,
-        'categories': catProv.allCategoriesList.map((c) => c.toJson()).toList(),
-        'transactions': txProv.history.map((t) => t.toJson()).toList(),
-        'subscriptions': subProv.subscriptions.map((s) => s.toJson()).toList(),
+        'categories': catState.allCategoriesList
+            .map((c) => c.toJson())
+            .toList(),
+        'transactions': txState.history.map((t) => t.toJson()).toList(),
+        'subscriptions': subState.subscriptions.map((s) => s.toJson()).toList(),
       };
 
       final String jsonString = jsonEncode(data);
@@ -105,8 +112,6 @@ class BackupService {
 
       await file.writeAsString(encryptedBase64);
 
-      // ВИПРАВЛЕНО для share_plus v12.0.1:
-      // Метод share тепер приймає ЛИШЕ один аргумент типу ShareParams
       await SharePlus.instance.share(
         ShareParams(text: 'backup_share_text'.tr(), files: [XFile(file.path)]),
       );
@@ -118,8 +123,15 @@ class BackupService {
     }
   }
 
-  static Future<void> importData(BuildContext context, String password) async {
+  static Future<void> importData(
+    BuildContext context,
+    WidgetRef ref,
+    String password,
+  ) async {
     try {
+      // 👇 Отримуємо базу даних з Riverpod
+      final db = ref.read(databaseProvider);
+
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.any,
       );
@@ -171,25 +183,21 @@ class BackupService {
             .toList();
       }
 
-      await StorageService.clearAll();
-      await StorageService.saveCategories(importedCategories);
-      await StorageService.saveHistory(importedTransactions);
+      // 👇 ВИПРАВЛЕНО: Передаємо [db] у методи сервісу
+      await StorageService.clearAll(db);
+      await StorageService.saveCategories(db, importedCategories);
+      await StorageService.saveHistory(db, importedTransactions);
       for (var sub in importedSubscriptions) {
-        await StorageService.saveSubscription(sub);
+        await StorageService.saveSubscription(db, sub);
       }
 
-      // ВИПРАВЛЕНО: Додано перевірку context.mounted після асинхронних операцій
       if (!context.mounted) return;
 
-      final catProv = context.read<CategoryProvider>();
-      final txProv = context.read<TransactionProvider>();
-      final subProv = context.read<SubscriptionProvider>();
+      // Оновлюємо дані в провайдерах
+      await ref.read(categoryProvider.notifier).loadCategories();
+      await ref.read(transactionProvider.notifier).loadHistory();
+      await ref.read(subscriptionProvider.notifier).loadSubscriptions();
 
-      await catProv.loadCategories();
-      await txProv.loadHistory();
-      await subProv.loadSubscriptions();
-
-      // Ще одна перевірка перед фінальним SnackBar
       if (context.mounted) {
         _showCustomSnackBar(context, 'backup_success'.tr(), true);
       }

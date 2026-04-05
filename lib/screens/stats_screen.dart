@@ -1,13 +1,13 @@
 import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../providers/category_provider.dart';
-import '../providers/transaction_provider.dart';
-import '../providers/settings_provider.dart';
-import '../providers/stats_provider.dart';
+
+import '../providers/all_providers.dart';
+
 import '../models/app_currency.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/date_formatter.dart';
@@ -16,14 +16,14 @@ import '../database/app_database.dart';
 import '../theme/app_colors_extension.dart';
 import '../widgets/common/animated_dots.dart';
 
-class StatsScreen extends StatefulWidget {
+class StatsScreen extends ConsumerStatefulWidget {
   const StatsScreen({super.key});
 
   @override
-  State<StatsScreen> createState() => _StatsScreenState();
+  ConsumerState<StatsScreen> createState() => _StatsScreenState();
 }
 
-class _StatsScreenState extends State<StatsScreen> {
+class _StatsScreenState extends ConsumerState<StatsScreen> {
   bool _showExpenses = true;
   bool _showTrends = false;
   late DateTime _statsMonth;
@@ -76,8 +76,8 @@ class _StatsScreenState extends State<StatsScreen> {
     const Color(0xFFE91E63),
   ];
 
-  Color _getUniqueColor(String id, CategoryProvider catProv) {
-    List<String> allIds = catProv.allCategoriesList
+  Color _getUniqueColor(String id, CategoryState catState) {
+    List<String> allIds = catState.allCategoriesList
         .where(
           (c) =>
               c.type == CategoryType.expense || c.type == CategoryType.income,
@@ -90,32 +90,25 @@ class _StatsScreenState extends State<StatsScreen> {
     return _appCustomPalette[index % _appCustomPalette.length];
   }
 
-  // 👇 ЗМІНЕНО: тепер приймає StatsProvider
-  List<Category> _getSortedActiveCategories(
-    CategoryProvider catProv,
-    StatsProvider statsProv,
-  ) {
-    final allCategories = catProv.allCategoriesList;
+  List<Category> _getSortedActiveCategories(CategoryState catState) {
+    final allCategories = catState.allCategoriesList;
     final Map<String, Category> categoryMap = {
       for (var c in allCategories) c.id: c,
     };
 
-    // Отримуємо Map<String, int>
-    final categoryTotals = statsProv.calculateCategoryTotalsForMonth(
-      _statsMonth,
-      _showExpenses,
-    );
+    final categoryTotals = ref
+        .read(statsProvider.notifier)
+        .calculateCategoryTotalsForMonth(_statsMonth, _showExpenses);
 
     List<Category> activeCategories = [];
     categoryTotals.forEach((categoryId, amountInBaseCurrency) {
-      // amountInBaseCurrency тепер int
       if (amountInBaseCurrency > 0 && categoryMap.containsKey(categoryId)) {
         activeCategories.add(
           categoryMap[categoryId]!.copyWith(amount: amountInBaseCurrency),
         );
       }
     });
-    // Сортування цілих чисел (int)
+
     activeCategories.sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
     return activeCategories;
   }
@@ -123,10 +116,38 @@ class _StatsScreenState extends State<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    final settings = context.read<SettingsProvider>();
-    final baseCurrencySymbol = AppCurrency.fromCode(
-      settings.baseCurrency,
-    ).symbol;
+
+    final settingsState = ref.watch(settingsProvider);
+    final txState = ref.watch(transactionProvider);
+    final catState = ref.watch(categoryProvider);
+
+    // 👇 ІДЕАЛЬНА ЛОГІКА ВАЛЮТ (за твоїми правилами)
+    final now = DateTime.now();
+    final isCurrentMonth =
+        _statsMonth.year == now.year && _statsMonth.month == now.month;
+
+    String displayCurrency;
+
+    if (isCurrentMonth) {
+      // 1. Поточний місяць -> завжди показуємо в тій валюті, яку обрано в налаштуваннях
+      displayCurrency = settingsState.baseCurrency;
+    } else {
+      // 2. Статистика (історія) -> показується в тій валюті, яка була базовою на той момент
+      final monthTxs = txState.history.where(
+        (tx) =>
+            tx.date.year == _statsMonth.year &&
+            tx.date.month == _statsMonth.month,
+      );
+
+      if (monthTxs.isNotEmpty) {
+        displayCurrency = monthTxs.first.baseCurrency;
+      } else {
+        // Якщо за той місяць немає транзакцій, просто показуємо поточну
+        displayCurrency = settingsState.baseCurrency;
+      }
+    }
+
+    final baseCurrencySymbol = AppCurrency.fromCode(displayCurrency).symbol;
 
     return Scaffold(
       backgroundColor: _showTrends ? colors.cardBg : null,
@@ -149,12 +170,17 @@ class _StatsScreenState extends State<StatsScreen> {
               _buildHeader(colors),
               if (!_showTrends) ...[
                 _buildMonthSelector(colors),
-                _buildTotalsToggle(colors, baseCurrencySymbol),
+                _buildTotalsToggle(colors, baseCurrencySymbol, txState),
               ],
               Expanded(
                 child: _showTrends
                     ? _buildTrendsView(colors)
-                    : _buildMonthlyPieView(colors, baseCurrencySymbol),
+                    : _buildMonthlyPieView(
+                        colors,
+                        baseCurrencySymbol,
+                        catState,
+                        txState,
+                      ),
               ),
             ],
           ),
@@ -228,7 +254,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withAlpha(10),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -265,75 +291,73 @@ class _StatsScreenState extends State<StatsScreen> {
   Widget _buildTotalsToggle(
     AppColorsExtension colors,
     String baseCurrencySymbol,
+    TransactionState txState,
   ) {
+    final allMonthTotals = ref
+        .read(statsProvider.notifier)
+        .calculateTotalsForMonth(_statsMonth);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-      // 👇 ЗМІНЕНО: Consumer2 для обох провайдерів
-      child: Consumer2<TransactionProvider, StatsProvider>(
-        builder: (context, txProv, statsProv, child) {
-          // 👇 ЗМІНЕНО: розрахунок сум через StatsProvider
-          final allMonthTotals = statsProv.calculateTotalsForMonth(_statsMonth);
-          return Container(
-            height: 60,
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: colors.cardBg,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(10),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+      child: Container(
+        height: 60,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: colors.cardBg,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-            child: Stack(
-              children: [
-                AnimatedAlign(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutCubic,
-                  alignment: !_showExpenses
-                      ? Alignment.centerLeft
-                      : Alignment.centerRight,
-                  child: FractionallySizedBox(
-                    widthFactor: 0.5,
-                    heightFactor: 1.0,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: colors.iconBg,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            AnimatedAlign(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              alignment: !_showExpenses
+                  ? Alignment.centerLeft
+                  : Alignment.centerRight,
+              child: FractionallySizedBox(
+                widthFactor: 0.5,
+                heightFactor: 1.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: colors.iconBg,
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                Row(
-                  children: [
-                    _toggleItem(
-                      'income'.tr(),
-                      (allMonthTotals['incomes'] ?? 0).toInt(),
-                      !txProv.isMigrating,
-                      !_showExpenses,
-                      colors.income,
-                      baseCurrencySymbol,
-                      () => setState(() => _showExpenses = false),
-                      colors,
-                    ),
-                    _toggleItem(
-                      'stats_expenses'.tr(),
-                      (allMonthTotals['expenses'] ?? 0).toInt(),
-                      !txProv.isMigrating,
-                      _showExpenses,
-                      colors.expense,
-                      baseCurrencySymbol,
-                      () => setState(() => _showExpenses = true),
-                      colors,
-                    ),
-                  ],
+              ),
+            ),
+            Row(
+              children: [
+                _toggleItem(
+                  'income'.tr(),
+                  (allMonthTotals['incomes'] ?? 0).toInt(),
+                  !txState.isMigrating,
+                  !_showExpenses,
+                  colors.income,
+                  baseCurrencySymbol,
+                  () => setState(() => _showExpenses = false),
+                  colors,
+                ),
+                _toggleItem(
+                  'stats_expenses'.tr(),
+                  (allMonthTotals['expenses'] ?? 0).toInt(),
+                  !txState.isMigrating,
+                  _showExpenses,
+                  colors.expense,
+                  baseCurrencySymbol,
+                  () => setState(() => _showExpenses = true),
+                  colors,
                 ),
               ],
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
@@ -375,7 +399,7 @@ class _StatsScreenState extends State<StatsScreen> {
                       fontWeight: FontWeight.w900,
                       color: isActive
                           ? activeColor
-                          : colors.textSecondary.withAlpha(80),
+                          : colors.textSecondary.withValues(alpha: 0.5),
                     ),
                   ),
                 ),
@@ -389,7 +413,7 @@ class _StatsScreenState extends State<StatsScreen> {
                           fontWeight: FontWeight.w900,
                           color: isActive
                               ? activeColor
-                              : colors.textSecondary.withAlpha(80),
+                              : colors.textSecondary.withValues(alpha: 0.5),
                         ),
                       ),
                     ),
@@ -403,200 +427,200 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Widget _buildTrendsView(AppColorsExtension colors) {
-    return Consumer<StatsProvider>(
-      builder: (context, statsProv, _) {
-        final trends = statsProv.calculateTrends();
-        if (trends.isEmpty) {
-          return Center(
-            child: Text(
-              'no_data'.tr(),
-              style: TextStyle(color: colors.textSecondary),
-            ),
-          );
-        }
-        return _TrendsCarousel(trends: trends, colors: colors);
-      },
-    );
+    final trends = ref.read(statsProvider.notifier).calculateTrends();
+    if (trends.isEmpty) {
+      return Center(
+        child: Text(
+          'no_data'.tr(),
+          style: TextStyle(color: colors.textSecondary),
+        ),
+      );
+    }
+    return _TrendsCarousel(trends: trends, colors: colors);
   }
 
   Widget _buildMonthlyPieView(
     AppColorsExtension colors,
     String baseCurrencySymbol,
+    CategoryState catState,
+    TransactionState txState,
   ) {
-    // 👇 ЗМІНЕНО: Consumer3 для підключення усіх трьох провайдерів
-    return Consumer3<CategoryProvider, TransactionProvider, StatsProvider>(
-      builder: (context, catProv, txProv, statsProv, child) {
-        // 👇 ЗМІНЕНО: передаємо statsProv всередину
-        final activeData = _getSortedActiveCategories(catProv, statsProv);
-        // Рахуємо суму в цілих копійках
-        int activeTotal = activeData.fold(
-          0,
-          (sum, item) => sum + item.amount.abs().toInt(),
-        );
+    final activeData = _getSortedActiveCategories(catState);
+    int activeTotal = activeData.fold(
+      0,
+      (sum, item) => sum + item.amount.abs().toInt(),
+    );
 
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onHorizontalDragEnd: (details) {
-            int sensitivity = 300;
-            if (details.primaryVelocity != null) {
-              if (details.primaryVelocity! < -sensitivity) {
-                _changeMonth(
-                  DateTime(_statsMonth.year, _statsMonth.month + 1, 1),
-                );
-              } else if (details.primaryVelocity! > sensitivity) {
-                _changeMonth(
-                  DateTime(_statsMonth.year, _statsMonth.month - 1, 1),
-                );
-              }
-            }
-          },
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 400),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              final inFrom = _animatingForward
-                  ? const Offset(1.0, 0.0)
-                  : const Offset(-1.0, 0.0);
-              final outTo = _animatingForward
-                  ? const Offset(-1.0, 0.0)
-                  : const Offset(1.0, 0.0);
-              if (child.key == ValueKey(_statsMonth.toIso8601String())) {
-                return SlideTransition(
-                  position: Tween<Offset>(
-                    begin: inFrom,
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                );
-              } else {
-                return SlideTransition(
-                  position: Tween<Offset>(
-                    begin: outTo,
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                );
-              }
-            },
-            child: Container(
-              key: ValueKey(_statsMonth.toIso8601String()),
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(24, 4, 24, 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.cardBg,
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(10),
-                    blurRadius: 15,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (details) {
+        int sensitivity = 300;
+        if (details.primaryVelocity != null) {
+          if (details.primaryVelocity! < -sensitivity) {
+            _changeMonth(DateTime(_statsMonth.year, _statsMonth.month + 1, 1));
+          } else if (details.primaryVelocity! > sensitivity) {
+            _changeMonth(DateTime(_statsMonth.year, _statsMonth.month - 1, 1));
+          }
+        }
+      },
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 400),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          final inFrom = _animatingForward
+              ? const Offset(1.0, 0.0)
+              : const Offset(-1.0, 0.0);
+          final outTo = _animatingForward
+              ? const Offset(-1.0, 0.0)
+              : const Offset(1.0, 0.0);
+          if (child.key == ValueKey(_statsMonth.toIso8601String())) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: inFrom,
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            );
+          } else {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: outTo,
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            );
+          }
+        },
+        child: Container(
+          key: ValueKey(_statsMonth.toIso8601String()),
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colors.cardBg,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
               ),
-              child: activeData.isEmpty
-                  ? Center(
-                      child: Text(
-                        _showExpenses
-                            ? 'no_expenses_month'.tr()
-                            : 'no_incomes_month'.tr(),
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: colors.textSecondary,
-                          fontWeight: FontWeight.bold,
+            ],
+          ),
+          child: activeData.isEmpty
+              ? Center(
+                  child: Text(
+                    _showExpenses
+                        ? 'no_expenses_month'.tr()
+                        : 'no_incomes_month'.tr(),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )
+              : Column(
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: PieChart(
+                        PieChartData(
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 38,
+                          sections: activeData.map((cat) {
+                            final value = cat.amount.abs() / 100.0;
+                            final percentage =
+                                (value / (activeTotal / 100.0)) * 100;
+                            return PieChartSectionData(
+                              color: _getUniqueColor(cat.id, catState),
+                              value: value,
+                              title: percentage >= 5.0
+                                  ? "${percentage.toStringAsFixed(0)}%"
+                                  : "",
+                              radius: 42,
+                              titlePositionPercentageOffset: 0.5,
+                              titleStyle: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ),
-                    )
-                  : Column(
-                      children: [
-                        Expanded(
-                          flex: 5,
-                          child: PieChart(
-                            PieChartData(
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 38,
-                              sections: activeData.map((cat) {
-                                final value = cat.amount.abs() / 100.0;
-                                final percentage =
-                                    (value / (activeTotal / 100.0)) * 100;
-                                return PieChartSectionData(
-                                  color: _getUniqueColor(cat.id, catProv),
-                                  value: value,
-                                  title: percentage >= 5.0
-                                      ? "${percentage.toStringAsFixed(0)}%"
-                                      : "",
-                                  radius: 42,
-                                  titlePositionPercentageOffset: 0.5,
-                                  titleStyle: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      flex: 7,
+                      child: ListView.builder(
+                        itemCount: activeData.length,
+                        itemBuilder: (context, index) {
+                          final cat = activeData[index];
+                          final percentage =
+                              (cat.amount.abs() / activeTotal) * 100;
+                          final rowColor = _getUniqueColor(cat.id, catState);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 12,
+                                  backgroundColor: rowColor.withValues(
+                                    alpha: 0.2,
                                   ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Expanded(
-                          flex: 7,
-                          child: ListView.builder(
-                            itemCount: activeData.length,
-                            itemBuilder: (context, index) {
-                              final cat = activeData[index];
-                              final percentage =
-                                  (cat.amount.abs() / activeTotal) * 100;
-                              final rowColor = _getUniqueColor(cat.id, catProv);
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12.0),
-                                child: Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 12,
-                                      backgroundColor: rowColor.withAlpha(30),
-                                      child: Icon(
-                                        // Конвертуємо int назад у об'єкт IconData
-                                        IconData(
-                                          cat.icon,
-                                          fontFamily: 'MaterialIcons',
-                                        ),
-                                        size: 14,
-                                        color: rowColor,
-                                      ),
+                                  child: Icon(
+                                    IconData(
+                                      cat.icon,
+                                      fontFamily: 'MaterialIcons',
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
+                                    size: 14,
+                                    color: rowColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    cat.name,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                      color: colors.textMain,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "${percentage.toStringAsFixed(1)}%",
+                                  style: TextStyle(
+                                    color: colors.textSecondary,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Stack(
+                                  alignment: Alignment.centerRight,
+                                  children: [
+                                    Opacity(
+                                      opacity: txState.isMigrating ? 0.0 : 1.0,
                                       child: Text(
-                                        cat.name,
+                                        "${CurrencyFormatter.format(cat.amount.abs())} $baseCurrencySymbol",
                                         style: TextStyle(
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.w800,
                                           fontSize: 14,
                                           color: colors.textMain,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      "${percentage.toStringAsFixed(1)}%",
-                                      style: TextStyle(
-                                        color: colors.textSecondary,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Stack(
-                                      alignment: Alignment.centerRight,
-                                      children: [
-                                        Opacity(
-                                          opacity: txProv.isMigrating
-                                              ? 0.0
-                                              : 1.0,
-                                          child: Text(
-                                            "${CurrencyFormatter.format(cat.amount.abs())} $baseCurrencySymbol",
+                                    if (txState.isMigrating)
+                                      Positioned.fill(
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: AnimatedDots(
                                             style: TextStyle(
                                               fontWeight: FontWeight.w800,
                                               fontSize: 14,
@@ -604,33 +628,19 @@ class _StatsScreenState extends State<StatsScreen> {
                                             ),
                                           ),
                                         ),
-                                        if (txProv.isMigrating)
-                                          Positioned.fill(
-                                            child: Align(
-                                              alignment: Alignment.centerRight,
-                                              child: AnimatedDots(
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 14,
-                                                  color: colors.textMain,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
+                                      ),
                                   ],
                                 ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                     ),
-            ),
-          ),
-        );
-      },
+                  ],
+                ),
+        ),
+      ),
     );
   }
 }
@@ -822,7 +832,6 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
 
     maxY = 0.0;
     for (var m in widget.data.values) {
-      // Конвертуємо копійки (int) у double для визначення межі графіка
       double inc = (m['incomes'] ?? 0) / 100.0;
       double exp = (m['expenses'] ?? 0) / 100.0;
       if (inc > maxY) maxY = inc;
@@ -856,7 +865,6 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
   LineChartBarData _lineData(String key, Color color, bool isIncome) {
     int i = 0;
     List<FlSpot> spots = widget.data.values.map((v) {
-      // v[key] — це int (копійки), ділимо на 100 для графіка
       double val = (v[key] ?? 0) / 100.0;
       return FlSpot((i++).toDouble(), val);
     }).toList();
@@ -889,7 +897,6 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
 
           String label = "";
           if (isFocused) {
-            // Перетворюємо координату графіка (одиниці) назад у копійки (int)
             label = CurrencyFormatter.format((spot.y * 100).round());
           }
 
@@ -944,14 +951,13 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
     var yearData = widget.data.entries
         .where((e) => e.key.startsWith(focusedYear))
         .toList();
-    int totalInc = 0, totalExp = 0; // Сумуємо в int
+    int totalInc = 0, totalExp = 0;
     for (var m in yearData) {
       totalInc += (m.value['incomes'] ?? 0);
       totalExp += (m.value['expenses'] ?? 0);
     }
     int monthCount = yearData.isEmpty ? 1 : yearData.length;
 
-    // Середнє значення — це завжди double
     double avgInc = totalInc / monthCount;
     double avgExp = totalExp / monthCount;
 

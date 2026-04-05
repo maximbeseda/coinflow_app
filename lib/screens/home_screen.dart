@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:drift/drift.dart' as drift;
 import 'dart:math' as math;
 import 'package:vibration/vibration.dart';
-import 'package:provider/provider.dart';
+
+// 👇 1. Перейшли на Riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
+
 import '../database/app_database.dart';
 import '../widgets/common/coin_widget.dart';
 import '../widgets/bottom_sheets/history_bottom_sheet.dart';
@@ -17,23 +20,22 @@ import '../screens/transaction_screen.dart';
 import '../screens/category_screen.dart';
 import '../widgets/dialogs/due_subscription_dialog.dart';
 import '../utils/currency_formatter.dart';
-import '../providers/category_provider.dart';
-import '../providers/transaction_provider.dart';
-import '../providers/subscription_provider.dart';
-import '../providers/settings_provider.dart';
-import '../providers/stats_provider.dart'; // 👇 ДОДАНО ІМПОРТ НОВОГО ПРОВАЙДЕРА
 import '../theme/app_colors_extension.dart';
+
+// 👇 2. Імпортуємо НАШ ЄДИНИЙ ХАБ
+import '../providers/all_providers.dart';
 
 String formatCurrency(int amount) => CurrencyFormatter.format(amount);
 
-class HomeScreen extends StatefulWidget {
+// 👇 3. Замінили StatefulWidget на ConsumerStatefulWidget
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
+class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -55,9 +57,8 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 250),
     );
 
+    // Первинна перевірка підписок (використовуємо read, бо ми не в build)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final subProv = context.read<SubscriptionProvider>();
-      subProv.addListener(_checkDueSubscriptions);
       _checkDueSubscriptions();
     });
   }
@@ -66,17 +67,17 @@ class _HomeScreenState extends State<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       if (mounted) {
-        context.read<SubscriptionProvider>().refreshOnAppResume();
+        ref.read(subscriptionProvider.notifier).refreshOnAppResume();
       }
     }
   }
 
   void _checkDueSubscriptions() {
     if (!mounted) return;
-    final subProv = context.read<SubscriptionProvider>();
+    final subState = ref.read(subscriptionProvider);
 
-    if (subProv.dueSubscriptions.isNotEmpty && !_isShowingDueDialog) {
-      _showDueSubscriptionDialog(subProv.dueSubscriptions.first);
+    if (subState.dueSubscriptions.isNotEmpty && !_isShowingDueDialog) {
+      _showDueSubscriptionDialog(subState.dueSubscriptions.first);
     }
   }
 
@@ -89,20 +90,16 @@ class _HomeScreenState extends State<HomeScreen>
       barrierDismissible: false,
       builder: (context) => DueSubscriptionDialog(subscription: sub),
     ).then((_) {
+      // 👇 ФІКС: Просто скидаємо прапорець.
+      // Більше не викликаємо _checkDueSubscriptions() вручну,
+      // бо це робить ref.listen автоматично і коректно.
       _isShowingDueDialog = false;
-      _checkDueSubscriptions();
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-
-    try {
-      context.read<SubscriptionProvider>().removeListener(
-        _checkDueSubscriptions,
-      );
-    } catch (_) {}
     _jiggleController.dispose();
     for (var ctrl in _pageControllers.values) {
       ctrl.dispose();
@@ -137,15 +134,15 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) return;
 
     if (result != null) {
-      // Тепер отримуємо суми як цілі числа (копійки)
       final amount = result['amount'] as int;
       final targetAmount = result['targetAmount'] as int?;
       final date = result['date'] as DateTime;
       final comment = result['comment'] as String;
 
       if (amount > 0) {
-        final txProv = context.read<TransactionProvider>();
-        final catProv = context.read<CategoryProvider>();
+        // 👇 Використовуємо Notifiers для виклику функцій
+        final txNotifier = ref.read(transactionProvider.notifier);
+        final catNotifier = ref.read(categoryProvider.notifier);
 
         String txTitle = comment.trim().isNotEmpty
             ? comment.trim()
@@ -156,22 +153,21 @@ class _HomeScreenState extends State<HomeScreen>
           fromId: source.id,
           toId: target.id,
           title: txTitle,
-          amount: amount, // Передаємо int
+          amount: amount,
           date: date,
           currency: source.currency,
-          targetAmount: targetAmount, // Передаємо int?
+          targetAmount: targetAmount,
           targetCurrency: source.currency != target.currency
               ? target.currency
               : null,
-          baseAmount: 0, // Провайдер сам перерахує це в int
+          baseAmount: 0,
           baseCurrency: '',
         );
 
-        catProv.updateCategoryAmount(source.id, -amount);
-        catProv.updateCategoryAmount(target.id, targetAmount ?? amount);
+        catNotifier.updateCategoryAmount(source.id, -amount);
+        catNotifier.updateCategoryAmount(target.id, targetAmount ?? amount);
 
-        // Зберігаємо історію
-        txProv.addTransactionDirectly(newTx);
+        txNotifier.addTransactionDirectly(newTx);
       }
     }
   }
@@ -224,19 +220,17 @@ class _HomeScreenState extends State<HomeScreen>
 
     if (!mounted || result == null) return;
 
-    final finance = context.read<TransactionProvider>();
+    final txNotifier = ref.read(transactionProvider.notifier);
     final comment = result['comment'] as String;
 
-    // Створюємо новий заголовок
     final newTitle = comment.trim().isNotEmpty
         ? comment.trim()
         : '${'transfer'.tr()} ${sourceCat.name} ➡️ ${targetCat.name}';
 
-    // 👇 Створюємо оновлений об'єкт через copyWith
     final updatedT = t.copyWith(title: newTitle);
 
-    finance.editTransaction(
-      updatedT, // Передаємо оновлену транзакцію
+    txNotifier.editTransaction(
+      updatedT,
       result['amount'],
       result['date'],
       newTargetAmount: result['targetAmount'],
@@ -273,13 +267,13 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     if (!mounted || result == null) return;
-    final catProv = context.read<CategoryProvider>();
+    final catNotifier = ref.read(categoryProvider.notifier);
 
     if (result == 'delete' && c != null) {
       if (!mounted) return;
       setState(() => deletingIds.add(c.id));
       await Future.delayed(const Duration(milliseconds: 350));
-      catProv.deleteCategory(c);
+      catNotifier.deleteCategory(c);
       if (mounted) setState(() => deletingIds.remove(c.id));
       return;
     }
@@ -293,25 +287,22 @@ class _HomeScreenState extends State<HomeScreen>
           id: "${prefix}_${DateTime.now().millisecondsSinceEpoch}",
           type: type,
           name: result['name'],
-          icon: result['icon'], // Тут уже приходить int з CategoryScreen
+          icon: result['icon'],
           amount: (result['amount'] as num?)?.toInt() ?? 0,
           budget: (result['budget'] as num?)?.toInt(),
-          isArchived: false, // 👇 ДОДАНО: Обов'язкове поле для Drift
-          // 👇 КОНВЕРТАЦІЯ: Перетворюємо Color у int через .toARGB32()
+          isArchived: false,
           bgColor: CategoryDefaults.getBgColor(type).toARGB32(),
           iconColor: CategoryDefaults.getIconColor(type).toARGB32(),
           currency:
-              result['currency'] ??
-              context.read<SettingsProvider>().baseCurrency,
+              result['currency'] ?? ref.read(settingsProvider).baseCurrency,
           includeInTotal: result['includeInTotal'] ?? true,
           sortOrder: 0,
         );
-        catProv.addOrUpdateCategory(n);
+        catNotifier.addOrUpdateCategory(n);
       } else {
         final updatedCategory = c.copyWith(
           name: result['name'],
           icon: result['icon'],
-          // Якщо budget може бути null, Drift очікує drift.Value(val)
           budget: drift.Value(result['budget']),
           amount: type == CategoryType.account
               ? (result['amount'] ?? c.amount)
@@ -319,7 +310,7 @@ class _HomeScreenState extends State<HomeScreen>
           currency: result['currency'] ?? c.currency,
           includeInTotal: result['includeInTotal'] ?? c.includeInTotal,
         );
-        catProv.addOrUpdateCategory(updatedCategory);
+        catNotifier.addOrUpdateCategory(updatedCategory);
       }
     }
   }
@@ -327,6 +318,66 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    // 👇 4. Магія Riverpod: Миттєво слухаємо зміни у підписках і викликаємо діалог!
+    ref.listen(subscriptionProvider, (prev, next) {
+      if (next.dueSubscriptions.isNotEmpty && !_isShowingDueDialog) {
+        _showDueSubscriptionDialog(next.dueSubscriptions.first);
+      }
+    });
+
+    // 👇 Читаємо всі стани одним рядком без Consumer-матрьошок!
+    final catState = ref.watch(categoryProvider);
+    final txState = ref.watch(transactionProvider);
+    ref.watch(settingsProvider); // Просто слідкуємо за оновленнями налаштувань
+
+    // Щоб екран оновлювався, коли міняється статистика (графіки/рахунки)
+    ref.watch(statsProvider);
+    final statsNotifier = ref.read(statsProvider.notifier);
+    final settingsNotifier = ref.read(settingsProvider.notifier);
+
+    // Якщо дані ще вантажаться
+    if (catState.isLoading || txState.isLoading) {
+      return Scaffold(
+        backgroundColor: colors.bgGradientStart,
+        body: const HomeScreenSkeleton(),
+      );
+    }
+
+    // Рахуємо дані для шапки
+    final monthTotals = statsNotifier.calculateTotalsForMonth(
+      txState.selectedMonth,
+    );
+    int totalIncomes = monthTotals['incomes'] ?? 0;
+    int totalExpenses = monthTotals['expenses'] ?? 0;
+
+    int totalBalance = catState.accounts
+        .where((item) => item.includeInTotal)
+        .fold(
+          0,
+          (sum, item) =>
+              sum + settingsNotifier.convertToBase(item.amount, item.currency),
+        );
+
+    // Рахуємо дані для секцій (доходи)
+    final incomeMap = statsNotifier.calculateCategoryTotalsForMonth(
+      txState.selectedMonth,
+      false,
+      inBaseCurrency: false,
+    );
+    final displayIncomes = catState.incomes
+        .map((c) => c.copyWith(amount: incomeMap[c.id] ?? 0))
+        .toList();
+
+    // Рахуємо дані для секцій (витрати)
+    final expenseMap = statsNotifier.calculateCategoryTotalsForMonth(
+      txState.selectedMonth,
+      true,
+      inBaseCurrency: false,
+    );
+    final displayExpenses = catState.expenses
+        .map((c) => c.copyWith(amount: expenseMap[c.id] ?? 0))
+        .toList();
 
     return Scaffold(
       key: _scaffoldKey,
@@ -342,206 +393,101 @@ class _HomeScreenState extends State<HomeScreen>
             });
           }
         },
-        child: Selector2<CategoryProvider, TransactionProvider, bool>(
-          selector: (ctx, cat, tx) => cat.isLoading || tx.isLoading,
-          builder: (context, isLoading, child) {
-            if (isLoading) {
-              return const HomeScreenSkeleton();
-            }
-
-            return Container(
-              width: double.infinity,
-              height: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [colors.bgGradientStart, colors.bgGradientEnd],
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [colors.bgGradientStart, colors.bgGradientEnd],
+            ),
+          ),
+          child: SafeArea(
+            maintainBottomViewPadding: true,
+            child: Column(
+              children: [
+                SummaryHeader(
+                  totalBalance: totalBalance,
+                  totalIncomes: totalIncomes,
+                  totalExpenses: totalExpenses,
+                  isMigrating: txState.isMigrating,
+                  onBalanceTap: () {
+                    if (isEditMode) {
+                      setState(() {
+                        isEditMode = false;
+                        _jiggleController.stop();
+                      });
+                      return;
+                    }
+                    _openHistoryBottomSheet(
+                      context,
+                      'history_balance'.tr(),
+                      CategoryType.account,
+                    );
+                  },
+                  onIncomesTap: () {
+                    if (isEditMode) {
+                      setState(() {
+                        isEditMode = false;
+                        _jiggleController.stop();
+                      });
+                      return;
+                    }
+                    _openHistoryBottomSheet(
+                      context,
+                      'history_incomes'.tr(),
+                      CategoryType.income,
+                    );
+                  },
+                  onExpensesTap: () {
+                    if (isEditMode) {
+                      setState(() {
+                        isEditMode = false;
+                        _jiggleController.stop();
+                      });
+                      return;
+                    }
+                    _openHistoryBottomSheet(
+                      context,
+                      'history_expenses'.tr(),
+                      CategoryType.expense,
+                    );
+                  },
+                  onSettingsTap: () {
+                    if (isEditMode) {
+                      setState(() {
+                        isEditMode = false;
+                        _jiggleController.stop();
+                      });
+                      return;
+                    }
+                    _scaffoldKey.currentState?.openEndDrawer();
+                  },
                 ),
-              ),
-              child: SafeArea(
-                maintainBottomViewPadding: true,
-                child: Column(
-                  children: [
-                    // 👇 ЗМІНЕНО: Додано StatsProvider у Consumer4
-                    Consumer4<
-                      TransactionProvider,
-                      CategoryProvider,
-                      SettingsProvider,
-                      StatsProvider
-                    >(
-                      builder:
-                          (
-                            context,
-                            txProv,
-                            catProv,
-                            settings,
-                            statsProv,
-                            child,
-                          ) {
-                            // 👇 ЗМІНЕНО: Викликаємо метод з statsProv
-                            final monthTotals = statsProv
-                                .calculateTotalsForMonth(txProv.selectedMonth);
 
-                            // Тепер ці дані приходять як int з StatsProvider
-                            int totalIncomes =
-                                monthTotals['incomes']?.toInt() ?? 0;
-                            int totalExpenses =
-                                monthTotals['expenses']?.toInt() ?? 0;
+                // СЕКЦІЯ: ДОХОДИ
+                _buildSection(displayIncomes, CategoryType.income),
 
-                            // Рахуємо загальний баланс у копійках
-                            int totalBalance = catProv.accounts
-                                .where((item) => item.includeInTotal)
-                                .fold(
-                                  0,
-                                  (sum, item) =>
-                                      sum +
-                                      settings
-                                          .convertToBase(
-                                            item.amount,
-                                            item.currency,
-                                          )
-                                          .round(), // Обов'язково .round() до цілих копійок
-                                );
-
-                            return SummaryHeader(
-                              totalBalance: totalBalance,
-                              totalIncomes: totalIncomes,
-                              totalExpenses: totalExpenses,
-                              isMigrating: txProv.isMigrating,
-                              onBalanceTap: () {
-                                if (isEditMode) {
-                                  setState(() {
-                                    isEditMode = false;
-                                    _jiggleController.stop();
-                                  });
-                                  return;
-                                }
-                                _openHistoryBottomSheet(
-                                  context,
-                                  'history_balance'.tr(),
-                                  CategoryType.account,
-                                );
-                              },
-                              onIncomesTap: () {
-                                if (isEditMode) {
-                                  setState(() {
-                                    isEditMode = false;
-                                    _jiggleController.stop();
-                                  });
-                                  return;
-                                }
-                                _openHistoryBottomSheet(
-                                  context,
-                                  'history_incomes'.tr(),
-                                  CategoryType.income,
-                                );
-                              },
-                              onExpensesTap: () {
-                                if (isEditMode) {
-                                  setState(() {
-                                    isEditMode = false;
-                                    _jiggleController.stop();
-                                  });
-                                  return;
-                                }
-                                _openHistoryBottomSheet(
-                                  context,
-                                  'history_expenses'.tr(),
-                                  CategoryType.expense,
-                                );
-                              },
-                              onSettingsTap: () {
-                                if (isEditMode) {
-                                  setState(() {
-                                    isEditMode = false;
-                                    _jiggleController.stop();
-                                  });
-                                  return;
-                                }
-                                _scaffoldKey.currentState?.openEndDrawer();
-                              },
-                            );
-                          },
-                    ),
-
-                    // 👇 ЗМІНЕНО: Додано StatsProvider у Consumer3
-                    Consumer3<
-                      CategoryProvider,
-                      TransactionProvider,
-                      StatsProvider
-                    >(
-                      builder: (context, catProv, txProv, statsProv, child) {
-                        // 👇 ЗМІНЕНО: Викликаємо метод з statsProv
-                        final incomeMap = statsProv
-                            .calculateCategoryTotalsForMonth(
-                              txProv.selectedMonth,
-                              false,
-                              inBaseCurrency: false,
-                            );
-                        final displayIncomes = catProv.incomes
-                            .map(
-                              (c) => c.copyWith(
-                                amount: incomeMap[c.id]?.toInt() ?? 0,
-                              ),
-                            )
-                            .toList();
-                        return _buildSection(
-                          displayIncomes,
-                          CategoryType.income,
-                        );
-                      },
-                    ),
-
-                    Consumer<CategoryProvider>(
-                      builder: (context, catProv, child) {
-                        return _buildSection(
-                          catProv.accounts,
-                          CategoryType.account,
-                          isTarget: true,
-                        );
-                      },
-                    ),
-
-                    Expanded(
-                      // 👇 ЗМІНЕНО: Додано StatsProvider у Consumer3
-                      child:
-                          Consumer3<
-                            CategoryProvider,
-                            TransactionProvider,
-                            StatsProvider
-                          >(
-                            builder:
-                                (context, catProv, txProv, statsProv, child) {
-                                  // 👇 ЗМІНЕНО: Викликаємо метод з statsProv
-                                  final expenseMap = statsProv
-                                      .calculateCategoryTotalsForMonth(
-                                        txProv.selectedMonth,
-                                        true,
-                                        inBaseCurrency: false,
-                                      );
-                                  final displayExpenses = catProv.expenses
-                                      .map(
-                                        (c) => c.copyWith(
-                                          amount:
-                                              expenseMap[c.id]?.toInt() ?? 0,
-                                        ),
-                                      )
-                                      .toList();
-                                  return _buildSection(
-                                    displayExpenses,
-                                    CategoryType.expense,
-                                    isTarget: true,
-                                    isGrid: true,
-                                  );
-                                },
-                          ),
-                    ),
-                  ],
+                // СЕКЦІЯ: РАХУНКИ
+                _buildSection(
+                  catState.accounts,
+                  CategoryType.account,
+                  isTarget: true,
                 ),
-              ),
-            );
-          },
+
+                // СЕКЦІЯ: ВИТРАТИ
+                Expanded(
+                  child: _buildSection(
+                    displayExpenses,
+                    CategoryType.expense,
+                    isTarget: true,
+                    isGrid: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -552,9 +498,9 @@ class _HomeScreenState extends State<HomeScreen>
     String title,
     CategoryType type,
   ) {
-    final txProv = context.read<TransactionProvider>();
-    final catProv = context.read<CategoryProvider>();
-    final allCategories = catProv.allCategoriesList;
+    final txState = ref.read(transactionProvider);
+    final catState = ref.read(categoryProvider);
+    final allCategories = catState.allCategoriesList;
 
     showModalBottomSheet(
       context: context,
@@ -563,10 +509,10 @@ class _HomeScreenState extends State<HomeScreen>
       builder: (_) => GeneralHistoryBottomSheet(
         title: title,
         filterType: type,
-        transactions: txProv.history,
+        transactions: txState.history,
         allCategories: allCategories,
         onDelete: (t) =>
-            context.read<TransactionProvider>().deleteTransaction(t),
+            ref.read(transactionProvider.notifier).deleteTransaction(t),
         onEdit: (t) => _handleEditTransaction(t, allCategories),
       ),
     );
@@ -593,7 +539,7 @@ class _HomeScreenState extends State<HomeScreen>
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(10),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             spreadRadius: 1,
             offset: const Offset(0, 4),
@@ -761,24 +707,21 @@ class _HomeScreenState extends State<HomeScreen>
         });
         return;
       }
+
+      final catState = ref.read(categoryProvider);
+      final txState = ref.read(transactionProvider);
+
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => Builder(
-          builder: (ctx) {
-            final catProv = context.read<CategoryProvider>();
-            final txProv = context.read<TransactionProvider>();
-            return HistoryBottomSheet(
-              category: c,
-              transactions: txProv.history,
-              allCategories: catProv.allCategoriesList,
-              onDelete: (t) =>
-                  context.read<TransactionProvider>().deleteTransaction(t),
-              onEdit: (t) =>
-                  _handleEditTransaction(t, catProv.allCategoriesList),
-            );
-          },
+        builder: (_) => HistoryBottomSheet(
+          category: c,
+          transactions: txState.history,
+          allCategories: catState.allCategoriesList,
+          onDelete: (t) =>
+              ref.read(transactionProvider.notifier).deleteTransaction(t),
+          onEdit: (t) => _handleEditTransaction(t, catState.allCategoriesList),
         ),
       );
     }
@@ -903,10 +846,9 @@ class _HomeScreenState extends State<HomeScreen>
                 bool isSameGroup = source.type == c.type;
                 if (isEditMode) {
                   if (isSameGroup) {
-                    context.read<CategoryProvider>().reorderCategories(
-                      source,
-                      c,
-                    );
+                    ref
+                        .read(categoryProvider.notifier)
+                        .reorderCategories(source, c);
                     return true;
                   }
                   return false;

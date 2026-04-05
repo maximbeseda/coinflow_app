@@ -1,164 +1,215 @@
-import 'package:flutter/material.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:drift/drift.dart' as drift;
+// 👇 ДОДАНО: необхідно для методу .select
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../database/app_database.dart';
 import '../services/storage_service.dart';
-import 'category_provider.dart';
-import 'settings_provider.dart';
 
-class TransactionProvider extends ChangeNotifier {
-  CategoryProvider? _catProv;
-  SettingsProvider? _settingsProv;
-  String? _lastKnownBaseCurrency;
+// Імпортуємо наш хаб провайдерів
+import 'all_providers.dart';
 
-  List<Transaction> history = [];
-  DateTime selectedMonth = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    1,
-  );
-  bool isLoading = true;
-  bool isMigrating = false;
+part 'transaction_provider.g.dart';
 
-  TransactionProvider() {
-    loadHistory();
-  }
+// 1. СТАН (State)
+class TransactionState {
+  final List<Transaction> history;
+  final DateTime selectedMonth;
+  final bool isLoading;
+  final bool isMigrating;
+  final String? lastKnownBaseCurrency;
 
-  void updateDependencies(
-    CategoryProvider catProv,
-    SettingsProvider settingsProv,
-  ) {
-    _catProv = catProv;
-    _settingsProv = settingsProv;
+  TransactionState({
+    required this.history,
+    required this.selectedMonth,
+    required this.isLoading,
+    required this.isMigrating,
+    this.lastKnownBaseCurrency,
+  });
 
-    if (_settingsProv != null) {
-      final currentBase = _settingsProv!.baseCurrency;
-
-      if (_lastKnownBaseCurrency != null &&
-          _lastKnownBaseCurrency != currentBase) {
-        _migrateCurrentMonthBaseCurrency(currentBase);
-      }
-      _lastKnownBaseCurrency = currentBase;
-    }
-
-    if (!isLoading && !catProv.isLoading && _settingsProv != null) {
-      notifyListeners();
-    }
+  TransactionState copyWith({
+    List<Transaction>? history,
+    DateTime? selectedMonth,
+    bool? isLoading,
+    bool? isMigrating,
+    String? lastKnownBaseCurrency,
+  }) {
+    return TransactionState(
+      history: history ?? this.history,
+      selectedMonth: selectedMonth ?? this.selectedMonth,
+      isLoading: isLoading ?? this.isLoading,
+      isMigrating: isMigrating ?? this.isMigrating,
+      lastKnownBaseCurrency:
+          lastKnownBaseCurrency ?? this.lastKnownBaseCurrency,
+    );
   }
 
   bool get isCurrentMonth {
     final now = DateTime.now();
     return selectedMonth.year == now.year && selectedMonth.month == now.month;
   }
+}
+
+// 2. СУЧАСНИЙ NOTIFIER
+@Riverpod(keepAlive: true)
+class TransactionNotifier extends _$TransactionNotifier {
+  @override
+  TransactionState build() {
+    ref.listen<String>(settingsProvider.select((s) => s.baseCurrency), (
+      previous,
+      next,
+    ) {
+      // Запускаємо міграцію тільки якщо це реальна зміна
+      if (previous != null && previous != next) {
+        _migrateCurrentMonthBaseCurrency(next);
+      }
+    });
+
+    final initialState = TransactionState(
+      history: [],
+      selectedMonth: DateTime(DateTime.now().year, DateTime.now().month, 1),
+      isLoading: true,
+      isMigrating: false,
+    );
+
+    Future.microtask(() => _init());
+
+    return initialState;
+  }
+
+  Future<void> _init() async {
+    await loadHistory();
+
+    // Захист при старті. Перевіряємо, чи не збилася валюта поточного місяця
+    final currentBase = ref.read(settingsProvider).baseCurrency;
+    final now = DateTime.now();
+    final currentMonthTxs = state.history
+        .where((tx) => tx.date.year == now.year && tx.date.month == now.month)
+        .toList();
+
+    if (currentMonthTxs.isNotEmpty &&
+        currentMonthTxs.first.baseCurrency != currentBase) {
+      _migrateCurrentMonthBaseCurrency(currentBase);
+    }
+  }
 
   Future<void> loadHistory() async {
-    final loadedHistory = await StorageService.loadHistory();
+    final db = ref.read(databaseProvider);
+    final loadedHistory = await StorageService.loadHistory(db);
     loadedHistory.sort((a, b) => b.date.compareTo(a.date));
-    history = loadedHistory;
-    isLoading = false;
-    notifyListeners();
+
+    state = state.copyWith(history: loadedHistory, isLoading: false);
   }
 
   void changeMonth(int offset) {
-    selectedMonth = DateTime(
-      selectedMonth.year,
-      selectedMonth.month + offset,
-      1,
+    state = state.copyWith(
+      selectedMonth: DateTime(
+        state.selectedMonth.year,
+        state.selectedMonth.month + offset,
+        1,
+      ),
     );
-    notifyListeners();
   }
 
   void setMonth(DateTime newMonth) {
-    selectedMonth = DateTime(newMonth.year, newMonth.month, 1);
-    notifyListeners();
+    state = state.copyWith(
+      selectedMonth: DateTime(newMonth.year, newMonth.month, 1),
+    );
   }
 
-  // =======================================================
-  // ВНУТРІШНІЙ МЕТОД: Підрахунок базової суми (ТЕПЕР В INT)
-  // =======================================================
-  // 👇 ЗМІНЕНО: Повертає int, приймає int
-  int _calculateBaseAmount(
+  // 👇 ВИПРАВЛЕНО: Асинхронний метод, який враховує дату транзакції
+  Future<int> _calculateBaseAmountAsync(
     int amount,
     String currency,
     int? targetAmount,
     String? targetCurrency,
     String baseCur,
-  ) {
+    DateTime txDate,
+  ) async {
+    // Принцип ідентичності: якщо валюта транзакції співпадає з базовою, повертаємо як є
     if (currency == baseCur) return amount;
     if (targetCurrency == baseCur && targetAmount != null) return targetAmount;
 
-    double fromRate = _settingsProv?.exchangeRates[currency] ?? 1.0;
-    double toRate = _settingsProv?.exchangeRates[baseCur] ?? 1.0;
+    // Отримуємо курси саме на дату транзакції (або з кешу, або з API)
+    final settingsNotif = ref.read(settingsProvider.notifier);
+    double fromRate =
+        (await settingsNotif.getRateForDate(currency, txDate)) ?? 1.0;
+    double toRate =
+        (await settingsNotif.getRateForDate(baseCur, txDate)) ?? 1.0;
 
     if (fromRate == 0) fromRate = 1.0;
 
-    // 👇 ПРАВИЛЬНА МАТЕМАТИКА: множимо int на double і округлюємо до найближчого цілого (копійки)
     return (amount * (toRate / fromRate)).round();
   }
 
-  // 👇 ЗМІНЕНО: delta тепер int
   void _updateAccountBalance(String categoryId, int delta) {
-    if (_catProv == null) return;
-    final category = _catProv!.allCategoriesList
+    final catState = ref.read(categoryProvider);
+    final catNotifier = ref.read(categoryProvider.notifier);
+
+    final category = catState.allCategoriesList
         .where((c) => c.id == categoryId)
         .firstOrNull;
 
     if (category != null && category.type == CategoryType.account) {
-      _catProv!.updateCategoryAmount(categoryId, delta);
+      catNotifier.updateCategoryAmount(categoryId, delta);
     }
   }
 
-  // =======================================================
-  // ДОДАВАННЯ ТА РЕДАГУВАННЯ ТРАНЗАКЦІЙ
-  // =======================================================
-  void addTransactionDirectly(Transaction tx) {
-    if (_settingsProv == null) return;
-    final currentBase = _settingsProv!.baseCurrency;
+  // 👇 ВИПРАВЛЕНО: Додано async/await
+  Future<void> addTransactionDirectly(Transaction tx) async {
+    final db = ref.read(databaseProvider);
+    final currentBase = ref.read(settingsProvider).baseCurrency;
 
-    // Створюємо нову копію об'єкта з оновленими полями
-    final updatedTx = tx.copyWith(
-      baseCurrency: currentBase,
-      baseAmount: _calculateBaseAmount(
-        tx.amount,
-        tx.currency,
-        tx.targetAmount,
-        tx.targetCurrency,
-        currentBase,
-      ),
+    // Чекаємо на правильний прорахунок
+    final baseAmt = await _calculateBaseAmountAsync(
+      tx.amount,
+      tx.currency,
+      tx.targetAmount,
+      tx.targetCurrency,
+      currentBase,
+      tx.date, // Передаємо дату
     );
 
-    // Додаємо оновлений об'єкт у список історії
-    history.add(updatedTx);
+    final updatedTx = tx.copyWith(
+      baseCurrency: currentBase,
+      baseAmount: baseAmt,
+    );
 
-    // Сортуємо історію, щоб нові транзакції були зверху
-    history.sort((a, b) => b.date.compareTo(a.date));
+    final newHistory = List<Transaction>.from(state.history)..add(updatedTx);
+    newHistory.sort((a, b) => b.date.compareTo(a.date));
 
-    // Зберігаємо нову транзакцію в базу даних
-    StorageService.saveTransaction(updatedTx);
-
-    notifyListeners();
+    state = state.copyWith(history: newHistory);
+    await StorageService.saveTransaction(db, updatedTx);
   }
 
-  void addTransfer(
+  // 👇 ВИПРАВЛЕНО: Додано async/await
+  Future<void> addTransfer(
     Category source,
     Category target,
-    int amount, // 👇 ЗМІНЕНО на int
+    int amount,
     DateTime date, {
-    int? targetAmount, // 👇 ЗМІНЕНО на int?
-  }) {
+    int? targetAmount,
+  }) async {
+    final db = ref.read(databaseProvider);
+    final catNotifier = ref.read(categoryProvider.notifier);
+
     if (source.type == CategoryType.account) {
-      _catProv?.updateCategoryAmount(source.id, -amount);
+      catNotifier.updateCategoryAmount(source.id, -amount);
     }
     if (target.type == CategoryType.account) {
-      _catProv?.updateCategoryAmount(target.id, targetAmount ?? amount);
+      catNotifier.updateCategoryAmount(target.id, targetAmount ?? amount);
     }
 
-    final currentBase = _settingsProv?.baseCurrency ?? 'UAH';
-    final baseAmt = _calculateBaseAmount(
+    final currentBase = ref.read(settingsProvider).baseCurrency;
+
+    // Чекаємо на прорахунок
+    final baseAmt = await _calculateBaseAmountAsync(
       amount,
       source.currency,
       targetAmount,
       targetAmount != null ? target.currency : null,
       currentBase,
+      date, // Історична дата переказу
     );
 
     final newTx = Transaction(
@@ -175,24 +226,25 @@ class TransactionProvider extends ChangeNotifier {
       baseCurrency: currentBase,
     );
 
-    history.insert(0, newTx); // Додаємо на початок
-    StorageService.saveTransaction(newTx); // Зберігаємо ТІЛЬКИ її
-    notifyListeners();
+    final newHistory = List<Transaction>.from(state.history)..insert(0, newTx);
+    state = state.copyWith(history: newHistory);
+
+    await StorageService.saveTransaction(db, newTx);
   }
 
-  void editTransaction(
+  // 👇 ВИПРАВЛЕНО: Додано async/await
+  Future<void> editTransaction(
     Transaction oldT,
     int newAmount,
     DateTime newDate, {
     int? newTargetAmount,
-  }) {
-    // 1. Повертаємо баланси до стану "до цієї транзакції"
+  }) async {
+    final db = ref.read(databaseProvider);
     _updateAccountBalance(oldT.fromId, oldT.amount);
     _updateAccountBalance(oldT.toId, -(oldT.targetAmount ?? oldT.amount));
 
     final int previousAmount = oldT.amount;
 
-    // 2. Вираховуємо нове значення targetAmount
     int finalTargetAmount;
     if (newTargetAmount != null) {
       finalTargetAmount = newTargetAmount;
@@ -203,104 +255,106 @@ class TransactionProvider extends ChangeNotifier {
       finalTargetAmount = newAmount;
     }
 
-    // 3. Вираховуємо нове значення baseAmount
     int finalBaseAmount;
     if (previousAmount > 0) {
       finalBaseAmount = (oldT.baseAmount * (newAmount / previousAmount))
           .round();
     } else {
-      finalBaseAmount = _calculateBaseAmount(
+      // Чекаємо на прорахунок за новою датою
+      finalBaseAmount = await _calculateBaseAmountAsync(
         newAmount,
         oldT.currency,
-        finalTargetAmount, // використовуємо вже нове значення
+        finalTargetAmount,
         oldT.targetCurrency,
         oldT.baseCurrency,
+        newDate, // Нова дата
       );
     }
 
-    // 4. Створюємо НОВИЙ об'єкт на основі старого
     final updatedT = oldT.copyWith(
       amount: newAmount,
       date: newDate,
-      targetAmount: drift.Value(
-        finalTargetAmount,
-      ), // Drift використовує Value() для nullable полів у copyWith
+      targetAmount: drift.Value(finalTargetAmount),
       baseAmount: finalBaseAmount,
     );
 
-    // 5. Оновлюємо баланси з новими значеннями
     _updateAccountBalance(updatedT.fromId, -updatedT.amount);
     _updateAccountBalance(
       updatedT.toId,
       updatedT.targetAmount ?? updatedT.amount,
     );
 
-    // 6. Оновлюємо об'єкт у списку history та базі даних
-    int index = history.indexWhere((t) => t.id == oldT.id);
+    final newHistory = List<Transaction>.from(state.history);
+    int index = newHistory.indexWhere((t) => t.id == oldT.id);
     if (index != -1) {
-      history[index] = updatedT;
+      newHistory[index] = updatedT;
     }
+    newHistory.sort((a, b) => b.date.compareTo(a.date));
 
-    StorageService.saveTransaction(updatedT);
-    history.sort((a, b) => b.date.compareTo(a.date));
-
-    notifyListeners();
+    state = state.copyWith(history: newHistory);
+    await StorageService.saveTransaction(db, updatedT);
   }
 
   void deleteTransaction(Transaction t) {
+    final db = ref.read(databaseProvider);
     _updateAccountBalance(t.fromId, t.amount);
     _updateAccountBalance(t.toId, -(t.targetAmount ?? t.amount));
 
-    history.removeWhere((item) => item.id == t.id);
-    StorageService.removeTransaction(t.id);
-    notifyListeners();
+    final newHistory = List<Transaction>.from(state.history)
+      ..removeWhere((item) => item.id == t.id);
+    state = state.copyWith(history: newHistory);
+    StorageService.removeTransaction(db, t.id);
   }
 
-  // =======================================================
-  // МІГРАЦІЯ ПОТОЧНОГО МІСЯЦЯ (При зміні базової валюти)
-  // =======================================================
   Future<void> _migrateCurrentMonthBaseCurrency(String newBase) async {
+    final db = ref.read(databaseProvider);
     final now = DateTime.now();
-    final currentMonthTxs = history
+    final newHistory = List<Transaction>.from(state.history);
+
+    // Фільтруємо ТІЛЬКИ транзакції ПОТОЧНОГО календарного місяця
+    final currentMonthTxs = newHistory
         .where((tx) => tx.date.year == now.year && tx.date.month == now.month)
         .toList();
 
-    if (currentMonthTxs.isEmpty) return;
+    if (currentMonthTxs.isEmpty) {
+      state = state.copyWith(lastKnownBaseCurrency: newBase);
+      return;
+    }
 
-    isMigrating = true;
-    notifyListeners();
+    state = state.copyWith(isMigrating: true, lastKnownBaseCurrency: newBase);
 
     for (int i = 0; i < currentMonthTxs.length; i++) {
       var tx = currentMonthTxs[i];
-      if (tx.baseCurrency == newBase) continue;
 
-      // Створюємо оновлену копію транзакції
-      tx = tx.copyWith(
-        baseAmount: _calculateBaseAmount(
-          tx.amount,
-          tx.currency,
-          tx.targetAmount,
-          tx.targetCurrency,
-          newBase,
-        ),
-        baseCurrency: newBase,
+      // 👇 ВИПРАВЛЕНО: Асинхронний виклик
+      final int newBaseAmount = await _calculateBaseAmountAsync(
+        tx.amount,
+        tx.currency,
+        tx.targetAmount,
+        tx.targetCurrency,
+        newBase,
+        tx.date,
       );
 
-      // Оновлюємо в масивах і зберігаємо
-      currentMonthTxs[i] = tx;
-      int mainIndex = history.indexWhere((t) => t.id == tx.id);
-      if (mainIndex != -1) history[mainIndex] = tx;
+      // Захист від мікро-округлень
+      if (tx.baseAmount == newBaseAmount && tx.baseCurrency == newBase) {
+        continue;
+      }
 
-      StorageService.saveTransaction(tx);
+      tx = tx.copyWith(baseAmount: newBaseAmount, baseCurrency: newBase);
+
+      int mainIndex = newHistory.indexWhere((t) => t.id == tx.id);
+      if (mainIndex != -1) newHistory[mainIndex] = tx;
+
+      await StorageService.saveTransaction(db, tx);
     }
 
-    isMigrating = false;
-    notifyListeners();
+    state = state.copyWith(history: newHistory, isMigrating: false);
   }
 
   Future<void> clearAllTransactions() async {
-    history.clear();
-    await StorageService.saveHistory([]);
-    notifyListeners();
+    final db = ref.read(databaseProvider);
+    state = state.copyWith(history: []);
+    await StorageService.saveHistory(db, []);
   }
 }

@@ -2,8 +2,12 @@ import '../database/app_database.dart';
 import 'storage_service.dart';
 
 class SubscriptionService {
-  // Винесли сюди складну логіку перенесення дати
-  static Future<void> shiftSubscriptionDate(Subscription sub) async {
+  /// Винесли сюди складну логіку перенесення дати (наприклад, після довгої паузи)
+  /// 👇 ТЕПЕР ПРИЙМАЄ [db] ЯК ПЕРШИЙ ПАРАМЕТР
+  static Future<void> shiftSubscriptionDate(
+    AppDatabase db,
+    Subscription sub,
+  ) async {
     DateTime now = DateTime.now();
     DateTime today = DateTime(now.year, now.month, now.day); // 00:00:00
 
@@ -30,12 +34,14 @@ class SubscriptionService {
       }
     }
 
-    sub = sub.copyWith(nextPaymentDate: nextDate);
-    await StorageService.saveSubscription(sub);
+    final updatedSub = sub.copyWith(nextPaymentDate: nextDate);
+    // 👇 Передаємо db для збереження
+    await StorageService.saveSubscription(db, updatedSub);
   }
 
-  // ДОДАНО: Метод для зсуву дати рівно на 1 період (для покрокової автооплати)
-  static Future<void> advanceOnePeriod(Subscription sub) async {
+  /// Метод для зсуву дати рівно на 1 період вперед (для покрокової автооплати)
+  /// 👇 ТЕПЕР ПРИЙМАЄ [db] ЯК ПЕРШИЙ ПАРАМЕТР
+  static Future<void> advanceOnePeriod(AppDatabase db, Subscription sub) async {
     DateTime nextDate = sub.nextPaymentDate;
 
     if (sub.periodicity == 'monthly') {
@@ -53,7 +59,8 @@ class SubscriptionService {
       nextDate = nextDate.add(const Duration(days: 7));
     }
 
-    sub = sub.copyWith(nextPaymentDate: nextDate);
-    await StorageService.saveSubscription(sub);
+    final updatedSub = sub.copyWith(nextPaymentDate: nextDate);
+    // 👇 Передаємо db для збереження
+    await StorageService.saveSubscription(db, updatedSub);
   }
 }

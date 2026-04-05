@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+// 👇 1. Замінили provider на flutter_riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// 👇 2. Імпортуємо наш єдиний хаб провайдерів
+import '../../providers/all_providers.dart';
+
 import '../../utils/currency_formatter.dart';
 import 'rolling_digit.dart';
 import '../../theme/app_colors_extension.dart';
-import '../../providers/subscription_provider.dart';
-import '../../providers/settings_provider.dart'; // ДОДАНО: Для доступу до базової валюти
-import '../../models/app_currency.dart'; // ДОДАНО: Для отримання символу валюти
+import '../../models/app_currency.dart';
 import 'animated_dots.dart';
 
-class SummaryHeader extends StatelessWidget {
-  final int totalBalance; // 👇 ЗМІНЕНО
-  final int totalIncomes; // 👇 ЗМІНЕНО
-  final int totalExpenses; // 👇 ЗМІНЕНО
+// 👇 3. Змінили StatelessWidget на ConsumerWidget
+class SummaryHeader extends ConsumerWidget {
+  final int totalBalance;
+  final int totalIncomes;
+  final int totalExpenses;
   final VoidCallback onBalanceTap;
   final VoidCallback onIncomesTap;
   final VoidCallback onExpensesTap;
@@ -31,17 +35,18 @@ class SummaryHeader extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  // 👇 4. Додали WidgetRef ref у метод build
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // Отримуємо поточний символ базової валюти
-    final settings = context.watch<SettingsProvider>();
+    // 👇 5. Отримуємо дані з нових провайдерів через ref.watch
+    final settingsState = ref.watch(settingsProvider);
     final baseCurrencySymbol = AppCurrency.fromCode(
-      settings.baseCurrency,
+      settingsState.baseCurrency,
     ).symbol;
 
-    final hasPendingSubscriptions = context
-        .watch<SubscriptionProvider>()
+    final hasPendingSubscriptions = ref
+        .watch(subscriptionProvider)
         .hasPendingPayments;
 
     return MediaQuery(
@@ -142,11 +147,9 @@ class SummaryHeader extends StatelessWidget {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
-                // 👇 МАГІЯ ТУТ: Використовуємо Stack для накладання
                 child: Stack(
                   alignment: Alignment.centerLeft,
                   children: [
-                    // 1. КАРКАС: Прозорі цифри, які тримають ширину під час міграції
                     Opacity(
                       opacity: isMigrating ? 0.0 : 1.0,
                       child: Row(
@@ -174,8 +177,6 @@ class SummaryHeader extends StatelessWidget {
                         ],
                       ),
                     ),
-
-                    // 2. КРАПКИ: З'являються рівно поверх зарезервованого місця
                     if (isMigrating)
                       Positioned.fill(
                         child: Align(

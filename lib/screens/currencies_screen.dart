@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+// 👇 1. Замінили provider на flutter_riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../providers/settings_provider.dart';
+
+// 👇 2. Імпортуємо наш хаб провайдерів
+import '../providers/all_providers.dart';
 import '../models/app_currency.dart';
 import '../utils/date_formatter.dart';
 import '../theme/app_colors_extension.dart';
 
-// 👇 ЗМІНЕНО: Тепер це StatefulWidget для локального керування статусами
-class CurrenciesScreen extends StatefulWidget {
+// 👇 3. Змінили StatefulWidget на ConsumerStatefulWidget
+class CurrenciesScreen extends ConsumerStatefulWidget {
   const CurrenciesScreen({super.key});
 
   @override
-  State<CurrenciesScreen> createState() => _CurrenciesScreenState();
+  ConsumerState<CurrenciesScreen> createState() => _CurrenciesScreenState();
 }
 
-class _CurrenciesScreenState extends State<CurrenciesScreen> {
+// 👇 4. Змінили State на ConsumerState
+class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
   bool _isUpdating = false;
   String? _errorMessage;
 
@@ -31,10 +35,12 @@ class _CurrenciesScreenState extends State<CurrenciesScreen> {
 
   void _showAddCurrencyDialog(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    final settings = context.read<SettingsProvider>();
+
+    // 👇 Отримуємо стан налаштувань через ref.read
+    final settingsState = ref.read(settingsProvider);
 
     final availableCurrencies = AppCurrency.supportedCurrencies
-        .where((c) => !settings.selectedCurrencies.contains(c.code))
+        .where((c) => !settingsState.selectedCurrencies.contains(c.code))
         .toList();
 
     showModalBottomSheet(
@@ -102,9 +108,10 @@ class _CurrenciesScreenState extends State<CurrenciesScreen> {
                         style: TextStyle(color: colors.textMain),
                       ),
                       onTap: () {
-                        context.read<SettingsProvider>().toggleSelectedCurrency(
-                          currency.code,
-                        );
+                        // 👇 Викликаємо метод через Notifier
+                        ref
+                            .read(settingsProvider.notifier)
+                            .toggleSelectedCurrency(currency.code);
                         Navigator.pop(ctx);
                       },
                     );
@@ -117,7 +124,6 @@ class _CurrenciesScreenState extends State<CurrenciesScreen> {
     );
   }
 
-  // 👇 ДОДАНО: Елегантне локальне оновлення без спливаючих вікон
   Future<void> _handleRefresh() async {
     if (_isUpdating) return;
 
@@ -126,7 +132,10 @@ class _CurrenciesScreenState extends State<CurrenciesScreen> {
       _errorMessage = null;
     });
 
-    final success = await context.read<SettingsProvider>().forceUpdateRates();
+    // 👇 Викликаємо оновлення курсів через Notifier
+    final success = await ref
+        .read(settingsProvider.notifier)
+        .forceUpdateRates();
 
     if (!mounted) return;
 
@@ -137,7 +146,6 @@ class _CurrenciesScreenState extends State<CurrenciesScreen> {
       }
     });
 
-    // Якщо помилка — показуємо її 3 секунди, а потім повертаємо час останнього оновлення
     if (!success) {
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) {
@@ -149,8 +157,8 @@ class _CurrenciesScreenState extends State<CurrenciesScreen> {
     }
   }
 
-  // 👇 ДОДАНО: Віджет статусу (Час / Завантаження / Помилка)
-  Widget _buildStatusRow(AppColorsExtension colors, SettingsProvider settings) {
+  // Замість SettingsProvider передаємо об'єкт стану SettingsState (через dynamic/var для простоти)
+  Widget _buildStatusRow(AppColorsExtension colors, var settingsState) {
     if (_errorMessage != null) {
       return Row(
         children: [
@@ -184,13 +192,13 @@ class _CurrenciesScreenState extends State<CurrenciesScreen> {
           ),
         ],
       );
-    } else if (settings.lastRatesUpdate != null) {
+    } else if (settingsState.lastRatesUpdate != null) {
       return Row(
         children: [
           Icon(Icons.access_time, size: 14, color: colors.textSecondary),
           const SizedBox(width: 8),
           Text(
-            '${'last_update'.tr()}: ${DateFormatter.formatWithTime(settings.lastRatesUpdate!)}',
+            '${'last_update'.tr()}: ${DateFormatter.formatWithTime(settingsState.lastRatesUpdate!)}',
             style: TextStyle(fontSize: 12, color: colors.textSecondary),
           ),
         ],
@@ -203,6 +211,10 @@ class _CurrenciesScreenState extends State<CurrenciesScreen> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
+    // 👇 МАГІЯ RIVERPOD: Отримуємо реактивний стан і забуваємо про Consumer!
+    final settingsState = ref.watch(settingsProvider);
+    final baseCurrency = AppCurrency.fromCode(settingsState.baseCurrency);
+
     return Scaffold(
       backgroundColor: colors.bgGradientStart,
       appBar: AppBar(
@@ -214,7 +226,6 @@ class _CurrenciesScreenState extends State<CurrenciesScreen> {
           style: TextStyle(color: colors.textMain, fontWeight: FontWeight.bold),
         ),
         actions: [
-          // 👇 ЗМІНЕНО: Якщо вантажиться — показуємо лоадер замість кнопки
           _isUpdating
               ? Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -236,65 +247,60 @@ class _CurrenciesScreenState extends State<CurrenciesScreen> {
         ],
       ),
       body: SafeArea(
-        child: Consumer<SettingsProvider>(
-          builder: (context, settings, child) {
-            final baseCurrency = AppCurrency.fromCode(settings.baseCurrency);
-
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8.0,
-                    horizontal: 16.0,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 8.0,
+                horizontal: 16.0,
+              ),
+              child: _buildStatusRow(colors, settingsState),
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                color: colors.income,
+                backgroundColor: colors.cardBg,
+                onRefresh: _handleRefresh,
+                child: ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
                   ),
-                  // 👇 ВИКЛИК інлайн-статусу
-                  child: _buildStatusRow(colors, settings),
+                  padding: const EdgeInsets.all(16),
+                  itemCount: settingsState.selectedCurrencies.length,
+                  itemBuilder: (context, index) {
+                    final code = settingsState.selectedCurrencies[index];
+                    final currency = AppCurrency.fromCode(code);
+
+                    if (code == settingsState.baseCurrency) {
+                      return _buildCurrencyCard(
+                        context,
+                        currency: currency,
+                        isBase: true,
+                        rateText: 'base_currency'.tr(),
+                        colors: colors,
+                      );
+                    }
+
+                    final rate = settingsState.exchangeRates[code];
+                    final rateText = rate != null
+                        ? "1 ${currency.symbol} = ${_formatRate(1 / rate)} ${baseCurrency.symbol}"
+                        : 'loading'.tr();
+
+                    return _buildCurrencyCard(
+                      context,
+                      currency: currency,
+                      isBase: false,
+                      rateText: rateText,
+                      colors: colors,
+                      onDelete: () => ref
+                          .read(settingsProvider.notifier)
+                          .toggleSelectedCurrency(code),
+                    );
+                  },
                 ),
-                Expanded(
-                  child: RefreshIndicator(
-                    color: colors.income,
-                    backgroundColor: colors.cardBg,
-                    onRefresh: _handleRefresh,
-                    child: ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(
-                        parent: BouncingScrollPhysics(),
-                      ),
-                      padding: const EdgeInsets.all(16),
-                      itemCount: settings.selectedCurrencies.length,
-                      itemBuilder: (context, index) {
-                        final code = settings.selectedCurrencies[index];
-                        final currency = AppCurrency.fromCode(code);
-
-                        if (code == settings.baseCurrency) {
-                          return _buildCurrencyCard(
-                            context,
-                            currency: currency,
-                            isBase: true,
-                            rateText: 'base_currency'.tr(),
-                            colors: colors,
-                          );
-                        }
-
-                        final rate = settings.exchangeRates[code];
-                        final rateText = rate != null
-                            ? "1 ${currency.symbol} = ${_formatRate(1 / rate)} ${baseCurrency.symbol}"
-                            : 'loading'.tr();
-
-                        return _buildCurrencyCard(
-                          context,
-                          currency: currency,
-                          isBase: false,
-                          rateText: rateText,
-                          colors: colors,
-                          onDelete: () => settings.toggleSelectedCurrency(code),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
+              ),
+            ),
+          ],
         ),
       ),
       floatingActionButton: FloatingActionButton(

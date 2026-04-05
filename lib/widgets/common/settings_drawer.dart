@@ -1,23 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+// 👇 1. Замінили provider на flutter_riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
+
 import '../../screens/stats_screen.dart';
 import '../../screens/subscriptions_screen.dart';
 import '../../services/backup_service.dart';
 import '../../screens/profile_screen.dart';
 import '../../screens/currencies_screen.dart';
 import '../../theme/app_colors_extension.dart';
-import '../../providers/subscription_provider.dart';
 
-class SettingsDrawer extends StatelessWidget {
+// 👇 2. Імпортуємо наш єдиний хаб провайдерів
+import '../../providers/all_providers.dart';
+
+// 👇 3. Змінили StatelessWidget на ConsumerWidget
+class SettingsDrawer extends ConsumerWidget {
   const SettingsDrawer({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  // 👇 4. Додали WidgetRef ref
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    final hasPendingSubscriptions = context
-        .watch<SubscriptionProvider>()
+    // 👇 5. Отримуємо стан підписок напряму через ref
+    final hasPendingSubscriptions = ref
+        .watch(subscriptionProvider)
         .hasPendingPayments;
 
     return Drawer(
@@ -199,14 +206,15 @@ class SettingsDrawer extends StatelessWidget {
 // ==========================================
 enum _ExpandedMode { none, export, import }
 
-class _BackupBottomSheet extends StatefulWidget {
+// 👇 6. Змінюємо StatefulWidget на ConsumerStatefulWidget
+class _BackupBottomSheet extends ConsumerStatefulWidget {
   const _BackupBottomSheet();
 
   @override
-  State<_BackupBottomSheet> createState() => _BackupBottomSheetState();
+  ConsumerState<_BackupBottomSheet> createState() => _BackupBottomSheetState();
 }
 
-class _BackupBottomSheetState extends State<_BackupBottomSheet> {
+class _BackupBottomSheetState extends ConsumerState<_BackupBottomSheet> {
   _ExpandedMode _expandedMode = _ExpandedMode.none;
   bool _isObscured = true;
   final TextEditingController _passwordCtrl = TextEditingController();
@@ -236,7 +244,6 @@ class _BackupBottomSheetState extends State<_BackupBottomSheet> {
   }
 
   void _submit() {
-    // 👇 ПРИБРАЛИ .trim(), щоб пароль передавався точно так, як його ввели, з усіма пробілами!
     final pwd = _passwordCtrl.text;
     if (pwd.isEmpty) return;
 
@@ -246,9 +253,11 @@ class _BackupBottomSheetState extends State<_BackupBottomSheet> {
     Navigator.pop(context);
 
     if (mode == _ExpandedMode.export) {
-      BackupService.exportData(rootContext, pwd);
+      // 👇 ВИПРАВЛЕНО: Передаємо ref у BackupService
+      BackupService.exportData(rootContext, ref, pwd);
     } else if (mode == _ExpandedMode.import) {
-      BackupService.importData(rootContext, pwd);
+      // 👇 ВИПРАВЛЕНО: Передаємо ref у BackupService
+      BackupService.importData(rootContext, ref, pwd);
     }
   }
 
@@ -275,7 +284,6 @@ class _BackupBottomSheetState extends State<_BackupBottomSheet> {
             ),
             const SizedBox(height: 16),
 
-            // --- ПУНКТ ЕКСПОРТУ ---
             ListTile(
               leading: Icon(Icons.upload_file, color: colors.textMain),
               title: Text(
@@ -299,7 +307,6 @@ class _BackupBottomSheetState extends State<_BackupBottomSheet> {
                   : const SizedBox.shrink(),
             ),
 
-            // --- ПУНКТ ІМПОРТУ ---
             ListTile(
               leading: Icon(Icons.download, color: colors.expense),
               title: Text(
@@ -330,7 +337,6 @@ class _BackupBottomSheetState extends State<_BackupBottomSheet> {
     );
   }
 
-  // --- ВБУДОВАНЕ ПОЛЕ З ПІДКАЗКОЮ ТА ГЛОБАЛЬНИМ ДИЗАЙНОМ ---
   Widget _buildInlinePasswordField(AppColorsExtension colors) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
@@ -357,17 +363,11 @@ class _BackupBottomSheetState extends State<_BackupBottomSheet> {
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submit(),
             style: TextStyle(color: colors.textMain, fontSize: 16),
-
-            // 👇 ПРИБРАЛИ ВСІ КАСТОМНІ РАМКИ ТА КОЛЬОРИ
-            // Тепер поле автоматично використає твої глобальні налаштування
-            // (той самий правильний синій колір і правильні кути)
             decoration: InputDecoration(
               hintText: 'password'.tr(),
               hintStyle: TextStyle(
                 color: colors.textSecondary.withValues(alpha: 0.5),
               ),
-
-              // Залишаємо тільки іконки з правого боку
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -379,7 +379,6 @@ class _BackupBottomSheetState extends State<_BackupBottomSheet> {
                     ),
                     onPressed: () => setState(() => _isObscured = !_isObscured),
                   ),
-                  // Точно така сама галочка, як у коментарях!
                   IconButton(
                     icon: Icon(
                       Icons.check_circle,

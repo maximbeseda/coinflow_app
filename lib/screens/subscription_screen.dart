@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
+
+// 👇 1. Перейшли на Riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
-import '../providers/category_provider.dart';
-import '../providers/subscription_provider.dart';
-import '../providers/settings_provider.dart';
+
+// 👇 2. Імпортуємо наш єдиний хаб
+import '../providers/all_providers.dart';
+
 import '../database/app_database.dart';
 import '../models/app_currency.dart';
 import '../utils/app_constants.dart';
@@ -13,16 +16,18 @@ import '../utils/date_formatter.dart';
 import '../widgets/dialogs/premium_date_picker.dart';
 import '../theme/app_colors_extension.dart';
 
-class SubscriptionScreen extends StatefulWidget {
+// 👇 3. Замінили StatefulWidget на ConsumerStatefulWidget
+class SubscriptionScreen extends ConsumerStatefulWidget {
   final Subscription? subscription;
 
   const SubscriptionScreen({super.key, this.subscription});
 
   @override
-  State<SubscriptionScreen> createState() => _SubscriptionScreenState();
+  ConsumerState<SubscriptionScreen> createState() => _SubscriptionScreenState();
 }
 
-class _SubscriptionScreenState extends State<SubscriptionScreen> {
+// 👇 4. Замінили State на ConsumerState
+class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   late TextEditingController _nameCtrl;
   late TextEditingController _amountCtrl;
   late TextEditingController _currencyCtrl;
@@ -45,15 +50,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   bool _showAccountError = false;
   bool _showExpenseError = false;
 
+  bool _isInitialized = false;
+
   @override
   void initState() {
     super.initState();
     final sub = widget.subscription;
 
     _nameCtrl = TextEditingController(text: sub?.name ?? '');
-    // Тепер функція працює з int (копійками)
+
     String formatInt(int val) {
-      double displayVal = val / 100.0; // Конвертуємо лише для UI
+      double displayVal = val / 100.0;
       String str = displayVal
           .toStringAsFixed(2)
           .replaceAll(RegExp(r'\.?0*$'), '');
@@ -95,45 +102,51 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final catProv = context.read<CategoryProvider>();
-    final settings = context.read<SettingsProvider>();
 
-    if (_selectedCurrency == null) {
-      _selectedCurrency =
-          widget.subscription?.currency ?? settings.baseCurrency;
-      _updateCurrencyText(_selectedCurrency!);
-    }
+    if (!_isInitialized) {
+      // 👇 5. Отримуємо стани через ref.read (безпечно в didChangeDependencies)
+      final catState = ref.read(categoryProvider);
+      final settingsState = ref.read(settingsProvider);
 
-    if (_selectedAccountId == null && widget.subscription != null) {
-      bool accountExists = catProv.accounts.any(
-        (c) => c.id == widget.subscription?.accountId,
-      );
-      if (accountExists) {
-        _selectedAccountId = widget.subscription!.accountId;
-        _updateCategoryText(
-          _accountCtrl,
-          catProv.accounts,
-          _selectedAccountId!,
-        );
+      if (_selectedCurrency == null) {
+        _selectedCurrency =
+            widget.subscription?.currency ?? settingsState.baseCurrency;
+        _updateCurrencyText(_selectedCurrency!);
       }
-    }
 
-    if (_selectedExpenseId == null && widget.subscription != null) {
-      bool expenseExists = catProv.expenses.any(
-        (c) => c.id == widget.subscription?.categoryId,
-      );
-      if (expenseExists) {
-        _selectedExpenseId = widget.subscription!.categoryId;
-        _updateCategoryText(
-          _expenseCtrl,
-          catProv.expenses,
-          _selectedExpenseId!,
+      if (_selectedAccountId == null && widget.subscription != null) {
+        bool accountExists = catState.accounts.any(
+          (c) => c.id == widget.subscription?.accountId,
         );
+        if (accountExists) {
+          _selectedAccountId = widget.subscription!.accountId;
+          _updateCategoryText(
+            _accountCtrl,
+            catState.accounts,
+            _selectedAccountId!,
+          );
+        }
       }
-    }
 
-    _updatePeriodicityText(_selectedPeriodicity);
-    _updateDateText(_selectedDate);
+      if (_selectedExpenseId == null && widget.subscription != null) {
+        bool expenseExists = catState.expenses.any(
+          (c) => c.id == widget.subscription?.categoryId,
+        );
+        if (expenseExists) {
+          _selectedExpenseId = widget.subscription!.categoryId;
+          _updateCategoryText(
+            _expenseCtrl,
+            catState.expenses,
+            _selectedExpenseId!,
+          );
+        }
+      }
+
+      _updatePeriodicityText(_selectedPeriodicity);
+      _updateDateText(_selectedDate);
+
+      _isInitialized = true;
+    }
   }
 
   @override
@@ -297,9 +310,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       ),
     );
 
-    if (mounted) {
-      FocusManager.instance.primaryFocus?.unfocus();
-    }
+    if (mounted) FocusManager.instance.primaryFocus?.unfocus();
   }
 
   Future<void> _openCategoryPicker(
@@ -308,14 +319,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   ) async {
     FocusManager.instance.primaryFocus?.unfocus();
 
-    final catProv = context.read<CategoryProvider>();
+    // 👇 6. Читаємо стан категорій через ref.read
+    final catState = ref.read(categoryProvider);
+
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final list = type == CategoryType.account
-        ? catProv.accounts
-        : catProv.expenses;
+        ? catState.accounts
+        : catState.expenses;
+
     final title = type == CategoryType.account
         ? 'write_off_from'.tr()
         : 'expense_category'.tr();
+
     final currentId = type == CategoryType.account
         ? _selectedAccountId
         : _selectedExpenseId;
@@ -384,15 +399,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          // 👇 КОНВЕРТУЄМО int у Color
                           color: Color(cat.bgColor),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          // 👇 КОНВЕРТУЄМО int у IconData
                           IconData(cat.icon, fontFamily: 'MaterialIcons'),
                           size: 18,
-                          // 👇 КОНВЕРТУЄМО int у Color
                           color: Color(cat.iconColor),
                         ),
                       ),
@@ -637,19 +649,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   void _save() {
     FocusManager.instance.primaryFocus?.unfocus();
 
-    // Спочатку отримуємо double з тексту
     double parsedAmount =
         double.tryParse(
           _amountCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
         ) ??
         0.0;
 
-    // Конвертуємо у цілі копійки через .round()
     int amountInCents = (parsedAmount * 100).round();
 
     setState(() {
       _showNameError = _nameCtrl.text.trim().isEmpty;
-      _showAmountError = amountInCents <= 0; // Перевірка тепер в int
+      _showAmountError = amountInCents <= 0;
       _showAccountError = _selectedAccountId == null;
       _showExpenseError = _selectedExpenseId == null;
     });
@@ -661,28 +671,29 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       return;
     }
 
-    final subProv = context.read<SubscriptionProvider>();
-    final settings = context.read<SettingsProvider>();
+    // 👇 7. Отримуємо Notifier для збереження
+    final subNotifier = ref.read(subscriptionProvider.notifier);
+    final settingsState = ref.read(settingsProvider);
 
     final newSub = Subscription(
       id:
           widget.subscription?.id ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       name: _nameCtrl.text.trim(),
-      amount: amountInCents, // Передаємо ціле число
+      amount: amountInCents,
       categoryId: _selectedExpenseId!,
       accountId: _selectedAccountId!,
       nextPaymentDate: _selectedDate,
       periodicity: _selectedPeriodicity,
       customIconCodePoint: _customIconCodePoint,
       isAutoPay: _isAutoPay,
-      currency: _selectedCurrency ?? settings.baseCurrency,
+      currency: _selectedCurrency ?? settingsState.baseCurrency,
     );
 
     if (widget.subscription == null) {
-      subProv.addSubscription(newSub);
+      subNotifier.addSubscription(newSub);
     } else {
-      subProv.updateSubscription(newSub);
+      subNotifier.updateSubscription(newSub);
     }
 
     Navigator.pop(context);
@@ -726,7 +737,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
-
                   Builder(
                     builder: (context) {
                       final itemName = widget.subscription!.name;
@@ -809,9 +819,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     if (!mounted) return;
     if (confirmed) {
-      context.read<SubscriptionProvider>().deleteSubscription(
-        widget.subscription!.id,
-      );
+      // 👇 8. Викликаємо видалення через Notifier
+      ref
+          .read(subscriptionProvider.notifier)
+          .deleteSubscription(widget.subscription!.id);
       Navigator.pop(context);
     }
   }
@@ -1004,8 +1015,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    // 👇 ОПТИМІЗАЦІЯ: Змінено watch на read для уникнення зайвих перемальовувань
-    final catProv = context.read<CategoryProvider>();
+
+    // 👇 9. Отримуємо стан категорій напряму
+    final catState = ref.watch(categoryProvider);
     final isEditing = widget.subscription != null;
 
     final currencySymbol = AppCurrency.fromCode(
@@ -1022,21 +1034,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         fontFamily: 'MaterialIcons',
       );
       if (_selectedExpenseId != null) {
-        final cat = catProv.expenses.firstWhereOrNull(
+        final cat = catState.expenses.firstWhereOrNull(
           (c) => c.id == _selectedExpenseId,
         );
         if (cat != null) {
-          // 👇 КОНВЕРТУЄМО int у Color
           displayColor = Color(cat.bgColor);
           displayIconColor = Color(cat.iconColor);
         }
       }
     } else if (_selectedExpenseId != null) {
-      final cat = catProv.expenses.firstWhereOrNull(
+      final cat = catState.expenses.firstWhereOrNull(
         (c) => c.id == _selectedExpenseId,
       );
       if (cat != null) {
-        // 👇 КОНВЕРТУЄМО int у IconData та Color
         displayIcon = IconData(cat.icon, fontFamily: 'MaterialIcons');
         displayColor = Color(cat.bgColor);
         displayIconColor = Color(cat.iconColor);

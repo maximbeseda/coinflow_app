@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+// 👇 1. Замінили provider на flutter_riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
+
+// 👇 2. Імпортуємо наш хаб провайдерів
+import '../../providers/all_providers.dart';
+
 import '../../database/app_database.dart';
-import '../../providers/subscription_provider.dart';
-import '../../providers/category_provider.dart';
-import '../../providers/settings_provider.dart';
 import '../../models/app_currency.dart';
 import '../../theme/app_colors_extension.dart';
 import '../../utils/currency_formatter.dart';
 
-class DueSubscriptionDialog extends StatelessWidget {
+// 👇 3. Змінили StatelessWidget на ConsumerWidget
+class DueSubscriptionDialog extends ConsumerWidget {
   final Subscription subscription;
 
   const DueSubscriptionDialog({super.key, required this.subscription});
@@ -20,26 +23,33 @@ class DueSubscriptionDialog extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  // 👇 4. Додали WidgetRef ref
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    final catProv = context.watch<CategoryProvider>();
-    final settings = context.watch<SettingsProvider>();
+    // 👇 5. Отримуємо дані з провайдерів через ref
+    final catState = ref.watch(categoryProvider);
+    ref.watch(
+      settingsProvider,
+    ); // Стежимо за змінами налаштувань для перерахунку балансу
+    final settingsNotifier = ref.read(settingsProvider.notifier);
 
-    final account = catProv.allCategoriesList
+    final account = catState.allCategoriesList
         .where((c) => c.id == subscription.accountId)
         .firstOrNull;
 
     bool canPay = false;
     if (account != null && !account.isArchived) {
       // Конвертуємо в базову валюту і округлюємо до цілих копійок
-      int accountAmountBase = settings
-          .convertToBase(account.amount, account.currency)
-          .round();
+      int accountAmountBase = settingsNotifier.convertToBase(
+        account.amount,
+        account.currency,
+      );
 
-      int subAmountBase = settings
-          .convertToBase(subscription.amount, subscription.currency)
-          .round();
+      int subAmountBase = settingsNotifier.convertToBase(
+        subscription.amount,
+        subscription.currency,
+      );
 
       canPay = accountAmountBase >= subAmountBase;
     }
@@ -49,11 +59,9 @@ class DueSubscriptionDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: colors.cardBg,
       surfaceTintColor: Colors.transparent,
-      // Додаємо обмеження по ширині та скруглення
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Stack(
         children: [
-          // 👇 Обгортаємо весь вміст у ScrollView, щоб уникнути Overflow по вертикалі
           SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             child: Padding(
@@ -79,8 +87,7 @@ class DueSubscriptionDialog extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  // 2. ЗАГОЛОВОК З МОНОХРОМНОЮ ІКОНКОЮ
-                  // Використовуємо Wrap, щоб текст + іконка безпечно переносились
+                  // 2. ЗАГОЛОВОК
                   Wrap(
                     alignment: WrapAlignment.center,
                     crossAxisAlignment: WrapCrossAlignment.center,
@@ -105,7 +112,6 @@ class DueSubscriptionDialog extends StatelessWidget {
                   const SizedBox(height: 12),
 
                   // 3. ПІДЗАГОЛОВОК
-                  // Прибрав maxLines, щоб довгі назви підписок не обрізались
                   RichText(
                     textAlign: TextAlign.center,
                     text: TextSpan(
@@ -127,7 +133,7 @@ class DueSubscriptionDialog extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // 4. ДАТА (ЛЕГКА, БЕЗ РАМОК І ФОНУ)
+                  // 4. ДАТА
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -154,7 +160,6 @@ class DueSubscriptionDialog extends StatelessWidget {
                   const SizedBox(height: 20),
 
                   // 5. СУМА
-                  // Обгорнув у FittedBox, щоб гігантські суми зменшували шрифт, а не падали з помилкою
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
@@ -196,14 +201,12 @@ class DueSubscriptionDialog extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: () async {
-                            await context
-                                .read<SubscriptionProvider>()
+                            // 👇 ВИПРАВЛЕНО: Закриваємо діалог миттєво
+                            Navigator.pop(context);
+                            await ref
+                                .read(subscriptionProvider.notifier)
                                 .skipSubscriptionPayment(subscription);
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                            }
                           },
-                          // FittedBox рятує довгі німецькі слова на кнопках
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
@@ -229,32 +232,34 @@ class DueSubscriptionDialog extends StatelessWidget {
                             elevation: 0,
                           ),
                           onPressed: () async {
-                            if (!canPay) {
-                              context
-                                  .read<SubscriptionProvider>()
-                                  .ignoreSubscriptionPermanently(
-                                    subscription.id,
-                                  );
-                              Navigator.pop(context);
-                              return;
-                            }
+                            final subNotifier = ref.read(
+                              subscriptionProvider.notifier,
+                            );
 
+                            final navigator = Navigator.of(context);
                             final scaffoldMessenger = ScaffoldMessenger.of(
                               context,
                             );
-                            final navigator = Navigator.of(context);
 
-                            final (success, message) = await context
-                                .read<SubscriptionProvider>()
+                            if (!canPay) {
+                              subNotifier.ignoreSubscriptionPermanently(
+                                subscription.id,
+                              );
+                              navigator.pop();
+                              return;
+                            }
+
+                            // 👇 ВИПРАВЛЕНО: Закриваємо діалог ДО початку оплати,
+                            // щоб уникнути його повторного відкриття через зміну стану
+                            navigator.pop();
+
+                            final (success, message) = await subNotifier
                                 .confirmSubscriptionPayment(
                                   subscription,
                                   subscription.amount,
                                 );
 
-                            if (success) {
-                              navigator.pop();
-                            }
-
+                            // Показуємо Snackbar на головному екрані
                             scaffoldMessenger.clearSnackBars();
                             scaffoldMessenger.showSnackBar(
                               SnackBar(
@@ -299,7 +304,6 @@ class DueSubscriptionDialog extends StatelessWidget {
                               ),
                             );
                           },
-                          // FittedBox тут теж
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
@@ -319,16 +323,17 @@ class DueSubscriptionDialog extends StatelessWidget {
             ),
           ),
 
-          // Хрестик закриття (залишається фіксованим зверху праворуч)
+          // Хрестик закриття
           Positioned(
             right: 16,
             top: 16,
             child: GestureDetector(
               onTap: () {
-                context
-                    .read<SubscriptionProvider>()
-                    .ignoreSubscriptionForSession(subscription.id);
+                // 👇 ВИПРАВЛЕНО: Закриваємо діалог миттєво
                 Navigator.pop(context);
+                ref
+                    .read(subscriptionProvider.notifier)
+                    .ignoreSubscriptionForSession(subscription.id);
               },
               child: Container(
                 padding: const EdgeInsets.all(8),

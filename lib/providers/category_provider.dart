@@ -1,14 +1,43 @@
-import 'package:flutter/material.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
 import '../database/app_database.dart';
 import '../services/storage_service.dart';
+// 👇 Додали імпорт хабу, де лежить databaseProvider
+import 'all_providers.dart';
 
-class CategoryProvider extends ChangeNotifier {
-  List<Category> incomes = [];
-  List<Category> accounts = [];
-  List<Category> expenses = [];
-  List<Category> archivedCategories = [];
+part 'category_provider.g.dart';
 
-  bool isLoading = true;
+// 1. СТАН (State)
+class CategoryState {
+  final List<Category> incomes;
+  final List<Category> accounts;
+  final List<Category> expenses;
+  final List<Category> archivedCategories;
+  final bool isLoading;
+
+  CategoryState({
+    required this.incomes,
+    required this.accounts,
+    required this.expenses,
+    required this.archivedCategories,
+    required this.isLoading,
+  });
+
+  CategoryState copyWith({
+    List<Category>? incomes,
+    List<Category>? accounts,
+    List<Category>? expenses,
+    List<Category>? archivedCategories,
+    bool? isLoading,
+  }) {
+    return CategoryState(
+      incomes: incomes ?? this.incomes,
+      accounts: accounts ?? this.accounts,
+      expenses: expenses ?? this.expenses,
+      archivedCategories: archivedCategories ?? this.archivedCategories,
+      isLoading: isLoading ?? this.isLoading,
+    );
+  }
 
   List<Category> get allCategoriesList => [
     ...incomes,
@@ -16,37 +45,64 @@ class CategoryProvider extends ChangeNotifier {
     ...expenses,
     ...archivedCategories,
   ];
+}
 
-  CategoryProvider() {
-    loadCategories();
+// 2. СУЧАСНИЙ NOTIFIER
+@Riverpod(keepAlive: true)
+class CategoryNotifier extends _$CategoryNotifier {
+  @override
+  CategoryState build() {
+    final initialState = CategoryState(
+      incomes: [],
+      accounts: [],
+      expenses: [],
+      archivedCategories: [],
+      isLoading: true,
+    );
+
+    Future.microtask(() => loadCategories());
+
+    return initialState;
   }
 
   Future<void> loadCategories() async {
-    final savedCats = await StorageService.loadCategories();
+    // 👇 Отримуємо базу з провайдера
+    final db = ref.read(databaseProvider);
+    final savedCats = await StorageService.loadCategories(db);
+
+    List<Category> newIncomes = [];
+    List<Category> newAccounts = [];
+    List<Category> newExpenses = [];
+    List<Category> newArchived = [];
 
     if (savedCats.isNotEmpty) {
       final sorted = List<Category>.from(savedCats)
         ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
-      incomes = sorted
+      newIncomes = sorted
           .where((c) => c.type == CategoryType.income && !c.isArchived)
           .toList();
-      accounts = sorted
+      newAccounts = sorted
           .where((c) => c.type == CategoryType.account && !c.isArchived)
           .toList();
-      expenses = sorted
+      newExpenses = sorted
           .where((c) => c.type == CategoryType.expense && !c.isArchived)
           .toList();
-      archivedCategories = sorted.where((c) => c.isArchived).toList();
+      newArchived = sorted.where((c) => c.isArchived).toList();
     }
 
-    isLoading = false;
-    notifyListeners();
+    state = state.copyWith(
+      incomes: newIncomes,
+      accounts: newAccounts,
+      expenses: newExpenses,
+      archivedCategories: newArchived,
+      isLoading: false,
+    );
   }
 
-  // 👇 ЗМІНЕНО: delta тепер int
   void updateCategoryAmount(String id, int delta) {
-    final all = allCategoriesList;
+    final db = ref.read(databaseProvider);
+    final all = state.allCategoriesList;
     final index = all.indexWhere((c) => c.id == id);
     if (index == -1) return;
 
@@ -54,68 +110,96 @@ class CategoryProvider extends ChangeNotifier {
     final updatedCategory = category.copyWith(amount: category.amount + delta);
 
     if (updatedCategory.type == CategoryType.income) {
-      int idx = incomes.indexWhere((c) => c.id == id);
-      if (idx != -1) incomes[idx] = updatedCategory;
+      final newList = List<Category>.from(state.incomes);
+      int idx = newList.indexWhere((c) => c.id == id);
+      if (idx != -1) newList[idx] = updatedCategory;
+      state = state.copyWith(incomes: newList);
     } else if (updatedCategory.type == CategoryType.account) {
-      int idx = accounts.indexWhere((c) => c.id == id);
-      if (idx != -1) accounts[idx] = updatedCategory;
+      final newList = List<Category>.from(state.accounts);
+      int idx = newList.indexWhere((c) => c.id == id);
+      if (idx != -1) newList[idx] = updatedCategory;
+      state = state.copyWith(accounts: newList);
     } else {
-      int idx = expenses.indexWhere((c) => c.id == id);
-      if (idx != -1) expenses[idx] = updatedCategory;
+      final newList = List<Category>.from(state.expenses);
+      int idx = newList.indexWhere((c) => c.id == id);
+      if (idx != -1) newList[idx] = updatedCategory;
+      state = state.copyWith(expenses: newList);
     }
 
-    StorageService.saveCategory(updatedCategory);
-    notifyListeners();
+    StorageService.saveCategory(db, updatedCategory);
   }
 
   void addOrUpdateCategory(Category cat) {
+    final db = ref.read(databaseProvider);
     List<Category> targetList;
+
     if (cat.type == CategoryType.income) {
-      targetList = incomes;
+      targetList = List<Category>.from(state.incomes);
     } else if (cat.type == CategoryType.account) {
-      targetList = accounts;
+      targetList = List<Category>.from(state.accounts);
     } else {
-      targetList = expenses;
+      targetList = List<Category>.from(state.expenses);
     }
 
     int index = targetList.indexWhere((c) => c.id == cat.id);
     if (index == -1) {
       final newCat = cat.copyWith(sortOrder: targetList.length);
       targetList.add(newCat);
-      StorageService.saveCategory(newCat);
+      StorageService.saveCategory(db, newCat);
     } else {
       targetList[index] = cat;
-      StorageService.saveCategory(cat);
+      StorageService.saveCategory(db, cat);
     }
 
-    StorageService.saveCategory(cat);
-    notifyListeners();
+    if (cat.type == CategoryType.income) {
+      state = state.copyWith(incomes: targetList);
+    } else if (cat.type == CategoryType.account) {
+      state = state.copyWith(accounts: targetList);
+    } else {
+      state = state.copyWith(expenses: targetList);
+    }
   }
 
   void deleteCategory(Category cat) {
+    final db = ref.read(databaseProvider);
     final archived = cat.copyWith(isArchived: true);
-    StorageService.saveCategory(archived);
+    StorageService.saveCategory(db, archived);
+
+    final newArchived = List<Category>.from(state.archivedCategories)
+      ..add(archived);
 
     if (cat.type == CategoryType.income) {
-      incomes.removeWhere((c) => c.id == cat.id);
+      final newList = List<Category>.from(state.incomes)
+        ..removeWhere((c) => c.id == cat.id);
+      state = state.copyWith(incomes: newList, archivedCategories: newArchived);
     } else if (cat.type == CategoryType.account) {
-      accounts.removeWhere((c) => c.id == cat.id);
+      final newList = List<Category>.from(state.accounts)
+        ..removeWhere((c) => c.id == cat.id);
+      state = state.copyWith(
+        accounts: newList,
+        archivedCategories: newArchived,
+      );
     } else {
-      expenses.removeWhere((c) => c.id == cat.id);
+      final newList = List<Category>.from(state.expenses)
+        ..removeWhere((c) => c.id == cat.id);
+      state = state.copyWith(
+        expenses: newList,
+        archivedCategories: newArchived,
+      );
     }
-
-    archivedCategories.add(archived);
-    notifyListeners();
   }
 
   void reorderCategories(Category dragged, Category target) {
+    final db = ref.read(databaseProvider);
     if (dragged.type != target.type) return;
 
-    List<Category> targetList = (dragged.type == CategoryType.income)
-        ? incomes
-        : (dragged.type == CategoryType.account)
-        ? accounts
-        : expenses;
+    List<Category> targetList = List<Category>.from(
+      dragged.type == CategoryType.income
+          ? state.incomes
+          : dragged.type == CategoryType.account
+          ? state.accounts
+          : state.expenses,
+    );
 
     int oldIndex = targetList.indexWhere((c) => c.id == dragged.id);
     int newIndex = targetList.indexWhere((c) => c.id == target.id);
@@ -123,32 +207,44 @@ class CategoryProvider extends ChangeNotifier {
     if (oldIndex != -1 && newIndex != -1 && oldIndex != newIndex) {
       final item = targetList.removeAt(oldIndex);
       targetList.insert(newIndex, item);
-      // 👇 МАГІЯ ТУТ: оновлюємо sortOrder для всіх категорій у списку
+
       for (int i = 0; i < targetList.length; i++) {
         targetList[i] = targetList[i].copyWith(sortOrder: i);
       }
 
-      // Зберігаємо весь оновлений список у базу через StorageService
-      StorageService.saveCategories(targetList);
-      notifyListeners();
+      StorageService.saveCategories(db, targetList);
+
+      if (dragged.type == CategoryType.income) {
+        state = state.copyWith(incomes: targetList);
+      } else if (dragged.type == CategoryType.account) {
+        state = state.copyWith(accounts: targetList);
+      } else {
+        state = state.copyWith(expenses: targetList);
+      }
     }
   }
 
   Future<void> resetAllBalances() async {
-    // 👇 ЗМІНЕНО: 0 замість 0.0 в усіх циклах
-    for (var i = 0; i < incomes.length; i++) {
-      incomes[i] = incomes[i].copyWith(amount: 0);
-    }
-    for (var i = 0; i < accounts.length; i++) {
-      accounts[i] = accounts[i].copyWith(amount: 0);
-    }
-    for (var i = 0; i < expenses.length; i++) {
-      expenses[i] = expenses[i].copyWith(amount: 0);
-    }
-    for (var i = 0; i < archivedCategories.length; i++) {
-      archivedCategories[i] = archivedCategories[i].copyWith(amount: 0);
-    }
-    await StorageService.saveCategories(allCategoriesList);
-    notifyListeners();
+    final db = ref.read(databaseProvider);
+
+    final newIncomes = state.incomes.map((c) => c.copyWith(amount: 0)).toList();
+    final newAccounts = state.accounts
+        .map((c) => c.copyWith(amount: 0))
+        .toList();
+    final newExpenses = state.expenses
+        .map((c) => c.copyWith(amount: 0))
+        .toList();
+    final newArchived = state.archivedCategories
+        .map((c) => c.copyWith(amount: 0))
+        .toList();
+
+    state = state.copyWith(
+      incomes: newIncomes,
+      accounts: newAccounts,
+      expenses: newExpenses,
+      archivedCategories: newArchived,
+    );
+
+    await StorageService.saveCategories(db, state.allCategoriesList);
   }
 }

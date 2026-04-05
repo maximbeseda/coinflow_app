@@ -8,24 +8,15 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'dart:ui';
 
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/home_screen.dart';
-import 'screens/onboarding_screen.dart'; // <-- ДОДАНО: Імпорт екрану онбордінгу
+import 'providers/all_providers.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/lock_screen.dart';
-import 'providers/category_provider.dart';
-import 'providers/transaction_provider.dart';
-import 'providers/subscription_provider.dart';
-import 'providers/theme_provider.dart';
-import 'providers/settings_provider.dart';
-import 'providers/stats_provider.dart';
 import 'theme/app_theme.dart';
 import 'services/storage_service.dart';
 import 'services/security_service.dart';
-import 'database/app_database.dart';
 import 'database/migration_service.dart';
-
-// ГЛОБАЛЬНА ЗМІННА БАЗИ ДАНИХ (Тимчасово, поки не додамо Riverpod)
-late AppDatabase appDb;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,98 +27,49 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // 1. Ініціалізуємо Hive ТІЛЬКИ для налаштувань (Settings)
+  // 1. Ініціалізуємо Hive ТІЛЬКИ для налаштувань
   await Hive.initFlutter();
-  await Hive.openBox('settings'); // Відкриваємо тільки бокс налаштувань
+  await Hive.openBox('settings');
 
-  // 2. ІНІЦІАЛІЗУЄМО DRIFT БАЗУ ДАНИХ
-  appDb = AppDatabase();
+  // 2. Створюємо контейнер Riverpod для ініціалізації провайдерів до runApp
+  final container = ProviderContainer();
 
-  // 3. МАГІЯ: Переливаємо дані з Hive у Drift (якщо ще не робили цього)
-  await MigrationService.runMigrationIfNeeded(appDb);
+  // 3. Отримуємо базу даних через провайдер
+  final db = container.read(databaseProvider);
 
-  // 4. Твоя стара логіка (тимчасово залишаємо, щоб апка не зламалася прямо зараз)
-  // У НАСТУПНОМУ КРОЦІ ми перепишемо StorageService!
-  // StorageService.registerAdapters(); // <-- ЦЕ МОЖНА ВИДАЛИТИ, старі адаптери вже не потрібні
-
-  // ВАЖЛИВО: Оскільки StorageService все ще очікує Hive, додаток зараз може підкреслювати помилки в StorageService.
-  // Але ти можеш видалити стару папку models/ (окрім app_currency, вона потрібна).
+  // 4. Запускаємо міграцію даних з Hive у Drift
+  await MigrationService.runMigrationIfNeeded(db);
 
   await initializeDateFormatting('uk_UA', null);
   const bool showPreview = false;
 
+  // Отримуємо початкові стани
   final bool hasCompletedOnboarding = StorageService.hasCompletedOnboarding();
   final bool isPinSet = await SecurityService.isPinSet();
 
   runApp(
-    EasyLocalization(
-      supportedLocales: const [Locale('uk'), Locale('en'), Locale('de')],
-      path: 'assets/translations',
-      fallbackLocale: const Locale('uk'),
-      child: MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => ThemeProvider()),
-
-          // 1. Провайдер налаштувань (відповідає за валюти і курси)
-          ChangeNotifierProvider(create: (_) => SettingsProvider()),
-
-          // 2. Провайдер категорій (незалежний)
-          ChangeNotifierProvider(create: (_) => CategoryProvider()),
-
-          // 3. Провайдер транзакцій (слідкує за категоріями, щоб оновлювати їх баланси)
-          ChangeNotifierProxyProvider2<
-            CategoryProvider,
-            SettingsProvider,
-            TransactionProvider
-          >(
-            create: (_) => TransactionProvider(),
-            update: (_, catProv, settingsProv, txProv) =>
-                txProv!..updateDependencies(catProv, settingsProv),
-          ),
-
-          // 4. Провайдер підписок (слідкує за налаштуваннями, категоріями та транзакціями)
-          ChangeNotifierProxyProvider3<
-            CategoryProvider,
-            TransactionProvider,
-            SettingsProvider,
-            SubscriptionProvider
-          >(
-            create: (_) => SubscriptionProvider(),
-            update: (_, catProv, txProv, settingsProv, subProv) =>
-                subProv!..updateDependencies(catProv, txProv, settingsProv),
-          ),
-
-          // 5. Провайдер статистики (Спеціалізований мозок для графіків)
-          ChangeNotifierProxyProvider2<
-            TransactionProvider,
-            CategoryProvider,
-            StatsProvider
-          >(
-            create: (_) => StatsProvider(),
-            update: (_, txProv, catProv, statsProv) =>
-                statsProv!..updateDependencies(txProv, catProv),
-          ),
-        ],
+    // Використовуємо UncontrolledProviderScope, щоб передати вже створений контейнер
+    UncontrolledProviderScope(
+      container: container,
+      child: EasyLocalization(
+        supportedLocales: const [Locale('uk'), Locale('en'), Locale('de')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('uk'),
         child: DevicePreview(
           enabled: !kReleaseMode && showPreview,
-          // 👇 ЗМІНЕНО: Передаємо статус онбордінгу в MyApp
           builder: (context) => MyApp(
             showOnboarding: !hasCompletedOnboarding,
-            requirePin: isPinSet, // Передаємо статус ПІН-коду
+            requirePin: isPinSet,
           ),
-
-          // ДЛЯ ПЕРЕВІРКИ ЕКРАНУ ОНБОРДИНГУ:
-          // builder: (context) =>
-          //    MyApp(showOnboarding: true), // Завжди показувати
         ),
       ),
     ),
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   final bool showOnboarding;
-  final bool requirePin; // ДОДАНО: Параметр для ПІН-коду
+  final bool requirePin;
 
   const MyApp({
     super.key,
@@ -136,14 +78,11 @@ class MyApp extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    // Слухаємо зміни теми через провайдер
-    final themeProvider = context.watch<ThemeProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Реактивно стежимо за темою через Riverpod
+    final themeId = ref.watch(themeProvider);
+    final currentTheme = AppTheme.getTheme(themeId);
 
-    // Отримуємо об'єкт теми з нашої фабрики AppTheme
-    final currentTheme = AppTheme.getTheme(themeProvider.currentThemeId);
-
-    // Встановлюємо стиль системних іконок (батарея, годинник) залежно від теми
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -156,22 +95,13 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'CoinFlow',
-
-      // Локалізація
       localizationsDelegates: [
         ...context.localizationDelegates,
-        GlobalCupertinoLocalizations
-            .delegate, // Додаємо підтримку для Cupertino-віджетів
+        GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: context.supportedLocales,
       locale: context.locale,
-
-      // Налаштування теми
       theme: currentTheme,
-      // Ми не використовуємо darkTheme параметр MaterialApp, бо наша система
-      // через currentThemeId підтримує необмежену кількість кастомних тем.
-
-      // Керування масштабуванням тексту (захист від занадто великих шрифтів у системі)
       builder: (context, child) {
         Widget currentChild = DevicePreview.appBuilder(context, child);
         final mediaQueryData = MediaQuery.of(context);
@@ -185,8 +115,6 @@ class MyApp extends StatelessWidget {
           child: currentChild,
         );
       },
-
-      // Підтримка різних пристроїв введення (мишка, тачпад тощо)
       scrollBehavior: const MaterialScrollBehavior().copyWith(
         dragDevices: {
           PointerDeviceKind.mouse,
@@ -195,8 +123,6 @@ class MyApp extends StatelessWidget {
           PointerDeviceKind.stylus,
         },
       ),
-
-      // Логіка: Онбордінг -> ПІН-код -> Головний екран
       home: showOnboarding
           ? const OnboardingScreen()
           : (requirePin ? const LockScreen() : const HomeScreen()),

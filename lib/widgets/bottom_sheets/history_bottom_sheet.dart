@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
+// 👇 ДОДАНО: Riverpod для реактивності
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../database/app_database.dart';
 import '../../models/app_currency.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/date_formatter.dart';
 import '../../theme/app_colors_extension.dart';
+// 👇 ДОДАНО: Наш хаб провайдерів
+import '../../providers/all_providers.dart';
 
-class HistoryBottomSheet extends StatefulWidget {
+// 👇 ЗМІНЕНО: Тепер це ConsumerStatefulWidget
+class HistoryBottomSheet extends ConsumerStatefulWidget {
   final Category category;
+  // Ми залишаємо ці змінні в конструкторі, щоб не ламати код в home_screen.dart,
+  // але всередині панелі ми будемо брати найсвіжіші дані прямо з провайдерів!
   final List<Transaction> transactions;
   final List<Category> allCategories;
   final Function(Transaction) onDelete;
@@ -24,40 +32,30 @@ class HistoryBottomSheet extends StatefulWidget {
   });
 
   @override
-  State<HistoryBottomSheet> createState() => _HistoryBottomSheetState();
+  ConsumerState<HistoryBottomSheet> createState() => _HistoryBottomSheetState();
 }
 
-class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
-  late List<Transaction> _categoryHistory;
-
-  @override
-  void initState() {
-    super.initState();
-    _filterAndSortTransactions();
-  }
-
-  @override
-  void didUpdateWidget(covariant HistoryBottomSheet oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.transactions != widget.transactions ||
-        oldWidget.category.id != widget.category.id) {
-      _filterAndSortTransactions();
-    }
-  }
-
-  void _filterAndSortTransactions() {
-    _categoryHistory = widget.transactions
-        .where(
-          (t) => t.fromId == widget.category.id || t.toId == widget.category.id,
-        )
-        .toList();
-
-    _categoryHistory.sort((a, b) => b.date.compareTo(a.date));
-  }
+class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
+  // ✂️ ВИДАЛЕНО: initState, didUpdateWidget та локальні списки. Вони більше не потрібні!
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    // 👇 МАГІЯ RIVERPOD: Слухаємо провайдери безпосередньо!
+    final txState = ref.watch(transactionProvider);
+    final catState = ref.watch(categoryProvider);
+
+    // Фільтруємо та сортуємо транзакції "на льоту" з найсвіжіших даних
+    final categoryHistory = txState.history
+        .where(
+          (t) => t.fromId == widget.category.id || t.toId == widget.category.id,
+        )
+        .toList();
+    categoryHistory.sort((a, b) => b.date.compareTo(a.date));
+
+    // Найсвіжіший список категорій (на випадок, якщо ми змінили колір іншої категорії)
+    final allCategories = catState.allCategoriesList;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -87,7 +85,7 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
           ),
           const SizedBox(height: 15),
           Expanded(
-            child: _categoryHistory.isEmpty
+            child: categoryHistory.isEmpty
                 ? Center(
                     child: Text(
                       'no_transactions_yet'.tr(),
@@ -95,13 +93,13 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                     ),
                   )
                 : ListView.builder(
-                    itemCount: _categoryHistory.length,
+                    itemCount: categoryHistory.length,
                     itemBuilder: (context, index) {
-                      final t = _categoryHistory[index];
+                      final t = categoryHistory[index];
                       bool isOut = t.fromId == widget.category.id;
                       String otherId = isOut ? t.toId : t.fromId;
 
-                      final otherCat = widget.allCategories.firstWhereOrNull(
+                      final otherCat = allCategories.firstWhereOrNull(
                         (c) => c.id == otherId,
                       );
 
@@ -155,31 +153,24 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         onDismissed: (_) {
-                          // СПОЧАТКУ миттєво видаляємо з локального списку для UI
-                          setState(() {
-                            _categoryHistory.removeWhere(
-                              (item) => item.id == t.id,
-                            );
-                          });
-                          // ПОТІМ передаємо команду на видалення з бази
+                          // 👇 ЗМІНЕНО: Ми просто викликаємо метод видалення.
+                          // Оскільки панель слухає Riverpod, вона автоматично перемалюється
+                          // відразу після оновлення бази. Ніяких setState!
                           widget.onDelete(t);
                         },
                         child: ListTile(
                           onTap: () async {
                             await widget.onEdit(t);
-                            if (mounted) setState(() {});
+                            // 👇 ЗМІНЕНО: setState більше не потрібен!
                           },
                           leading: otherCat != null
                               ? CircleAvatar(
-                                  // 👇 КОНВЕРТУЄМО int у Color
                                   backgroundColor: Color(otherCat.bgColor),
                                   child: Icon(
-                                    // 👇 КОНВЕРТУЄМО int у IconData
                                     IconData(
                                       otherCat.icon,
                                       fontFamily: 'MaterialIcons',
                                     ),
-                                    // 👇 КОНВЕРТУЄМО int у Color
                                     color: Color(otherCat.iconColor),
                                     size: 20,
                                   ),
@@ -213,7 +204,6 @@ class _HistoryBottomSheetState extends State<HistoryBottomSheet> {
                               fontSize: 14,
                             ),
                           ),
-                          // Відображення дати + коментаря (якщо є)
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 4.0),
                             child: Column(

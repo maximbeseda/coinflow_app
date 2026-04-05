@@ -1,25 +1,26 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../providers/settings_provider.dart';
+
+import '../providers/all_providers.dart';
 import '../services/storage_service.dart';
 import '../models/app_currency.dart';
 import '../theme/app_colors_extension.dart';
 import 'home_screen.dart';
 
-class OnboardingScreen extends StatefulWidget {
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   late TextEditingController _currencyCtrl;
   late TextEditingController _languageCtrl;
 
-  String _selectedCurrencyCode = 'USD'; // Дефолт до автовизначення
+  String _selectedCurrencyCode = 'USD';
   bool _isSaving = false;
   bool _isInitialized = false;
 
@@ -40,7 +41,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // Виконуємо авто-визначення ТІЛЬКИ один раз
     if (!_isInitialized) {
       _autoDetectDefaults();
       _isInitialized = true;
@@ -48,19 +48,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _autoDetectDefaults() {
-    // 1. Читаємо системні налаштування телефону
     final deviceLocale = ui.PlatformDispatcher.instance.locale;
     final deviceLangCode = deviceLocale.languageCode;
     final deviceCountryCode = deviceLocale.countryCode ?? '';
 
-    // 2. Визначаємо МОВУ
     final initialLang = _supportedLanguages.firstWhere(
       (lang) => lang['code'] == deviceLangCode,
       orElse: () =>
           _supportedLanguages.firstWhere((lang) => lang['code'] == 'en'),
     );
 
-    // 3. Визначаємо ВАЛЮТУ
     String initialCurrency = 'USD';
 
     final Map<String, String> countryToCurrency = {
@@ -99,12 +96,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       initialCurrency = 'USD';
     }
 
-    // 4. Застосовуємо визначені дані
     _selectedCurrencyCode = initialCurrency;
     _currencyCtrl.text = initialCurrency;
     _languageCtrl.text = initialLang['name']!;
 
-    // 5. Синхронізуємо easy_localization (захищено від async gaps)
     if (context.locale.languageCode != initialLang['code']) {
       final code = initialLang['code']!;
       Future.microtask(() {
@@ -125,10 +120,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _finishOnboarding() async {
     setState(() => _isSaving = true);
 
-    // Отримуємо провайдер ДО початку асинхронних операцій
-    final settingsProvider = context.read<SettingsProvider>();
+    final settingsNotifier = ref.read(settingsProvider.notifier);
 
-    await settingsProvider.setBaseCurrency(_selectedCurrencyCode);
+    await settingsNotifier.setBaseCurrency(_selectedCurrencyCode);
     await StorageService.completeOnboarding();
 
     if (!mounted) return;
@@ -187,11 +181,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       onTap: () async {
                         await context.setLocale(Locale(lang['code']!));
 
-                        // Перевіряємо контекст шторки
                         if (!ctx.mounted) return;
                         Navigator.pop(ctx);
 
-                        // Перевіряємо стан екрану
                         if (!mounted) return;
                         setState(() {
                           _languageCtrl.text = lang['name']!;
@@ -555,41 +547,42 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                 const Spacer(),
 
-                // КНОПКА СТАРТУ
-                ElevatedButton(
-                  onPressed: _isSaving ? null : _finishOnboarding,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colors.textMain,
-                    foregroundColor: colors.cardBg,
-                    minimumSize: const Size(double.infinity, 56),
-                    elevation: 4,
-                    shadowColor: Colors.black.withValues(alpha: 0.2),
-                  ),
-                  child: _isSaving
-                      ? SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            color: colors.cardBg,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          'get_started'.tr(),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                ),
-                const SizedBox(height: 20),
+                // КНОПКА СТАРТУ (змінили назву тут)
+                _buildStartButton(colors),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // 👇 Змінили назву функції на правильну (lowerCamelCase)
+  Widget _buildStartButton(AppColorsExtension colors) {
+    return ElevatedButton(
+      onPressed: _isSaving ? null : _finishOnboarding,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.textMain,
+        foregroundColor: colors.cardBg,
+        minimumSize: const Size(double.infinity, 56),
+        elevation: 4,
+        shadowColor: Colors.black.withValues(alpha: 0.2),
+      ),
+      child: _isSaving
+          ? SizedBox(
+              height: 24,
+              width: 24,
+              child: CircularProgressIndicator(
+                color: colors.cardBg,
+                strokeWidth: 2,
+              ),
+            )
+          : Text(
+              'get_started'.tr(),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
     );
   }
 }

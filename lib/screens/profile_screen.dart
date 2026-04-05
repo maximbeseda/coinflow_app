@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
-import '../providers/theme_provider.dart';
-import '../providers/settings_provider.dart';
-import '../providers/transaction_provider.dart';
-import '../providers/subscription_provider.dart';
-import '../providers/category_provider.dart';
+
+import '../providers/all_providers.dart';
+
 import '../models/app_currency.dart';
 import '../theme/app_colors_extension.dart';
 import '../theme/app_theme.dart';
@@ -13,16 +11,16 @@ import '../utils/app_constants.dart';
 import '../services/security_service.dart';
 import 'lock_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
-  Future<void> _showClearDataDialog(BuildContext context) async {
+  Future<void> _showClearDataDialog(BuildContext context, WidgetRef ref) async {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // Зберігаємо змінні до асинхронних викликів (Senior рівень роботи з Context)
-    final txProv = context.read<TransactionProvider>();
-    final subProv = context.read<SubscriptionProvider>();
-    final catProv = context.read<CategoryProvider>();
+    final txNotifier = ref.read(transactionProvider.notifier);
+    final subNotifier = ref.read(subscriptionProvider.notifier);
+    final catNotifier = ref.read(categoryProvider.notifier);
+
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     bool confirmed =
@@ -111,11 +109,18 @@ class ProfileScreen extends StatelessWidget {
         false;
 
     if (confirmed) {
-      await txProv.clearAllTransactions();
-      await subProv.clearAllSubscriptions();
-      await catProv.resetAllBalances();
+      // 👇 ВИПРАВЛЕНО: Фізичне очищення бази даних перед оновленням UI
+      final db = ref.read(databaseProvider);
 
-      // Стильний SnackBar у дизайні додатку
+      // Жорстко стираємо всі записи з таблиць
+      await db.delete(db.transactions).go();
+      await db.delete(db.subscriptions).go();
+
+      // Оновлюємо стан на екранах (і скидаємо суми в категоріях на 0)
+      await txNotifier.clearAllTransactions();
+      await subNotifier.clearAllSubscriptions();
+      await catNotifier.resetAllBalances();
+
       scaffoldMessenger.clearSnackBars();
       scaffoldMessenger.showSnackBar(
         SnackBar(
@@ -150,7 +155,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     return Scaffold(
@@ -198,27 +203,25 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    // ОПТИМІЗАЦІЯ: Ізольовано оновлення теми
-                    Consumer<ThemeProvider>(
-                      builder: (context, themeProvider, child) {
-                        return _buildSettingsRow(
-                          colors: colors,
-                          icon: Icons.palette_outlined,
-                          title: 'interface_theme'.tr(),
-                          dropdownValue: themeProvider.currentThemeId,
-                          items: AppTheme.allThemes.entries.map((entry) {
-                            return DropdownMenuItem(
-                              value: entry.key,
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                entry.value.tr(),
-                                style: TextStyle(color: colors.textMain),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) =>
-                              val != null ? themeProvider.setTheme(val) : null,
+                    _buildSettingsRow(
+                      colors: colors,
+                      icon: Icons.palette_outlined,
+                      title: 'interface_theme'.tr(),
+                      dropdownValue: ref.watch(themeProvider),
+                      items: AppTheme.allThemes.entries.map((entry) {
+                        return DropdownMenuItem(
+                          value: entry.key,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            entry.value.tr(),
+                            style: TextStyle(color: colors.textMain),
+                          ),
                         );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref.read(themeProvider.notifier).setTheme(val);
+                        }
                       },
                     ),
 
@@ -229,7 +232,7 @@ class ProfileScreen extends StatelessWidget {
                       color: colors.textSecondary.withValues(alpha: 0.1),
                     ),
 
-                    // Мова (easy_localization автоматично оновлює контекст, тому залишаємо як є)
+                    // Мова
                     _buildSettingsRow(
                       colors: colors,
                       icon: Icons.language_outlined,
@@ -260,33 +263,31 @@ class ProfileScreen extends StatelessWidget {
                       color: colors.textSecondary.withValues(alpha: 0.1),
                     ),
 
-                    // ОПТИМІЗАЦІЯ: Ізольовано оновлення валюти
-                    Consumer<SettingsProvider>(
-                      builder: (context, settingsProvider, child) {
-                        return _buildSettingsRow(
-                          colors: colors,
-                          icon: Icons.monetization_on_outlined,
-                          title: 'base_currency'.tr(),
-                          dropdownValue: settingsProvider.baseCurrency,
-                          items: AppCurrency.supportedCurrencies.map((
-                            currency,
-                          ) {
-                            return DropdownMenuItem(
-                              value: currency.code,
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                "${currency.code} (${currency.symbol})",
-                                style: TextStyle(
-                                  color: colors.income,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) => val != null
-                              ? settingsProvider.setBaseCurrency(val)
-                              : null,
+                    // Валюта
+                    _buildSettingsRow(
+                      colors: colors,
+                      icon: Icons.monetization_on_outlined,
+                      title: 'base_currency'.tr(),
+                      dropdownValue: ref.watch(settingsProvider).baseCurrency,
+                      items: AppCurrency.supportedCurrencies.map((currency) {
+                        return DropdownMenuItem(
+                          value: currency.code,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            "${currency.code} (${currency.symbol})",
+                            style: TextStyle(
+                              color: colors.income,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref
+                              .read(settingsProvider.notifier)
+                              .setBaseCurrency(val);
+                        }
                       },
                     ),
 
@@ -317,7 +318,7 @@ class ProfileScreen extends StatelessWidget {
                           fontSize: 16,
                         ),
                       ),
-                      onTap: () => _showClearDataDialog(context),
+                      onTap: () => _showClearDataDialog(context, ref),
                     ),
                   ],
                 ),
@@ -408,14 +409,12 @@ class _SecuritySettingsSectionState extends State<SecuritySettingsSection> {
 
   Future<void> _togglePin(bool enable) async {
     if (enable) {
-      // Вмикаємо: створюємо новий ПІН
       final success = await Navigator.push<bool>(
         context,
         MaterialPageRoute(builder: (_) => const LockScreen(isSetupMode: true)),
       );
       if (success == true) _loadSecuritySettings();
     } else {
-      // Вимикаємо: просимо ввести поточний ПІН для підтвердження
       final success = await Navigator.push<bool>(
         context,
         MaterialPageRoute(builder: (_) => const LockScreen(isSetupMode: false)),

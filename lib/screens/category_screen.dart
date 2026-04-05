@@ -1,25 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:provider/provider.dart';
+
+// 👇 1. Замінили provider на flutter_riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../database/app_database.dart';
 import '../utils/app_constants.dart';
 import '../theme/app_colors_extension.dart';
 import '../theme/category_defaults.dart';
-import '../providers/settings_provider.dart';
 import '../models/app_currency.dart';
 
-class CategoryScreen extends StatefulWidget {
+// 👇 2. Підключаємо наш хаб провайдерів
+import '../providers/all_providers.dart';
+
+// 👇 3. Змінили StatefulWidget на ConsumerStatefulWidget
+class CategoryScreen extends ConsumerStatefulWidget {
   final Category? category;
   final CategoryType type;
 
   const CategoryScreen({super.key, this.category, required this.type});
 
   @override
-  State<CategoryScreen> createState() => _CategoryScreenState();
+  ConsumerState<CategoryScreen> createState() => _CategoryScreenState();
 }
 
-class _CategoryScreenState extends State<CategoryScreen> {
+// 👇 4. Змінили State на ConsumerState
+class _CategoryScreenState extends ConsumerState<CategoryScreen> {
   late TextEditingController _nameCtrl;
   late TextEditingController _amountCtrl;
   late TextEditingController _budgetCtrl;
@@ -29,7 +36,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
   String? _selectedCurrency;
   bool _includeInTotal = true;
 
-  // Стан для помилки порожнього імені
   bool _showNameError = false;
 
   @override
@@ -38,10 +44,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
     _nameCtrl = TextEditingController(text: widget.category?.name ?? "");
     _currencyCtrl = TextEditingController();
 
-    // Функція тепер приймає int (копійки)
     String formatInt(int val) {
-      double displayVal =
-          val / 100.0; // Перетворюємо в double лише для відображення
+      double displayVal = val / 100.0;
       String str = displayVal
           .toStringAsFixed(2)
           .replaceAll(RegExp(r'\.?0*$'), '');
@@ -62,34 +66,26 @@ class _CategoryScreenState extends State<CategoryScreen> {
           : "",
     );
 
-    // 1. Спершу створюємо тимчасову змінну з IconData, якщо категорія існує
     final IconData? iconFromDb = widget.category != null
         ? IconData(widget.category!.icon, fontFamily: 'MaterialIcons')
         : null;
 
-    // 2. Тепер ініціалізуємо _selectedIcon з перевіркою
     _selectedIcon = (iconFromDb != null)
         ? iconFromDb
         : AppConstants.groupedIcons.values.first.first;
 
     _nameCtrl.addListener(() {
-      // Якщо помилка активна і користувач почав вводити текст - прибираємо червоний колір
       if (_showNameError && _nameCtrl.text.trim().isNotEmpty) {
         setState(() => _showNameError = false);
       }
     });
-  }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_selectedCurrency == null) {
-      final settings = context.read<SettingsProvider>();
-      _selectedCurrency = widget.category?.currency ?? settings.baseCurrency;
-      _includeInTotal = widget.category?.includeInTotal ?? true;
-
-      _updateCurrencyText(_selectedCurrency!);
-    }
+    // 👇 5. Оскільки ми в ConsumerState, ми маємо доступ до ref прямо в initState!
+    // Цим ми замінили didChangeDependencies, зробивши код чистішим.
+    final settings = ref.read(settingsProvider);
+    _selectedCurrency = widget.category?.currency ?? settings.baseCurrency;
+    _includeInTotal = widget.category?.includeInTotal ?? true;
+    _updateCurrencyText(_selectedCurrency!);
   }
 
   void _updateCurrencyText(String code) {
@@ -350,8 +346,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
     Navigator.pop(context, {
       'name': _nameCtrl.text.trim(),
-      'icon':
-          _selectedIcon.codePoint, // <-- ЗМІНЕНО: передаємо код іконки (int)
+      'icon': _selectedIcon.codePoint,
       'amount': finalAmount,
       'budget': finalBudget,
       'currency': _selectedCurrency,
@@ -396,7 +391,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
-
                   Builder(
                     builder: (context) {
                       final itemName = widget.category!.name;
@@ -435,7 +429,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                       );
                     },
                   ),
-
                   const SizedBox(height: 32),
                   Row(
                     children: [
@@ -487,8 +480,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-    // ОПТИМІЗАЦІЯ: read замість watch для статичного читання налаштувань
-    final settings = context.read<SettingsProvider>();
+
+    // 👇 6. Тепер використовуємо ref.watch для реактивного доступу
+    final settings = ref.watch(settingsProvider);
 
     Color previewBgColor = CategoryDefaults.getBgColor(widget.type);
     Color previewIconColor = CategoryDefaults.getIconColor(widget.type);
@@ -778,7 +772,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
       inputFormatters: isNumber
           ? [
               TextInputFormatter.withFunction((oldValue, newValue) {
-                // Видаляємо пробіли і коми для чистої логіки
                 String text = newValue.text
                     .replaceAll(',', '.')
                     .replaceAll(' ', '');
@@ -807,7 +800,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   decPart = decPart.substring(0, 2);
                 }
 
-                // МАГІЯ ТУТ: Додаємо пробіли кожні 3 цифри в цілу частину
                 String formattedInt = intPart.replaceAllMapped(
                   RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
                   (Match m) => '${m[1]} ',

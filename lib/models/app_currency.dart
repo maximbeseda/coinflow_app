@@ -4,7 +4,6 @@ class AppCurrency {
 
   const AppCurrency({required this.code, required this.symbol});
 
-  // Перевизначаємо оператори порівняння, щоб легко шукати валюту в списках
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -15,12 +14,10 @@ class AppCurrency {
   @override
   int get hashCode => code.hashCode;
 
-  // Конвертація в JSON для збереження в Hive
   Map<String, dynamic> toJson() {
     return {'code': code, 'symbol': symbol};
   }
 
-  // Створення з JSON при завантаженні з Hive
   factory AppCurrency.fromJson(Map<String, dynamic> json) {
     return AppCurrency(
       code: json['code'] as String,
@@ -28,47 +25,43 @@ class AppCurrency {
     );
   }
 
-  // Заздалегідь підготовлений оптимальний список валют для широкої аудиторії
   static const List<AppCurrency> supportedCurrencies = [
-    // --- Локальна базова ---
-    AppCurrency(code: 'UAH', symbol: '₴'), // Українська гривня
-    // --- Головні світові ---
-    AppCurrency(code: 'USD', symbol: '\$'), // Долар США
-    AppCurrency(code: 'EUR', symbol: '€'), // Євро
-    AppCurrency(code: 'GBP', symbol: '£'), // Британський фунт
-    AppCurrency(code: 'CHF', symbol: '₣'), // Швейцарський франк
-    AppCurrency(code: 'JPY', symbol: '¥'), // Японська єна
-    // --- Європа (не Єврозона) ---
-    AppCurrency(code: 'PLN', symbol: 'zł'), // Польський злотий
-    AppCurrency(code: 'CZK', symbol: 'Kč'), // Чеська крона
-    AppCurrency(code: 'RON', symbol: 'lei'), // Румунський лей
-    AppCurrency(code: 'HUF', symbol: 'Ft'), // Угорський форинт
-    AppCurrency(code: 'BGN', symbol: 'лв'), // Болгарський лев
-    AppCurrency(code: 'MDL', symbol: 'L'), // Молдовський лей
-    AppCurrency(code: 'SEK', symbol: 'kr'), // Шведська крона
-    AppCurrency(code: 'NOK', symbol: 'kr'), // Норвезька крона
-    AppCurrency(code: 'DKK', symbol: 'kr'), // Данська крона
-    // --- Кавказ, Азія, Близький Схід ---
-    AppCurrency(code: 'TRY', symbol: '₺'), // Турецька ліра
-    AppCurrency(code: 'GEL', symbol: '₾'), // Грузинський ларі
-    AppCurrency(code: 'KZT', symbol: '₸'), // Казахстанський тенге
-    AppCurrency(code: 'ILS', symbol: '₪'), // Ізраїльський шекель
-    AppCurrency(code: 'AED', symbol: 'د.إ'), // Дирхам ОАЕ
-    AppCurrency(code: 'CNY', symbol: '¥'), // Китайський юань
-    AppCurrency(code: 'INR', symbol: '₹'), // Індійська рупія
-    // --- Америка, Австралія та Океанія ---
-    AppCurrency(code: 'CAD', symbol: 'C\$'), // Канадський долар
-    AppCurrency(code: 'AUD', symbol: 'A\$'), // Австралійський долар
-    AppCurrency(code: 'NZD', symbol: 'NZ\$'), // Новозеландський долар
-    AppCurrency(code: 'BRL', symbol: 'R\$'), // Бразильський реал
-    AppCurrency(code: 'MXN', symbol: 'Mex\$'), // Мексиканське песо
+    AppCurrency(code: 'UAH', symbol: '₴'),
+    AppCurrency(code: 'USD', symbol: '\$'),
+    AppCurrency(code: 'EUR', symbol: '€'),
+    AppCurrency(code: 'GBP', symbol: '£'),
+    AppCurrency(code: 'CHF', symbol: '₣'),
+    AppCurrency(code: 'JPY', symbol: '¥'),
+    AppCurrency(code: 'PLN', symbol: 'zł'),
+    AppCurrency(code: 'CZK', symbol: 'Kč'),
+    AppCurrency(code: 'RON', symbol: 'lei'),
+    AppCurrency(code: 'HUF', symbol: 'Ft'),
+    AppCurrency(code: 'BGN', symbol: 'лв'),
+    AppCurrency(code: 'MDL', symbol: 'L'),
+    AppCurrency(code: 'SEK', symbol: 'kr'),
+    AppCurrency(code: 'NOK', symbol: 'kr'),
+    AppCurrency(code: 'DKK', symbol: 'kr'),
+    AppCurrency(code: 'TRY', symbol: '₺'),
+    AppCurrency(code: 'GEL', symbol: '₾'),
+    AppCurrency(code: 'KZT', symbol: '₸'),
+    AppCurrency(code: 'ILS', symbol: '₪'),
+    AppCurrency(code: 'AED', symbol: 'د.إ'),
+    AppCurrency(code: 'CNY', symbol: '¥'),
+    AppCurrency(code: 'INR', symbol: '₹'),
+    AppCurrency(code: 'CAD', symbol: 'C\$'),
+    AppCurrency(code: 'AUD', symbol: 'A\$'),
+    AppCurrency(code: 'NZD', symbol: 'NZ\$'),
+    AppCurrency(code: 'BRL', symbol: 'R\$'),
+    AppCurrency(code: 'MXN', symbol: 'Mex\$'),
   ];
 
-  // Метод для пошуку валюти за кодом (якщо не знайдено - повертає гривню)
+  // 👇 ОПТИМІЗАЦІЯ: Кеш для миттєвого доступу (O(1) замість O(N))
+  static final Map<String, AppCurrency> _currencyCache = {
+    for (var c in supportedCurrencies) c.code: c,
+  };
+
   static AppCurrency fromCode(String code) {
-    return supportedCurrencies.firstWhere(
-      (c) => c.code == code,
-      orElse: () => supportedCurrencies.first, // За замовчуванням UAH
-    );
+    // Миттєво дістаємо з Map, а не перебираємо список
+    return _currencyCache[code] ?? supportedCurrencies.first;
   }
 }

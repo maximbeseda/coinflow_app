@@ -1,23 +1,38 @@
-import 'package:flutter/material.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
+
 import '../database/app_database.dart';
 import '../services/storage_service.dart';
 import '../services/subscription_service.dart';
-import 'category_provider.dart';
-import 'transaction_provider.dart';
-import 'settings_provider.dart';
 
-class SubscriptionProvider extends ChangeNotifier {
-  CategoryProvider? _catProv;
-  TransactionProvider? _txProv;
-  SettingsProvider? _settingsProv;
+// Імпортуємо наш хаб провайдерів
+import 'all_providers.dart';
 
-  List<Subscription> subscriptions = [];
-  List<Subscription> dueSubscriptions = [];
-  Set<String> _ignoredSubIds = {};
+part 'subscription_provider.g.dart';
 
-  bool _isLoaded = false;
+class SubscriptionState {
+  final List<Subscription> subscriptions;
+  final List<Subscription> dueSubscriptions;
+  final Set<String> ignoredSubIds;
+
+  SubscriptionState({
+    required this.subscriptions,
+    required this.dueSubscriptions,
+    required this.ignoredSubIds,
+  });
+
+  SubscriptionState copyWith({
+    List<Subscription>? subscriptions,
+    List<Subscription>? dueSubscriptions,
+    Set<String>? ignoredSubIds,
+  }) {
+    return SubscriptionState(
+      subscriptions: subscriptions ?? this.subscriptions,
+      dueSubscriptions: dueSubscriptions ?? this.dueSubscriptions,
+      ignoredSubIds: ignoredSubIds ?? this.ignoredSubIds,
+    );
+  }
 
   bool get hasPendingPayments {
     DateTime now = DateTime.now();
@@ -32,37 +47,41 @@ class SubscriptionProvider extends ChangeNotifier {
       return pDate.isBefore(today) || pDate.isAtSameMomentAs(today);
     });
   }
+}
 
-  void updateDependencies(
-    CategoryProvider catProv,
-    TransactionProvider txProv,
-    SettingsProvider settingsProv,
-  ) {
-    _catProv = catProv;
-    _txProv = txProv;
-    _settingsProv = settingsProv;
+@Riverpod(keepAlive: true)
+class SubscriptionNotifier extends _$SubscriptionNotifier {
+  @override
+  SubscriptionState build() {
+    final initialState = SubscriptionState(
+      subscriptions: [],
+      dueSubscriptions: [],
+      ignoredSubIds: {},
+    );
 
-    if (!_isLoaded && !catProv.isLoading && !txProv.isLoading) {
-      _isLoaded = true;
-      loadSubscriptions();
-    }
+    Future.microtask(() => loadSubscriptions());
+
+    return initialState;
   }
 
   Future<void> loadSubscriptions() async {
-    subscriptions = await StorageService.getSubscriptions();
-    _ignoredSubIds = StorageService.getIgnoredSubscriptions().toSet();
+    // 👇 Отримуємо базу даних
+    final db = ref.read(databaseProvider);
+    final subs = await StorageService.getSubscriptions(db);
+    final ignored = StorageService.getIgnoredSubscriptions().toSet();
+
+    state = state.copyWith(subscriptions: subs, ignoredSubIds: ignored);
 
     await processAutoPayments();
     _checkDueSubscriptions();
-    notifyListeners();
   }
 
   void _checkDueSubscriptions() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
-    dueSubscriptions = subscriptions.where((sub) {
-      if (_ignoredSubIds.contains(sub.id)) return false;
+    final due = state.subscriptions.where((sub) {
+      if (state.ignoredSubIds.contains(sub.id)) return false;
       final paymentDate = DateTime(
         sub.nextPaymentDate.year,
         sub.nextPaymentDate.month,
@@ -70,49 +89,57 @@ class SubscriptionProvider extends ChangeNotifier {
       );
       return paymentDate.isBefore(today) || paymentDate.isAtSameMomentAs(today);
     }).toList();
+
+    state = state.copyWith(dueSubscriptions: due);
   }
 
   Future<void> addSubscription(Subscription sub) async {
-    subscriptions.add(sub);
-    await StorageService.saveSubscription(sub);
+    final db = ref.read(databaseProvider);
+    final newSubs = List<Subscription>.from(state.subscriptions)..add(sub);
+    state = state.copyWith(subscriptions: newSubs);
+
+    await StorageService.saveSubscription(db, sub);
     await processAutoPayments();
     _checkDueSubscriptions();
-    notifyListeners();
   }
 
   Future<void> updateSubscription(Subscription updatedSub) async {
-    int index = subscriptions.indexWhere((s) => s.id == updatedSub.id);
+    final db = ref.read(databaseProvider);
+    final newSubs = List<Subscription>.from(state.subscriptions);
+    int index = newSubs.indexWhere((s) => s.id == updatedSub.id);
     if (index != -1) {
-      subscriptions[index] = updatedSub;
-      await StorageService.saveSubscription(updatedSub);
+      newSubs[index] = updatedSub;
+      state = state.copyWith(subscriptions: newSubs);
+
+      await StorageService.saveSubscription(db, updatedSub);
       await processAutoPayments();
       _checkDueSubscriptions();
-      notifyListeners();
     }
   }
 
   Future<void> deleteSubscription(String id) async {
-    subscriptions.removeWhere((s) => s.id == id);
-    await StorageService.deleteSubscription(id);
+    final db = ref.read(databaseProvider);
+    final newSubs = List<Subscription>.from(state.subscriptions)
+      ..removeWhere((s) => s.id == id);
+    state = state.copyWith(subscriptions: newSubs);
+
+    await StorageService.deleteSubscription(db, id);
     _checkDueSubscriptions();
-    notifyListeners();
   }
 
   Future<(bool, String)> confirmSubscriptionPayment(
     Subscription sub,
     int finalAmount,
   ) async {
-    if (_catProv == null || _txProv == null || _settingsProv == null) {
-      return (false, 'error_category_not_found'.tr());
-    }
+    final db = ref.read(databaseProvider);
+    final catState = ref.read(categoryProvider);
+    final catNotifier = ref.read(categoryProvider.notifier);
+    final txNotifier = ref.read(transactionProvider.notifier);
+    final settingsState = ref.read(settingsProvider);
 
-    final all = _catProv!.allCategoriesList;
-    Category? sourceAccount = all.firstWhereOrNull(
-      (c) => c.id == sub.accountId,
-    );
-    Category? targetExpense = all.firstWhereOrNull(
-      (c) => c.id == sub.categoryId,
-    );
+    final all = catState.allCategoriesList;
+    final sourceAccount = all.firstWhereOrNull((c) => c.id == sub.accountId);
+    final targetExpense = all.firstWhereOrNull((c) => c.id == sub.categoryId);
 
     if (sourceAccount == null || targetExpense == null) {
       return (false, 'error_category_not_found'.tr());
@@ -122,11 +149,15 @@ class SubscriptionProvider extends ChangeNotifier {
       return (false, 'error_category_deleted'.tr());
     }
 
-    double subRate = _settingsProv!.exchangeRates[sub.currency] ?? 1.0;
-    double accRate =
-        _settingsProv!.exchangeRates[sourceAccount.currency] ?? 1.0;
-    double expRate =
-        _settingsProv!.exchangeRates[targetExpense.currency] ?? 1.0;
+    // 👇 ФІКС: Негайно видаляємо підписку зі списку 'due' у пам'яті,
+    // щоб HomeScreen не намагався відкрити діалог знову під час обробки.
+    final currentDue = List<Subscription>.from(state.dueSubscriptions)
+      ..removeWhere((s) => s.id == sub.id);
+    state = state.copyWith(dueSubscriptions: currentDue);
+
+    double subRate = settingsState.exchangeRates[sub.currency] ?? 1.0;
+    double accRate = settingsState.exchangeRates[sourceAccount.currency] ?? 1.0;
+    double expRate = settingsState.exchangeRates[targetExpense.currency] ?? 1.0;
 
     if (accRate == 0) accRate = 1.0;
     if (expRate == 0) expRate = 1.0;
@@ -142,13 +173,13 @@ class SubscriptionProvider extends ChangeNotifier {
     }
 
     if (sourceAccount.amount < accountDeduction) {
+      // Якщо грошей не вистачило, повертаємо підписку в список прострочених
+      _checkDueSubscriptions();
       return (false, 'not_enough_funds'.tr(args: [sourceAccount.name]));
     }
 
-    // 👇 ДОДАНО: Оновлюємо баланси в CategoryProvider
-    // Віднімаємо від рахунку, додаємо до категорії витрат
-    _catProv!.updateCategoryAmount(sourceAccount.id, -accountDeduction);
-    _catProv!.updateCategoryAmount(targetExpense.id, expenseAddition);
+    catNotifier.updateCategoryAmount(sourceAccount.id, -accountDeduction);
+    catNotifier.updateCategoryAmount(targetExpense.id, expenseAddition);
 
     bool isMultiCurrency = sourceAccount.currency != targetExpense.currency;
 
@@ -166,46 +197,49 @@ class SubscriptionProvider extends ChangeNotifier {
       baseCurrency: '',
     );
 
-    _txProv!.addTransactionDirectly(newTx);
+    txNotifier.addTransactionDirectly(newTx);
 
-    await SubscriptionService.advanceOnePeriod(sub);
+    await SubscriptionService.advanceOnePeriod(db, sub);
 
-    _ignoredSubIds.remove(sub.id);
-    StorageService.saveIgnoredSubscriptions(_ignoredSubIds.toList());
+    // Оновлюємо ігноровані та завантажуємо свіжий стан
+    final newIgnored = Set<String>.from(state.ignoredSubIds)..remove(sub.id);
+    state = state.copyWith(ignoredSubIds: newIgnored);
+    await StorageService.saveIgnoredSubscriptions(newIgnored.toList());
 
-    _checkDueSubscriptions();
-    notifyListeners();
+    await loadSubscriptions();
     return (true, 'paid_success'.tr(args: [sub.name]));
   }
 
   void ignoreSubscriptionPermanently(String subId) {
-    _ignoredSubIds.add(subId);
-    StorageService.saveIgnoredSubscriptions(_ignoredSubIds.toList());
+    final newIgnored = Set<String>.from(state.ignoredSubIds)..add(subId);
+    state = state.copyWith(ignoredSubIds: newIgnored);
+    StorageService.saveIgnoredSubscriptions(newIgnored.toList());
     _checkDueSubscriptions();
-    notifyListeners();
   }
 
   Future<void> refreshOnAppResume() async {
-    if (!_isLoaded) return;
-
     await processAutoPayments();
     _checkDueSubscriptions();
-    notifyListeners();
   }
 
   Future<void> processAutoPayments() async {
-    if (_catProv == null || _txProv == null || _settingsProv == null) return;
+    final db = ref.read(databaseProvider);
+    final catState = ref.read(categoryProvider);
+    final catNotifier = ref.read(categoryProvider.notifier);
+    final txNotifier = ref.read(transactionProvider.notifier);
+    final settingsState = ref.read(settingsProvider);
 
     DateTime now = DateTime.now();
     DateTime today = DateTime(now.year, now.month, now.day);
     bool processedAny = false;
 
     List<Transaction> pendingTransactions = [];
+    List<Subscription> updatedSubs = [];
 
-    for (var sub in subscriptions) {
+    for (var sub in state.subscriptions) {
       if (!sub.isAutoPay) continue;
 
-      final all = _catProv!.allCategoriesList;
+      final all = catState.allCategoriesList;
       final account = all.where((c) => c.id == sub.accountId).firstOrNull;
       final expense = all.where((c) => c.id == sub.categoryId).firstOrNull;
 
@@ -216,14 +250,13 @@ class SubscriptionProvider extends ChangeNotifier {
         continue;
       }
 
-      double subRate = _settingsProv!.exchangeRates[sub.currency] ?? 1.0;
-      double accRate = _settingsProv!.exchangeRates[account.currency] ?? 1.0;
-      double expRate = _settingsProv!.exchangeRates[expense.currency] ?? 1.0;
+      double subRate = settingsState.exchangeRates[sub.currency] ?? 1.0;
+      double accRate = settingsState.exchangeRates[account.currency] ?? 1.0;
+      double expRate = settingsState.exchangeRates[expense.currency] ?? 1.0;
 
       if (accRate == 0) accRate = 1.0;
       if (expRate == 0) expRate = 1.0;
 
-      // 👇 ЗМІНЕНО: Розрахунок через .round()
       int accountDeduction = sub.amount;
       if (account.currency != sub.currency) {
         accountDeduction = (sub.amount * (accRate / subRate)).round();
@@ -235,56 +268,55 @@ class SubscriptionProvider extends ChangeNotifier {
       }
 
       bool isMultiCurrency = account.currency != expense.currency;
-
-      // 👇 ПРАЦЮЄМО З INT: currentBalance тепер автоматично int
       int currentBalance = account.amount;
       bool subUpdated = false;
+      var currentSub = sub;
 
       while (true) {
         DateTime pDate = DateTime(
-          sub.nextPaymentDate.year,
-          sub.nextPaymentDate.month,
-          sub.nextPaymentDate.day,
+          currentSub.nextPaymentDate.year,
+          currentSub.nextPaymentDate.month,
+          currentSub.nextPaymentDate.day,
         );
 
         if (pDate.isAfter(today)) break;
 
         if (currentBalance >= accountDeduction) {
           final newTx = Transaction(
-            id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}_${pDate.millisecondsSinceEpoch}",
+            id: "${DateTime.now().millisecondsSinceEpoch}_${currentSub.id}_${pDate.millisecondsSinceEpoch}",
             fromId: account.id,
             toId: expense.id,
-            title: 'auto_payment_marker'.tr(args: [sub.name]),
+            title: 'auto_payment_marker'.tr(args: [currentSub.name]),
             amount: accountDeduction,
-            date: sub.nextPaymentDate,
+            date: currentSub.nextPaymentDate,
             currency: account.currency,
             targetAmount: isMultiCurrency ? expenseAddition : null,
             targetCurrency: isMultiCurrency ? expense.currency : null,
-            baseAmount: 0, // 👇 ЗМІНЕНО
+            baseAmount: 0,
             baseCurrency: '',
           );
 
           pendingTransactions.add(newTx);
           currentBalance -= accountDeduction;
 
-          _catProv!.updateCategoryAmount(account.id, -accountDeduction);
-          _catProv!.updateCategoryAmount(expense.id, expenseAddition);
+          catNotifier.updateCategoryAmount(account.id, -accountDeduction);
+          catNotifier.updateCategoryAmount(expense.id, expenseAddition);
 
-          if (sub.periodicity == 'monthly') {
+          if (currentSub.periodicity == 'monthly') {
             int nextMonth = pDate.month == 12 ? 1 : pDate.month + 1;
             int nextYear = pDate.month == 12 ? pDate.year + 1 : pDate.year;
-            int nextDay = sub.nextPaymentDate.day;
+            int nextDay = currentSub.nextPaymentDate.day;
             final lastDayOfNextMonth = DateTime(nextYear, nextMonth + 1, 0).day;
             if (nextDay > lastDayOfNextMonth) nextDay = lastDayOfNextMonth;
-            sub = sub.copyWith(
+            currentSub = currentSub.copyWith(
               nextPaymentDate: DateTime(nextYear, nextMonth, nextDay),
             );
-          } else if (sub.periodicity == 'yearly') {
-            sub = sub.copyWith(
+          } else if (currentSub.periodicity == 'yearly') {
+            currentSub = currentSub.copyWith(
               nextPaymentDate: DateTime(pDate.year + 1, pDate.month, pDate.day),
             );
-          } else if (sub.periodicity == 'weekly') {
-            sub = sub.copyWith(
+          } else if (currentSub.periodicity == 'weekly') {
+            currentSub = currentSub.copyWith(
               nextPaymentDate: pDate.add(const Duration(days: 7)),
             );
           }
@@ -297,38 +329,52 @@ class SubscriptionProvider extends ChangeNotifier {
       }
 
       if (subUpdated) {
-        int index = subscriptions.indexWhere((s) => s.id == sub.id);
-        if (index != -1) subscriptions[index] = sub;
-        await StorageService.saveSubscription(sub);
+        updatedSubs.add(currentSub);
+        await StorageService.saveSubscription(db, currentSub);
       }
     }
 
     for (var tx in pendingTransactions) {
-      _txProv!.addTransactionDirectly(tx);
+      txNotifier.addTransactionDirectly(tx);
     }
 
-    if (processedAny) notifyListeners();
+    if (processedAny) {
+      final newSubs = List<Subscription>.from(state.subscriptions);
+      for (var us in updatedSubs) {
+        int index = newSubs.indexWhere((s) => s.id == us.id);
+        if (index != -1) newSubs[index] = us;
+      }
+      state = state.copyWith(subscriptions: newSubs);
+    }
   }
 
   Future<void> skipSubscriptionPayment(Subscription sub) async {
-    await SubscriptionService.advanceOnePeriod(sub);
-    await loadSubscriptions(); // Перезавантажуємо оновлені дані з бази
+    // 👇 ФІКС: Таке ж миттєве видалення для пропуску платежу
+    final currentDue = List<Subscription>.from(state.dueSubscriptions)
+      ..removeWhere((s) => s.id == sub.id);
+    state = state.copyWith(dueSubscriptions: currentDue);
+
+    final db = ref.read(databaseProvider);
+    await SubscriptionService.advanceOnePeriod(db, sub);
+    await loadSubscriptions();
   }
 
   void ignoreSubscriptionForSession(String subId) {
-    _ignoredSubIds.add(subId);
+    final newIgnored = Set<String>.from(state.ignoredSubIds)..add(subId);
+    state = state.copyWith(ignoredSubIds: newIgnored);
     _checkDueSubscriptions();
-    notifyListeners();
   }
 
   Future<void> clearAllSubscriptions() async {
-    for (var sub in subscriptions) {
-      await StorageService.deleteSubscription(sub.id);
+    final db = ref.read(databaseProvider);
+    for (var sub in state.subscriptions) {
+      await StorageService.deleteSubscription(db, sub.id);
     }
-    subscriptions.clear();
-    dueSubscriptions.clear();
-    _ignoredSubIds.clear();
     await StorageService.saveIgnoredSubscriptions([]);
-    notifyListeners();
+    state = state.copyWith(
+      subscriptions: [],
+      dueSubscriptions: [],
+      ignoredSubIds: {},
+    );
   }
 }

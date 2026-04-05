@@ -1,25 +1,22 @@
-import 'package:flutter/material.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
 import '../database/app_database.dart';
-import 'transaction_provider.dart';
-import 'category_provider.dart';
+// Імпортуємо наш хаб, щоб мати доступ до транзакцій та категорій
+import 'all_providers.dart';
 
-class StatsProvider extends ChangeNotifier {
-  TransactionProvider? _txProv;
-  CategoryProvider? _catProv;
+part 'stats_provider.g.dart';
 
-  // 👇 ЗМІНЕНО: Map тепер зберігає int (копійки)
+@Riverpod(keepAlive: true)
+class Stats extends _$Stats {
   Map<String, Map<String, Map<String, int>>>? _cachedTrends;
-
   int _lastHistoryHash = 0;
 
-  void updateDependencies(
-    TransactionProvider txProv,
-    CategoryProvider catProv,
-  ) {
-    _txProv = txProv;
-    _catProv = catProv;
+  @override
+  void build() {
+    final txState = ref.watch(transactionProvider);
+    ref.watch(categoryProvider);
 
-    int currentHash = Object.hashAll(_txProv?.history ?? []);
+    int currentHash = Object.hashAll(txState.history);
     if (_lastHistoryHash != currentHash) {
       _cachedTrends = null;
       _lastHistoryHash = currentHash;
@@ -29,15 +26,19 @@ class StatsProvider extends ChangeNotifier {
   // =======================================================
   // АНАЛІТИКА ТРЕНДІВ (ДЛЯ ГРАФІКІВ)
   // =======================================================
-  // 👇 ЗМІНЕНО: Повертає int
   Map<String, Map<String, Map<String, int>>> calculateTrends() {
     if (_cachedTrends != null) return _cachedTrends!;
-    if (_catProv == null || _txProv == null) return {};
+
+    final txState = ref.read(transactionProvider);
+    final catState = ref.read(categoryProvider);
 
     Map<String, Map<String, Map<String, int>>> trends = {};
 
-    var sortedHistory = List<Transaction>.from(_txProv!.history)
+    var sortedHistory = List<Transaction>.from(txState.history)
       ..sort((a, b) => a.date.compareTo(b.date));
+
+    // Створюємо набір ID рахунків для швидкої перевірки (O(1))
+    final accountIds = catState.accounts.map((a) => a.id).toSet();
 
     for (var tx in sortedHistory) {
       String epoch = tx.baseCurrency.isEmpty ? 'UAH' : tx.baseCurrency;
@@ -45,19 +46,19 @@ class StatsProvider extends ChangeNotifier {
           "${tx.date.year}-${tx.date.month.toString().padLeft(2, '0')}";
 
       trends.putIfAbsent(epoch, () => {});
-      trends[epoch]!.putIfAbsent(
-        monthKey,
-        () => {'incomes': 0, 'expenses': 0}, // 👇 ЗМІНЕНО: 0 замість 0.0
-      );
+      trends[epoch]!.putIfAbsent(monthKey, () => {'incomes': 0, 'expenses': 0});
 
-      bool isExpense = _catProv!.expenses.any((c) => c.id == tx.toId);
-      bool isIncome = _catProv!.incomes.any((c) => c.id == tx.fromId);
+      // 👇 НОВА ЛОГІКА: Визначаємо тип за рахунками, а не за категоріями
+      bool fromIsAccount = accountIds.contains(tx.fromId);
+      bool toIsAccount = accountIds.contains(tx.toId);
 
-      if (isExpense) {
+      // 1. Витрата: з рахунку на НЕ рахунок
+      if (fromIsAccount && !toIsAccount) {
         trends[epoch]![monthKey]!['expenses'] =
             (trends[epoch]![monthKey]!['expenses'] ?? 0) + tx.baseAmount;
       }
-      if (isIncome) {
+      // 2. Дохід: з НЕ рахунку на рахунок
+      if (!fromIsAccount && toIsAccount) {
         trends[epoch]![monthKey]!['incomes'] =
             (trends[epoch]![monthKey]!['incomes'] ?? 0) + tx.baseAmount;
       }
@@ -70,66 +71,71 @@ class StatsProvider extends ChangeNotifier {
   // =======================================================
   // АНАЛІТИКА КРУГОВОЇ ДІАГРАМИ ТА ЗАГАЛЬНИХ СУМ
   // =======================================================
-  // 👇 ЗМІНЕНО: Повертає int
   Map<String, int> calculateTotalsForMonth(DateTime month) {
-    int totalExpenses = 0; // 👇 ЗМІНЕНО: int
-    int totalIncomes = 0; // 👇 ЗМІНЕНО: int
+    int totalExpenses = 0;
+    int totalIncomes = 0;
 
-    if (_catProv == null || _txProv == null) {
-      return {'expenses': 0, 'incomes': 0};
-    }
+    final txState = ref.read(transactionProvider);
+    final catState = ref.read(categoryProvider);
 
-    final monthHistory = _txProv!.history.where(
+    final monthHistory = txState.history.where(
       (t) => t.date.year == month.year && t.date.month == month.month,
     );
 
-    for (var tx in monthHistory) {
-      bool isExpense = _catProv!.expenses.any((c) => c.id == tx.toId);
-      bool isIncome = _catProv!.incomes.any((c) => c.id == tx.fromId);
+    final accountIds = catState.accounts.map((a) => a.id).toSet();
 
-      if (isExpense) totalExpenses += tx.baseAmount;
-      if (isIncome) totalIncomes += tx.baseAmount;
+    for (var tx in monthHistory) {
+      bool fromIsAccount = accountIds.contains(tx.fromId);
+      bool toIsAccount = accountIds.contains(tx.toId);
+
+      if (fromIsAccount && !toIsAccount) {
+        totalExpenses += tx.baseAmount;
+      } else if (!fromIsAccount && toIsAccount) {
+        totalIncomes += tx.baseAmount;
+      }
     }
 
     return {'expenses': totalExpenses, 'incomes': totalIncomes};
-    // 👇 ВИДАЛЕНО: double.parse(...toStringAsFixed(2)), воно більше не потрібне!
   }
 
-  // 👇 ЗМІНЕНО: Повертає int
   Map<String, int> calculateCategoryTotalsForMonth(
     DateTime month,
     bool isExpenses, {
     bool inBaseCurrency = true,
   }) {
     Map<String, int> totals = {};
-    if (_catProv == null || _txProv == null) return totals;
 
-    final monthHistory = _txProv!.history.where(
+    final txState = ref.read(transactionProvider);
+    final catState = ref.read(categoryProvider);
+
+    final monthHistory = txState.history.where(
       (t) => t.date.year == month.year && t.date.month == month.month,
     );
 
+    final accountIds = catState.accounts.map((a) => a.id).toSet();
+
     for (var tx in monthHistory) {
+      bool fromIsAccount = accountIds.contains(tx.fromId);
+      bool toIsAccount = accountIds.contains(tx.toId);
+
       if (isExpenses) {
-        bool isExpenseCat = _catProv!.expenses.any((c) => c.id == tx.toId);
-        if (isExpenseCat) {
-          int value =
-              inBaseCurrency // 👇 ЗМІНЕНО: int
+        // Якщо це витрата (з рахунку на категорію)
+        if (fromIsAccount && !toIsAccount) {
+          int value = inBaseCurrency
               ? tx.baseAmount
               : (tx.targetAmount ?? tx.amount);
+          // Використовуємо ID категорії (навіть якщо вона видалена, ID в транзакції лишився)
           totals[tx.toId] = (totals[tx.toId] ?? 0) + value;
         }
       } else {
-        bool isIncomeCat = _catProv!.incomes.any((c) => c.id == tx.fromId);
-        if (isIncomeCat) {
-          int value = inBaseCurrency
-              ? tx.baseAmount
-              : tx.amount; // 👇 ЗМІНЕНО: int
+        // Якщо це дохід (з категорії на рахунок)
+        if (!fromIsAccount && toIsAccount) {
+          int value = inBaseCurrency ? tx.baseAmount : tx.amount;
           totals[tx.fromId] = (totals[tx.fromId] ?? 0) + value;
         }
       }
     }
 
-    // 👇 ВИДАЛЕНО: цикл з заокругленням. Цілі числа і так ідеально точні.
     return totals;
   }
 }

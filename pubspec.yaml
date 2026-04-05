@@ -58,9 +58,11 @@ dependencies:
   flutter_secure_storage: ^10.0.0
   crypto: ^3.0.7
   encrypt: ^5.0.3
-  drift: ^2.32.1
-  sqlite3_flutter_libs: ^0.6.0+eol
+  drift: ^2.31.0
+  sqlite3_flutter_libs: ^0.5.20
   path: ^1.9.1
+  flutter_riverpod: ^3.0.0
+  riverpod_annotation: ^3.0.0
   
 
 dev_dependencies:
@@ -74,7 +76,8 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   build_runner: ^2.13.1
-  drift_dev: ^2.32.1
+  drift_dev: ^2.31.0
+  riverpod_generator: ^3.0.0
   
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

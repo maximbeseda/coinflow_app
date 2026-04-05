@@ -1,57 +1,64 @@
 // lib/utils/currency_formatter.dart
 class CurrencyFormatter {
-  // 👇 ЗМІНЕНО: Тепер приймаємо int (копійки/центи)
-  static String format(int amount, {bool isHeader = false}) {
-    // 👇 ДОДАНО: Конвертуємо копійки у звичні дроби для виводу на екран
-    double displayAmount = amount / 100.0;
+  // Швидкий метод для розділення тисяч
+  static String _addSpaces(String integerPart) {
+    if (integerPart.length <= 3) return integerPart;
 
-    if (displayAmount.abs() < 0.005) displayAmount = 0;
+    final buffer = StringBuffer();
+    int count = 0;
 
-    double absAmount = displayAmount.abs();
-    String sign = displayAmount < 0 ? "-" : "";
-
-    if (absAmount >= 100000000000) return "${sign}99 999М+";
-
-    // ПЕРЕВІРКА НА МІЛЬЙОНИ
-    double millionThreshold = isHeader ? 100000000 : 1000000;
-
-    if (absAmount >= millionThreshold) {
-      double millions = absAmount / 1000000;
-      double truncated = (millions * 10).floorToDouble() / 10;
-
-      String baseString = truncated.toStringAsFixed(1);
-      List<String> mParts = baseString.split('.');
-
-      // Додаємо пробіли, якщо мільйонів >= 1000
-      RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-      String formattedInteger = mParts[0].replaceAllMapped(
-        reg,
-        (m) => '${m[1]} ',
-      );
-
-      return "$sign$formattedInteger,${mParts[1]}М";
+    for (int i = integerPart.length - 1; i >= 0; i--) {
+      if (count == 3) {
+        buffer.write(' ');
+        count = 0;
+      }
+      buffer.write(integerPart[i]);
+      count++;
     }
 
-    // ФОРМАТУВАННЯ ЗВИЧАЙНИХ ЧИСЕЛ (решта без змін)
-    String price = absAmount.toStringAsFixed(2);
-    List<String> parts = price.split('.');
-    RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-    String formattedInt = parts[0].replaceAllMapped(reg, (m) => '${m[1]} ');
-
-    // Суми понад 100 тис. показуються без копійок
-    if (absAmount >= 100000) return "$sign$formattedInt";
-    return "$sign$formattedInt,${parts[1]}";
+    return buffer.toString().split('').reversed.join();
   }
 
-  // Форматування бюджету
-  // 👇 ЗМІНЕНО: Тепер приймає int
+  static String format(int amount, {bool isHeader = false}) {
+    if (amount == 0) return "0";
+
+    // 👇 ТЕПЕР МАТЕМАТИКА ПРАВИЛЬНА (Беремо копійки з бази)
+    int absCents = amount.abs();
+    String sign = amount < 0 ? "-" : "";
+
+    // Понад 100 мільярдів
+    if (absCents >= 10000000000000) return "${sign}99 999М+";
+
+    // Поріг для мільйонів (у копійках)
+    int millionThresholdCents = isHeader ? 10000000000 : 100000000;
+
+    if (absCents >= millionThresholdCents) {
+      double millions = (absCents / 100.0) / 1000000.0;
+      int integerPart = millions.truncate();
+      int fractionalPart = ((millions - integerPart) * 10).truncate();
+
+      String formattedInteger = _addSpaces(integerPart.toString());
+      return "$sign$formattedInteger,$fractionalPartМ";
+    }
+
+    // ЗВИЧАЙНІ СУМИ: Беремо цілу та дробову частину математично!
+    int iPart = absCents ~/ 100; // Це цілі гривні/долари
+    int fPart = absCents % 100; // Це залишок (копійки/центи)
+
+    String formattedInt = _addSpaces(iPart.toString());
+
+    // Якщо сума >= 100 000 (тобто 10 000 000 копійок), показуємо без копійок
+    if (absCents >= 10000000) return "$sign$formattedInt";
+
+    String fString = fPart.toString().padLeft(2, '0');
+    return "$sign$formattedInt,$fString";
+  }
+
   static String formatBudget(int amount) {
     String formatted = format(amount);
-
     if (formatted.contains(',') && !formatted.contains('М')) {
       return formatted.split(',')[0];
     }
-
     return formatted;
   }
 }
