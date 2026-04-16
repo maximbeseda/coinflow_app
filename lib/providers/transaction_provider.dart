@@ -160,15 +160,20 @@ class TransactionNotifier extends _$TransactionNotifier {
     final db = ref.read(databaseProvider);
     final currentBase = ref.read(settingsProvider).baseCurrency;
 
-    // Чекаємо на правильний прорахунок
-    final baseAmt = await _calculateBaseAmountAsync(
-      tx.amount,
-      tx.currency,
-      tx.targetAmount,
-      tx.targetCurrency,
-      currentBase,
-      tx.date, // Передаємо дату
-    );
+    int baseAmt;
+    // Якщо базова валюта вже порахована при імпорті — не йдемо в інтернет
+    if (tx.baseCurrency == currentBase && tx.baseAmount != 0) {
+      baseAmt = tx.baseAmount;
+    } else {
+      baseAmt = await _calculateBaseAmountAsync(
+        tx.amount,
+        tx.currency,
+        tx.targetAmount,
+        tx.targetCurrency,
+        currentBase,
+        tx.date,
+      );
+    }
 
     final updatedTx = tx.copyWith(
       baseCurrency: currentBase,
@@ -180,6 +185,13 @@ class TransactionNotifier extends _$TransactionNotifier {
 
     state = state.copyWith(history: newHistory);
     await StorageService.saveTransaction(db, updatedTx);
+
+    // 👇 ВИПРАВЛЕНО: Тепер при імпорті рахунки будуть отримувати гроші!
+    _updateAccountBalance(updatedTx.fromId, -updatedTx.amount);
+    _updateAccountBalance(
+      updatedTx.toId,
+      updatedTx.targetAmount ?? updatedTx.amount,
+    );
   }
 
   // 👇 ВИПРАВЛЕНО: Додано async/await

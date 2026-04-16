@@ -100,7 +100,6 @@ class StorageService {
 
   // ==========================================
   // БІЗНЕС-ДАНІ (Drift SQLite)
-  // 👇 ТЕПЕР КОЖЕН МЕТОД ПРИЙМАЄ [db] ЯК ПАРАМЕТР
   // ==========================================
 
   // --- КАТЕГОРІЇ ---
@@ -168,8 +167,11 @@ class StorageService {
     await (db.delete(db.subscriptions)..where((s) => s.id.equals(id))).go();
   }
 
-  // --- ОЧИЩЕННЯ ---
-  static Future<void> clearAll(AppDatabase db) async {
+  // ==========================================
+  // HARD RESET (ПОВНЕ ОЧИЩЕННЯ БАЗИ ДАНИХ)
+  // ==========================================
+  static Future<void> wipeEntireDatabase(AppDatabase db) async {
+    // Фізично видаляємо всі записи з таблиць
     await db.delete(db.transactions).go();
     await db.delete(db.categories).go();
     await db.delete(db.subscriptions).go();

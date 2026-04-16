@@ -9,6 +9,8 @@ import '../theme/app_colors_extension.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_constants.dart';
 import '../services/security_service.dart';
+// 👇 ДОДАНО: Імпорт для повного очищення бази
+import '../services/storage_service.dart';
 import 'lock_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -16,11 +18,6 @@ class ProfileScreen extends ConsumerWidget {
 
   Future<void> _showClearDataDialog(BuildContext context, WidgetRef ref) async {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
-
-    final txNotifier = ref.read(transactionProvider.notifier);
-    final subNotifier = ref.read(subscriptionProvider.notifier);
-    final catNotifier = ref.read(categoryProvider.notifier);
-
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     bool confirmed =
@@ -109,17 +106,16 @@ class ProfileScreen extends ConsumerWidget {
         false;
 
     if (confirmed) {
-      // 👇 ВИПРАВЛЕНО: Фізичне очищення бази даних перед оновленням UI
       final db = ref.read(databaseProvider);
 
-      // Жорстко стираємо всі записи з таблиць
-      await db.delete(db.transactions).go();
-      await db.delete(db.subscriptions).go();
+      // 👇 ВИПРАВЛЕНО: Фізичне та повне очищення бази даних
+      await StorageService.wipeEntireDatabase(db);
 
-      // Оновлюємо стан на екранах (і скидаємо суми в категоріях на 0)
-      await txNotifier.clearAllTransactions();
-      await subNotifier.clearAllSubscriptions();
-      await catNotifier.resetAllBalances();
+      // 👇 МАГІЯ RIVERPOD: Змушуємо всі екрани миттєво обнулитися
+      ref.invalidate(transactionProvider);
+      ref.invalidate(categoryProvider);
+      ref.invalidate(subscriptionProvider);
+      ref.invalidate(statsProvider);
 
       scaffoldMessenger.clearSnackBars();
       scaffoldMessenger.showSnackBar(
@@ -318,7 +314,33 @@ class ProfileScreen extends ConsumerWidget {
                           fontSize: 16,
                         ),
                       ),
-                      onTap: () => _showClearDataDialog(context, ref),
+                      // 👇 ДОДАНО: Перевірка ПІН-коду перед видаленням
+                      onTap: () async {
+                        final isPinSet = await SecurityService.isPinSet();
+
+                        if (isPinSet) {
+                          if (!context.mounted) return;
+
+                          // Викликаємо екран перевірки
+                          final authSuccess = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  const LockScreen(isSetupMode: false),
+                            ),
+                          );
+
+                          // Якщо користувач скасував введення або ввів неправильно - перериваємо процес
+                          if (authSuccess != true) {
+                            return;
+                          }
+                        }
+
+                        if (!context.mounted) return;
+
+                        // Якщо ПІН-коду немає або його ввели правильно - показуємо діалог видалення
+                        _showClearDataDialog(context, ref);
+                      },
                     ),
                   ],
                 ),

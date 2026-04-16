@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
-// 👇 ДОДАНО: Riverpod для реактивності
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../database/app_database.dart';
@@ -9,14 +8,14 @@ import '../../models/app_currency.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/date_formatter.dart';
 import '../../theme/app_colors_extension.dart';
-// 👇 ДОДАНО: Наш хаб провайдерів
 import '../../providers/all_providers.dart';
 
-// 👇 ЗМІНЕНО: Тепер це ConsumerStatefulWidget
+// 👇 ДОДАНО: Наш віджет пошуку
+import '../common/history_search_bar.dart';
+
 class GeneralHistoryBottomSheet extends ConsumerStatefulWidget {
   final String title;
   final CategoryType filterType;
-  // Ці змінні залишаємо для сумісності з викликом у home_screen.dart
   final List<Transaction> transactions;
   final List<Category> allCategories;
   final Function(Transaction) onDelete;
@@ -39,31 +38,34 @@ class GeneralHistoryBottomSheet extends ConsumerStatefulWidget {
 
 class _GeneralHistoryBottomSheetState
     extends ConsumerState<GeneralHistoryBottomSheet> {
-  // ✂️ ВИДАЛЕНО: initState, didUpdateWidget та локальні списки.
+  @override
+  void initState() {
+    super.initState();
+    // 👇 ДОДАНО: Говоримо провайдеру, яку саме історію ми відкрили, щоб SQL правильно фільтрував
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final notifier = ref.read(filterProvider.notifier);
+      notifier.initGeneral(); // Очищаємо попередні фільтри
+      notifier.setCategoryType(
+        widget.filterType,
+      ); // Встановлюємо тип (Доходи/Витрати/Гаманець)
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // 👇 МАГІЯ RIVERPOD: Отримуємо найсвіжіші дані безпосередньо з бази
-    final txState = ref.watch(transactionProvider);
     final catState = ref.watch(categoryProvider);
+    final filterState = ref.watch(filterProvider);
 
     final allCategories = catState.allCategoriesList;
 
-    // Фільтруємо та сортуємо "на льоту"
-    final filteredHistory = txState.history.where((t) {
-      final fromCat = allCategories.firstWhereOrNull((c) => c.id == t.fromId);
-      final toCat = allCategories.firstWhereOrNull((c) => c.id == t.toId);
-
-      return fromCat?.type == widget.filterType ||
-          toCat?.type == widget.filterType;
-    }).toList();
-
-    filteredHistory.sort((a, b) => b.date.compareTo(a.date));
+    // 👇 МАГІЯ RIVERPOD: Отримуємо готові, відфільтровані та знайдені результати з провайдера!
+    final filteredHistory = filterState.results;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      // 👇 ЗМІНЕНО: Відступи тільки зверху і по боках
+      padding: const EdgeInsets.only(top: 20, left: 16, right: 16),
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
         color: colors.cardBg,
@@ -88,16 +90,38 @@ class _GeneralHistoryBottomSheetState
               color: colors.textMain,
             ),
           ),
-          const SizedBox(height: 15),
+          const SizedBox(height: 16),
+
+          // 👇 ДОДАНО: Search Bar
+          HistorySearchBar(specificType: widget.filterType),
+
+          const SizedBox(height: 12),
+
           Expanded(
-            child: filteredHistory.isEmpty
+            child: filterState.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : filteredHistory.isEmpty
                 ? Center(
-                    child: Text(
-                      'no_transactions_yet'.tr(),
-                      style: TextStyle(color: colors.textSecondary),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: 48,
+                          color: colors.textSecondary.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          filterState.searchQuery.isNotEmpty
+                              ? 'nothing_found'.tr()
+                              : 'no_transactions_yet'.tr(),
+                          style: TextStyle(color: colors.textSecondary),
+                        ),
+                      ],
                     ),
                   )
                 : ListView.builder(
+                    physics: const BouncingScrollPhysics(),
                     itemCount: filteredHistory.length,
                     itemBuilder: (context, index) {
                       final t = filteredHistory[index];
@@ -129,7 +153,7 @@ class _GeneralHistoryBottomSheetState
 
                       if (isDefaultTitle) customNote = '';
 
-                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ (в копійках) ---
+                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ ---
                       int displayAmount = t.amount;
                       String currencyCode = t.currency;
 
@@ -182,14 +206,15 @@ class _GeneralHistoryBottomSheetState
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         onDismissed: (_) {
-                          // 👇 ЗМІНЕНО: Більше ніяких setState.
-                          // Просто викликаємо видалення, а Riverpod сам оновить список на екрані.
+                          // RIVERPOD ОНОВИТЬ СПИСОК АВТОМАТИЧНО
                           widget.onDelete(t);
                         },
                         child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                          ),
                           onTap: () async {
                             await widget.onEdit(t);
-                            // 👇 ЗМІНЕНО: setState більше не потрібен!
                           },
                           leading: CircleAvatar(
                             backgroundColor: toCat != null
@@ -246,7 +271,6 @@ class _GeneralHistoryBottomSheetState
                               ),
                             ],
                           ),
-                          // Відображення дати + коментаря (якщо є)
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 4.0),
                             child: Column(

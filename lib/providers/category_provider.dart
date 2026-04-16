@@ -129,7 +129,8 @@ class CategoryNotifier extends _$CategoryNotifier {
     StorageService.saveCategory(db, updatedCategory);
   }
 
-  void addOrUpdateCategory(Category cat) {
+  // 👇 ВИПРАВЛЕНО: Тепер метод асинхронний і повертає Future
+  Future<void> addOrUpdateCategory(Category cat) async {
     final db = ref.read(databaseProvider);
     List<Category> targetList;
 
@@ -145,10 +146,12 @@ class CategoryNotifier extends _$CategoryNotifier {
     if (index == -1) {
       final newCat = cat.copyWith(sortOrder: targetList.length);
       targetList.add(newCat);
-      StorageService.saveCategory(db, newCat);
+      // 👇 ДОДАНО: await для гарантованого запису в БД
+      await StorageService.saveCategory(db, newCat);
     } else {
       targetList[index] = cat;
-      StorageService.saveCategory(db, cat);
+      // 👇 ДОДАНО: await
+      await StorageService.saveCategory(db, cat);
     }
 
     if (cat.type == CategoryType.income) {

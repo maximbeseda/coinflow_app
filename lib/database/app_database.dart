@@ -73,7 +73,7 @@ class Subscriptions extends Table {
 }
 
 // ==========================================
-// БАЗА ДАНИХ
+// БАЗА ДАНИХ ТА ЗАПИТИ
 // ==========================================
 
 @DriftDatabase(tables: [Categories, Transactions, Subscriptions])
@@ -82,6 +82,67 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   int get schemaVersion => 1;
+
+  // 👇 ОНОВЛЕНИЙ МЕТОД: Розширений динамічний пошук (SQL Powers)
+  // 👇 ГІБРИДНИЙ ПІДХІД: SQL виконує тільки жорстку фільтрацію
+  Future<List<Transaction>> getFilteredTransactions({
+    DateTime? startDate,
+    DateTime? endDate,
+    List<String>? filterCategoryIds,
+    String? currency,
+  }) {
+    final query = select(transactions);
+
+    query.where((t) {
+      Expression<bool> predicate = const Constant(true);
+
+      // 1. ФІЛЬТР ЗА ДАТАМИ
+      if (startDate != null && endDate != null) {
+        final endOfDay = DateTime(
+          endDate.year,
+          endDate.month,
+          endDate.day,
+          23,
+          59,
+          59,
+        );
+        predicate = predicate & t.date.isBetweenValues(startDate, endOfDay);
+      } else if (startDate != null) {
+        predicate = predicate & t.date.isBiggerOrEqualValue(startDate);
+      } else if (endDate != null) {
+        final endOfDay = DateTime(
+          endDate.year,
+          endDate.month,
+          endDate.day,
+          23,
+          59,
+          59,
+        );
+        predicate = predicate & t.date.isSmallerOrEqualValue(endOfDay);
+      }
+
+      // 2. СУВОРИЙ ФІЛЬТР КАТЕГОРІЙ (Для історії конкретної категорії або типу)
+      if (filterCategoryIds != null && filterCategoryIds.isNotEmpty) {
+        predicate =
+            predicate &
+            (t.fromId.isIn(filterCategoryIds) | t.toId.isIn(filterCategoryIds));
+      }
+
+      // 3. ФІЛЬТР ВАЛЮТИ
+      if (currency != null && currency.isNotEmpty) {
+        predicate =
+            predicate &
+            (t.currency.equals(currency) | t.targetCurrency.equals(currency));
+      }
+
+      return predicate;
+    });
+
+    query.orderBy([
+      (t) => OrderingTerm(expression: t.date, mode: OrderingMode.desc),
+    ]);
+    return query.get();
+  }
 }
 
 LazyDatabase _openConnection() {

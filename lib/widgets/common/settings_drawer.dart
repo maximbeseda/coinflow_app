@@ -8,6 +8,8 @@ import '../../screens/subscriptions_screen.dart';
 import '../../services/backup_service.dart';
 import '../../screens/profile_screen.dart';
 import '../../screens/currencies_screen.dart';
+// 👇 ДОДАНО: Імпорт нашого нового екрану
+import '../../screens/import_export_screen.dart';
 import '../../theme/app_colors_extension.dart';
 
 // 👇 2. Імпортуємо наш єдиний хаб провайдерів
@@ -124,6 +126,31 @@ class SettingsDrawer extends ConsumerWidget {
               },
             ),
 
+            // 👇 ДОДАНО: КНОПКА ЕКСПОРТУ/ІМПОРТУ (CSV)
+            ListTile(
+              leading: Icon(Icons.import_export, color: colors.textMain),
+              title: Text(
+                'data_management'
+                    .tr(), // Або інший ключ, який тобі більше подобається
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: colors.textMain,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () {
+                Navigator.pop(context); // Закриваємо бокове меню
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ImportExportScreen(),
+                  ),
+                );
+              },
+            ),
+
             // КНОПКА БЕКАПУ
             ListTile(
               leading: Icon(Icons.save_alt_rounded, color: colors.textMain),
@@ -206,7 +233,6 @@ class SettingsDrawer extends ConsumerWidget {
 // ==========================================
 enum _ExpandedMode { none, export, import }
 
-// 👇 6. Змінюємо StatefulWidget на ConsumerStatefulWidget
 class _BackupBottomSheet extends ConsumerStatefulWidget {
   const _BackupBottomSheet();
 
@@ -253,10 +279,8 @@ class _BackupBottomSheetState extends ConsumerState<_BackupBottomSheet> {
     Navigator.pop(context);
 
     if (mode == _ExpandedMode.export) {
-      // 👇 ВИПРАВЛЕНО: Передаємо ref у BackupService
       BackupService.exportData(rootContext, ref, pwd);
     } else if (mode == _ExpandedMode.import) {
-      // 👇 ВИПРАВЛЕНО: Передаємо ref у BackupService
       BackupService.importData(rootContext, ref, pwd);
     }
   }

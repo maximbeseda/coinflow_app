@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
-// 👇 1. Додали Riverpod
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -12,9 +11,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:crypto/crypto.dart';
 
-// 👇 2. Імпортуємо наш єдиний хаб провайдерів
 import '../providers/all_providers.dart';
-
 import '../services/storage_service.dart';
 import '../database/app_database.dart';
 import '../theme/app_colors_extension.dart';
@@ -112,9 +109,22 @@ class BackupService {
 
       await file.writeAsString(encryptedBase64);
 
-      await SharePlus.instance.share(
-        ShareParams(text: 'backup_share_text'.tr(), files: [XFile(file.path)]),
+      final params = ShareParams(
+        text: 'backup_share_text'.tr(),
+        files: [XFile(file.path)],
       );
+
+      await SharePlus.instance.share(params);
+
+      // 👇 ТЕПЕР ТИ ПОБАЧИШ ЦЕЙ ЛОГ (Експорт бекапу)
+      try {
+        if (await file.exists()) {
+          await file.delete();
+          debugPrint("✅ Тимчасовий файл бекапу успішно видалено");
+        }
+      } catch (e) {
+        debugPrint("❌ Не вдалося видалити тимчасовий файл бекапу: $e");
+      }
     } catch (e) {
       debugPrint("Помилка експорту: $e");
       if (context.mounted) {
@@ -128,9 +138,10 @@ class BackupService {
     WidgetRef ref,
     String password,
   ) async {
+    final container = ProviderScope.containerOf(context);
+
     try {
-      // 👇 Отримуємо базу даних з Riverpod
-      final db = ref.read(databaseProvider);
+      final db = container.read(databaseProvider);
 
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.any,
@@ -140,13 +151,15 @@ class BackupService {
 
       final file = File(result.files.single.path!);
       final String fileContent = await file.readAsString();
+
+      final fileName = result.files.single.name.toLowerCase();
       String jsonString;
 
-      if (file.path.endsWith('.cfbak')) {
+      if (fileName.endsWith('.cfbak')) {
         try {
           final key = _generateKeyFromPassword(password);
           final encrypter = enc.Encrypter(enc.AES(key));
-          jsonString = encrypter.decrypt64(fileContent, iv: _iv);
+          jsonString = encrypter.decrypt64(fileContent.trim(), iv: _iv);
         } catch (e) {
           if (context.mounted) {
             _showCustomSnackBar(
@@ -157,7 +170,7 @@ class BackupService {
           }
           return;
         }
-      } else if (file.path.endsWith('.json')) {
+      } else if (fileName.endsWith('.json')) {
         jsonString = fileContent;
       } else {
         throw Exception('invalid_backup_format'.tr());
@@ -171,32 +184,32 @@ class BackupService {
       }
 
       List<Category> importedCategories = (data['categories'] as List)
-          .map((e) => Category.fromJson(e))
+          .map((e) => Category.fromJson(Map<String, dynamic>.from(e)))
           .toList();
+
       List<Transaction> importedTransactions = (data['transactions'] as List)
-          .map((e) => Transaction.fromJson(e))
+          .map((e) => Transaction.fromJson(Map<String, dynamic>.from(e)))
           .toList();
+
       List<Subscription> importedSubscriptions = [];
       if (data.containsKey('subscriptions')) {
         importedSubscriptions = (data['subscriptions'] as List)
-            .map((e) => Subscription.fromJson(e))
+            .map((e) => Subscription.fromJson(Map<String, dynamic>.from(e)))
             .toList();
       }
 
-      // 👇 ВИПРАВЛЕНО: Передаємо [db] у методи сервісу
-      await StorageService.clearAll(db);
+      await StorageService.wipeEntireDatabase(db);
+
       await StorageService.saveCategories(db, importedCategories);
       await StorageService.saveHistory(db, importedTransactions);
       for (var sub in importedSubscriptions) {
         await StorageService.saveSubscription(db, sub);
       }
 
-      if (!context.mounted) return;
-
-      // Оновлюємо дані в провайдерах
-      await ref.read(categoryProvider.notifier).loadCategories();
-      await ref.read(transactionProvider.notifier).loadHistory();
-      await ref.read(subscriptionProvider.notifier).loadSubscriptions();
+      container.invalidate(categoryProvider);
+      container.invalidate(transactionProvider);
+      container.invalidate(subscriptionProvider);
+      container.invalidate(statsProvider);
 
       if (context.mounted) {
         _showCustomSnackBar(context, 'backup_success'.tr(), true);
@@ -205,6 +218,13 @@ class BackupService {
       debugPrint("Помилка імпорту: $e");
       if (context.mounted) {
         _showCustomSnackBar(context, 'import_error'.tr(), false);
+      }
+    } finally {
+      try {
+        await FilePicker.platform.clearTemporaryFiles();
+        debugPrint("✅ Кеш FilePicker (Імпорт бекапу) успішно очищено");
+      } catch (e) {
+        debugPrint("❌ Не вдалося очистити кеш FilePicker: $e");
       }
     }
   }
