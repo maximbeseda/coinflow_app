@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../database/app_database.dart';
 import '../../models/app_currency.dart';
 import '../../utils/currency_formatter.dart';
-import '../../utils/date_formatter.dart';
 import '../../theme/app_colors_extension.dart';
 import '../../providers/all_providers.dart';
-
-// 👇 ДОДАНО: Наш віджет пошуку
 import '../common/history_search_bar.dart';
 
 class GeneralHistoryBottomSheet extends ConsumerStatefulWidget {
@@ -38,17 +34,48 @@ class GeneralHistoryBottomSheet extends ConsumerStatefulWidget {
 
 class _GeneralHistoryBottomSheetState
     extends ConsumerState<GeneralHistoryBottomSheet> {
+  final ScrollController _scrollController = ScrollController();
+  bool _isFetchingMore = false;
+
   @override
   void initState() {
     super.initState();
-    // 👇 ДОДАНО: Говоримо провайдеру, яку саме історію ми відкрили, щоб SQL правильно фільтрував
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final notifier = ref.read(filterProvider.notifier);
-      notifier.initGeneral(); // Очищаємо попередні фільтри
-      notifier.setCategoryType(
-        widget.filterType,
-      ); // Встановлюємо тип (Доходи/Витрати/Гаманець)
+      notifier.initGeneral();
+      notifier.setCategoryType(widget.filterType);
     });
+
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() async {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 150) {
+      final filterState = ref.read(filterProvider);
+
+      if (filterState.searchQuery.isNotEmpty) return;
+
+      if (filterState.hasMore && !_isFetchingMore) {
+        _isFetchingMore = true;
+        await ref.read(filterProvider.notifier).loadNextPage();
+        _isFetchingMore = false;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  String _fastDateFormat(DateTime d) {
+    final day = d.day.toString().padLeft(2, '0');
+    final month = d.month.toString().padLeft(2, '0');
+    final hour = d.hour.toString().padLeft(2, '0');
+    final minute = d.minute.toString().padLeft(2, '0');
+    return '$day.$month.${d.year} $hour:$minute';
   }
 
   @override
@@ -59,12 +86,20 @@ class _GeneralHistoryBottomSheetState
     final filterState = ref.watch(filterProvider);
 
     final allCategories = catState.allCategoriesList;
-
-    // 👇 МАГІЯ RIVERPOD: Отримуємо готові, відфільтровані та знайдені результати з провайдера!
     final filteredHistory = filterState.results;
 
+    final showLoader = filterState.hasMore && filterState.searchQuery.isEmpty;
+
+    final categoryMap = {for (var c in allCategories) c.id: c};
+
+    // КЕШУЄМО ЛОКАЛІЗАЦІЮ
+    final trUnknown = 'unknown'.tr();
+    final trOutgoing = 'outgoing_transfer'.tr();
+    final trTopUp = 'top_up'.tr();
+
+    final Map<String, String> currencyCache = {};
+
     return Container(
-      // 👇 ЗМІНЕНО: Відступи тільки зверху і по боках
       padding: const EdgeInsets.only(top: 20, left: 16, right: 16),
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
@@ -92,7 +127,6 @@ class _GeneralHistoryBottomSheetState
           ),
           const SizedBox(height: 16),
 
-          // 👇 ДОДАНО: Search Bar
           HistorySearchBar(specificType: widget.filterType),
 
           const SizedBox(height: 12),
@@ -121,39 +155,56 @@ class _GeneralHistoryBottomSheetState
                     ),
                   )
                 : ListView.builder(
+                    controller: _scrollController,
                     physics: const BouncingScrollPhysics(),
-                    itemCount: filteredHistory.length,
+                    cacheExtent: 1000,
+                    itemCount: filteredHistory.length + (showLoader ? 1 : 0),
                     itemBuilder: (context, index) {
+                      if (index == filteredHistory.length) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24.0),
+                          child: Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: colors.textSecondary.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
                       final t = filteredHistory[index];
 
-                      final fromCat = allCategories.firstWhereOrNull(
-                        (c) => c.id == t.fromId,
-                      );
-                      final toCat = allCategories.firstWhereOrNull(
-                        (c) => c.id == t.toId,
-                      );
+                      final fromCat = categoryMap[t.fromId];
+                      final toCat = categoryMap[t.toId];
 
-                      String fromName = fromCat?.name ?? 'unknown'.tr();
-                      String toName = toCat?.name ?? 'unknown'.tr();
+                      // 👇 ВИПРАВЛЕНО: Використовуємо змінні з кешу
+                      String fromName = fromCat?.name ?? trUnknown;
+                      String toName = toCat?.name ?? trUnknown;
 
                       bool isIncome = fromCat?.type == CategoryType.income;
                       bool isTransfer =
                           fromCat?.type == CategoryType.account &&
                           toCat?.type == CategoryType.account;
 
-                      // --- ЛОГІКА КОМЕНТАРІВ ---
                       String customNote = t.title.trim();
+
+                      // 👇 ВИПРАВЛЕНО: Використовуємо змінні з кешу
                       bool isDefaultTitle =
                           customNote.isEmpty ||
                           customNote.contains('➡️') ||
                           customNote == fromName ||
                           customNote == toName ||
-                          customNote == 'outgoing_transfer'.tr() ||
-                          customNote == 'top_up'.tr();
+                          customNote == trOutgoing ||
+                          customNote == trTopUp;
 
                       if (isDefaultTitle) customNote = '';
 
-                      // --- РОЗРАХУНОК СУМИ ТА ВАЛЮТИ ---
                       int displayAmount = t.amount;
                       String currencyCode = t.currency;
 
@@ -161,19 +212,17 @@ class _GeneralHistoryBottomSheetState
                           toCat?.type == CategoryType.expense) {
                         displayAmount = t.targetAmount ?? t.amount;
                         currencyCode = t.targetCurrency ?? t.currency;
-                      } else if (widget.filterType == CategoryType.income) {
-                        displayAmount = t.amount;
-                        currencyCode = t.currency;
-                      } else if (widget.filterType == CategoryType.account) {
+                      } else if (widget.filterType == CategoryType.income ||
+                          widget.filterType == CategoryType.account) {
                         displayAmount = t.amount;
                         currencyCode = t.currency;
                       }
 
-                      String currencySymbol = AppCurrency.fromCode(
+                      String currencySymbol = currencyCache.putIfAbsent(
                         currencyCode,
-                      ).symbol;
+                        () => AppCurrency.fromCode(currencyCode).symbol,
+                      );
 
-                      // --- ЛОГІКА ПРЕФІКСІВ ТА КОЛЬОРІВ ---
                       String prefix = "-";
                       Color amountColor = colors.expense;
 
@@ -205,17 +254,12 @@ class _GeneralHistoryBottomSheetState
                           padding: const EdgeInsets.only(right: 20),
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
-                        onDismissed: (_) {
-                          // RIVERPOD ОНОВИТЬ СПИСОК АВТОМАТИЧНО
-                          widget.onDelete(t);
-                        },
+                        onDismissed: (_) => widget.onDelete(t),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 4,
                           ),
-                          onTap: () async {
-                            await widget.onEdit(t);
-                          },
+                          onTap: () async => await widget.onEdit(t),
                           leading: CircleAvatar(
                             backgroundColor: toCat != null
                                 ? Color(toCat.bgColor)
@@ -277,7 +321,7 @@ class _GeneralHistoryBottomSheetState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  DateFormatter.formatFull(t.date),
+                                  _fastDateFormat(t.date),
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: colors.textSecondary,

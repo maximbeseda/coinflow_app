@@ -163,7 +163,7 @@ class _CustomDateRangePickerState extends State<CustomDateRangePicker> {
     final double cellWidth = (MediaQuery.of(context).size.width - 32) / 7;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
+      height: MediaQuery.of(context).size.height * 0.95,
       decoration: BoxDecoration(
         color: widget.colors.cardBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),

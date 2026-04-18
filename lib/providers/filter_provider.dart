@@ -19,6 +19,10 @@ class FilterState {
   final List<Transaction> results;
   final bool isLoading;
 
+  // 👇 ДОДАНО ДЛЯ ПАГІНАЦІЇ
+  final int currentPage;
+  final bool hasMore;
+
   FilterState({
     this.searchQuery = '',
     this.startDate,
@@ -28,6 +32,8 @@ class FilterState {
     this.specificCategoryId,
     this.results = const [],
     this.isLoading = false,
+    this.currentPage = 0,
+    this.hasMore = true,
   });
 
   FilterState copyWith({
@@ -39,6 +45,8 @@ class FilterState {
     String? specificCategoryId,
     List<Transaction>? results,
     bool? isLoading,
+    int? currentPage,
+    bool? hasMore,
     bool clearDates = false,
     bool clearType = false,
     bool clearCurrency = false,
@@ -54,14 +62,26 @@ class FilterState {
       specificCategoryId: specificCategoryId ?? this.specificCategoryId,
       results: results ?? this.results,
       isLoading: isLoading ?? this.isLoading,
+      currentPage: currentPage ?? this.currentPage,
+      hasMore: hasMore ?? this.hasMore,
     );
   }
 }
 
 @riverpod
 class FilterNotifier extends _$FilterNotifier {
+  static const int _pageSize = 30; // Скільки вантажимо за раз
+
   @override
   FilterState build() {
+    // 👇 МАГІЯ: Якщо ти видалив або відредагував транзакцію в UI,
+    // FilterProvider миттєво це помітить і оновить список!
+    ref.listen(transactionProvider, (prev, next) {
+      if (prev != null && prev.history != next.history) {
+        _applyFilters();
+      }
+    });
+
     return FilterState();
   }
 
@@ -107,8 +127,24 @@ class FilterNotifier extends _$FilterNotifier {
     _applyFilters();
   }
 
-  Future<void> _applyFilters() async {
-    state = state.copyWith(isLoading: true);
+  // 👇 НОВИЙ МЕТОД ДЛЯ ПАГІНАЦІЇ (Викликається при скролі вниз)
+  Future<void> loadNextPage() async {
+    // Якщо йде пошук, або більше немає даних, або вже вантажимо — ігноруємо
+    if (state.searchQuery.isNotEmpty || !state.hasMore || state.isLoading) {
+      return;
+    }
+    await _applyFilters(loadMore: true);
+  }
+
+  Future<void> _applyFilters({bool loadMore = false}) async {
+    if (!loadMore) {
+      state = state.copyWith(
+        isLoading: true,
+        currentPage: 0,
+        hasMore: true,
+        results: [],
+      );
+    }
 
     final db = ref.read(databaseProvider);
     final catState = ref.read(categoryProvider);
@@ -125,15 +161,27 @@ class FilterNotifier extends _$FilterNotifier {
       if (filterCategoryIds.isEmpty) filterCategoryIds = ['__empty__'];
     }
 
-    // 2. ОТРИМУЄМО БАЗОВУ ВИБІРКУ З БАЗИ ДАНИХ (Блискавично)
-    var results = await db.getFilteredTransactions(
+    // 2. ВИЗНАЧАЄМО ЛІМІТ ТА ОФСЕТ ДЛЯ SQL
+    int? limit;
+    int? offset;
+
+    // Якщо пошуку немає, вмикаємо жорстку оптимізацію SQL
+    if (state.searchQuery.isEmpty) {
+      limit = _pageSize;
+      offset = state.currentPage * _pageSize;
+    }
+
+    // 3. ОТРИМУЄМО ПОРЦІЮ З БАЗИ ДАНИХ (Блискавично)
+    var newBatch = await db.getFilteredTransactions(
       startDate: state.startDate,
       endDate: state.endDate,
       filterCategoryIds: filterCategoryIds,
       currency: state.selectedCurrency,
+      limit: limit,
+      offset: offset,
     );
 
-    // 3. РОЗУМНИЙ FUZZY-ПОШУК У ПАМ'ЯТІ (Магія Dart)
+    // 4. РОЗУМНИЙ FUZZY-ПОШУК У ПАМ'ЯТІ
     if (state.searchQuery.isNotEmpty) {
       final query = state.searchQuery.toLowerCase().trim();
       final allCategories = catState.allCategoriesList;
@@ -141,8 +189,7 @@ class FilterNotifier extends _$FilterNotifier {
           .replaceAll(RegExp(r'\s+'), '')
           .replaceAll(',', '.');
 
-      results = results.where((t) {
-        // --- Перевірка Назви та Коментаря ---
+      final fuzzyResults = newBatch.where((t) {
         final sourceCat = allCategories.firstWhereOrNull(
           (c) => c.id == t.fromId,
         );
@@ -154,7 +201,6 @@ class FilterNotifier extends _$FilterNotifier {
                 sourceCat.name.toLowerCase().contains(query)) ||
             (targetCat != null && targetCat.name.toLowerCase().contains(query));
 
-        // --- Перевірка Суми (З урахуванням форматування) ---
         String formattedAmount1 = CurrencyFormatter.format(
           t.amount,
         ).replaceAll(RegExp(r'\s+'), '');
@@ -175,17 +221,30 @@ class FilterNotifier extends _$FilterNotifier {
             formattedAmount2.contains(queryAmount) ||
             rawAmount2.contains(queryAmount);
 
-        // --- Перевірка Дати (Повне та коротке співпадіння) ---
         String dateStrFull = DateFormat('dd.MM.yyyy').format(t.date);
         String dateStrShort = DateFormat('dd.MM').format(t.date);
         bool matchesDate =
             dateStrFull.contains(query) || dateStrShort.contains(query);
 
-        // Якщо хоча б щось збіглося — залишаємо транзакцію!
         return matchesTitle || matchesAmount || matchesDate;
       }).toList();
-    }
 
-    state = state.copyWith(results: results, isLoading: false);
+      // Вимикаємо пагінацію на час пошуку
+      state = state.copyWith(
+        results: fuzzyResults,
+        isLoading: false,
+        hasMore: false,
+      );
+    } else {
+      // 5. ЗБЕРІГАЄМО ПАГІНОВАНІ ДАНІ
+      state = state.copyWith(
+        results: loadMore ? [...state.results, ...newBatch] : newBatch,
+        isLoading: false,
+        hasMore:
+            newBatch.length ==
+            _pageSize, // Якщо прийшло менше 30, значить це кінець бази
+        currentPage: state.currentPage + 1,
+      );
+    }
   }
 }

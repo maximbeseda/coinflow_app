@@ -1,17 +1,14 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:drift/drift.dart' as drift;
-// 👇 ДОДАНО: необхідно для методу .select
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/app_database.dart';
 import '../services/storage_service.dart';
-
-// Імпортуємо наш хаб провайдерів
 import 'all_providers.dart';
 
 part 'transaction_provider.g.dart';
 
-// 1. СТАН (State)
+// 1. СТАН (State) - Тільки повна історія для статистики
 class TransactionState {
   final List<Transaction> history;
   final DateTime selectedMonth;
@@ -59,7 +56,6 @@ class TransactionNotifier extends _$TransactionNotifier {
       previous,
       next,
     ) {
-      // Запускаємо міграцію тільки якщо це реальна зміна
       if (previous != null && previous != next) {
         _migrateCurrentMonthBaseCurrency(next);
       }
@@ -80,7 +76,6 @@ class TransactionNotifier extends _$TransactionNotifier {
   Future<void> _init() async {
     await loadHistory();
 
-    // Захист при старті. Перевіряємо, чи не збилася валюта поточного місяця
     final currentBase = ref.read(settingsProvider).baseCurrency;
     final now = DateTime.now();
     final currentMonthTxs = state.history
@@ -117,7 +112,6 @@ class TransactionNotifier extends _$TransactionNotifier {
     );
   }
 
-  // 👇 ВИПРАВЛЕНО: Асинхронний метод, який враховує дату транзакції
   Future<int> _calculateBaseAmountAsync(
     int amount,
     String currency,
@@ -126,11 +120,9 @@ class TransactionNotifier extends _$TransactionNotifier {
     String baseCur,
     DateTime txDate,
   ) async {
-    // Принцип ідентичності: якщо валюта транзакції співпадає з базовою, повертаємо як є
     if (currency == baseCur) return amount;
     if (targetCurrency == baseCur && targetAmount != null) return targetAmount;
 
-    // Отримуємо курси саме на дату транзакції (або з кешу, або з API)
     final settingsNotif = ref.read(settingsProvider.notifier);
     double fromRate =
         (await settingsNotif.getRateForDate(currency, txDate)) ?? 1.0;
@@ -138,7 +130,6 @@ class TransactionNotifier extends _$TransactionNotifier {
         (await settingsNotif.getRateForDate(baseCur, txDate)) ?? 1.0;
 
     if (fromRate == 0) fromRate = 1.0;
-
     return (amount * (toRate / fromRate)).round();
   }
 
@@ -149,19 +140,16 @@ class TransactionNotifier extends _$TransactionNotifier {
     final category = catState.allCategoriesList
         .where((c) => c.id == categoryId)
         .firstOrNull;
-
     if (category != null && category.type == CategoryType.account) {
       catNotifier.updateCategoryAmount(categoryId, delta);
     }
   }
 
-  // 👇 ВИПРАВЛЕНО: Додано async/await
   Future<void> addTransactionDirectly(Transaction tx) async {
     final db = ref.read(databaseProvider);
     final currentBase = ref.read(settingsProvider).baseCurrency;
 
     int baseAmt;
-    // Якщо базова валюта вже порахована при імпорті — не йдемо в інтернет
     if (tx.baseCurrency == currentBase && tx.baseAmount != 0) {
       baseAmt = tx.baseAmount;
     } else {
@@ -186,7 +174,6 @@ class TransactionNotifier extends _$TransactionNotifier {
     state = state.copyWith(history: newHistory);
     await StorageService.saveTransaction(db, updatedTx);
 
-    // 👇 ВИПРАВЛЕНО: Тепер при імпорті рахунки будуть отримувати гроші!
     _updateAccountBalance(updatedTx.fromId, -updatedTx.amount);
     _updateAccountBalance(
       updatedTx.toId,
@@ -194,7 +181,6 @@ class TransactionNotifier extends _$TransactionNotifier {
     );
   }
 
-  // 👇 ВИПРАВЛЕНО: Додано async/await
   Future<void> addTransfer(
     Category source,
     Category target,
@@ -213,15 +199,13 @@ class TransactionNotifier extends _$TransactionNotifier {
     }
 
     final currentBase = ref.read(settingsProvider).baseCurrency;
-
-    // Чекаємо на прорахунок
     final baseAmt = await _calculateBaseAmountAsync(
       amount,
       source.currency,
       targetAmount,
       targetAmount != null ? target.currency : null,
       currentBase,
-      date, // Історична дата переказу
+      date,
     );
 
     final newTx = Transaction(
@@ -239,12 +223,11 @@ class TransactionNotifier extends _$TransactionNotifier {
     );
 
     final newHistory = List<Transaction>.from(state.history)..insert(0, newTx);
-    state = state.copyWith(history: newHistory);
 
+    state = state.copyWith(history: newHistory);
     await StorageService.saveTransaction(db, newTx);
   }
 
-  // 👇 ВИПРАВЛЕНО: Додано async/await
   Future<void> editTransaction(
     Transaction oldT,
     int newAmount,
@@ -256,7 +239,6 @@ class TransactionNotifier extends _$TransactionNotifier {
     _updateAccountBalance(oldT.toId, -(oldT.targetAmount ?? oldT.amount));
 
     final int previousAmount = oldT.amount;
-
     int finalTargetAmount;
     if (newTargetAmount != null) {
       finalTargetAmount = newTargetAmount;
@@ -272,14 +254,13 @@ class TransactionNotifier extends _$TransactionNotifier {
       finalBaseAmount = (oldT.baseAmount * (newAmount / previousAmount))
           .round();
     } else {
-      // Чекаємо на прорахунок за новою датою
       finalBaseAmount = await _calculateBaseAmountAsync(
         newAmount,
         oldT.currency,
         finalTargetAmount,
         oldT.targetCurrency,
         oldT.baseCurrency,
-        newDate, // Нова дата
+        newDate,
       );
     }
 
@@ -298,9 +279,7 @@ class TransactionNotifier extends _$TransactionNotifier {
 
     final newHistory = List<Transaction>.from(state.history);
     int index = newHistory.indexWhere((t) => t.id == oldT.id);
-    if (index != -1) {
-      newHistory[index] = updatedT;
-    }
+    if (index != -1) newHistory[index] = updatedT;
     newHistory.sort((a, b) => b.date.compareTo(a.date));
 
     state = state.copyWith(history: newHistory);
@@ -314,6 +293,7 @@ class TransactionNotifier extends _$TransactionNotifier {
 
     final newHistory = List<Transaction>.from(state.history)
       ..removeWhere((item) => item.id == t.id);
+
     state = state.copyWith(history: newHistory);
     StorageService.removeTransaction(db, t.id);
   }
@@ -323,7 +303,6 @@ class TransactionNotifier extends _$TransactionNotifier {
     final now = DateTime.now();
     final newHistory = List<Transaction>.from(state.history);
 
-    // Фільтруємо ТІЛЬКИ транзакції ПОТОЧНОГО календарного місяця
     final currentMonthTxs = newHistory
         .where((tx) => tx.date.year == now.year && tx.date.month == now.month)
         .toList();
@@ -338,7 +317,6 @@ class TransactionNotifier extends _$TransactionNotifier {
     for (int i = 0; i < currentMonthTxs.length; i++) {
       var tx = currentMonthTxs[i];
 
-      // 👇 ВИПРАВЛЕНО: Асинхронний виклик
       final int newBaseAmount = await _calculateBaseAmountAsync(
         tx.amount,
         tx.currency,
@@ -348,7 +326,6 @@ class TransactionNotifier extends _$TransactionNotifier {
         tx.date,
       );
 
-      // Захист від мікро-округлень
       if (tx.baseAmount == newBaseAmount && tx.baseCurrency == newBase) {
         continue;
       }

@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../database/app_database.dart';
 import '../../models/app_currency.dart';
 import '../../utils/currency_formatter.dart';
-import '../../utils/date_formatter.dart';
 import '../../theme/app_colors_extension.dart';
 import '../../providers/all_providers.dart';
 import '../common/history_search_bar.dart';
@@ -32,13 +30,46 @@ class HistoryBottomSheet extends ConsumerStatefulWidget {
 }
 
 class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
+  final ScrollController _scrollController = ScrollController();
+  bool _isFetchingMore = false;
+
   @override
   void initState() {
     super.initState();
-    // 👇 Говоримо провайдеру, що ми відкрили історію конкретної категорії
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(filterProvider.notifier).initForCategory(widget.category.id);
     });
+
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() async {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 150) {
+      final filterState = ref.read(filterProvider);
+
+      if (filterState.searchQuery.isNotEmpty) return;
+
+      if (filterState.hasMore && !_isFetchingMore) {
+        _isFetchingMore = true;
+        await ref.read(filterProvider.notifier).loadNextPage();
+        _isFetchingMore = false;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  String _fastDateFormat(DateTime d) {
+    final day = d.day.toString().padLeft(2, '0');
+    final month = d.month.toString().padLeft(2, '0');
+    final hour = d.hour.toString().padLeft(2, '0');
+    final minute = d.minute.toString().padLeft(2, '0');
+    return '$day.$month.${d.year} $hour:$minute';
   }
 
   @override
@@ -48,9 +79,18 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
     final catState = ref.watch(categoryProvider);
     final filterState = ref.watch(filterProvider);
 
-    // 👇 ВСЕ! Більше ніякої фільтрації. Ми просто беремо готові результати з SQL.
     final categoryHistory = filterState.results;
     final allCategories = catState.allCategoriesList;
+
+    final showLoader = filterState.hasMore && filterState.searchQuery.isEmpty;
+
+    final categoryMap = {for (var c in allCategories) c.id: c};
+
+    // 👇 ВИПРАВЛЕНО: Прибрали trUnknown, залишили тільки те, що дійсно використовується
+    final trOutgoing = 'outgoing_transfer'.tr();
+    final trTopUp = 'top_up'.tr();
+
+    final Map<String, String> currencyCache = {};
 
     return Container(
       padding: const EdgeInsets.only(top: 20, left: 16, right: 16),
@@ -108,34 +148,57 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
                     ),
                   )
                 : ListView.builder(
+                    controller: _scrollController,
                     physics: const BouncingScrollPhysics(),
-                    itemCount: categoryHistory.length,
+                    cacheExtent: 1000,
+                    itemCount: categoryHistory.length + (showLoader ? 1 : 0),
                     itemBuilder: (context, index) {
+                      if (index == categoryHistory.length) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24.0),
+                          child: Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: colors.textSecondary.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
                       final t = categoryHistory[index];
                       bool isOut = t.fromId == widget.category.id;
                       String otherId = isOut ? t.toId : t.fromId;
 
-                      final otherCat = allCategories.firstWhereOrNull(
-                        (c) => c.id == otherId,
-                      );
+                      final otherCat = categoryMap[otherId];
 
                       String customNote = t.title.trim();
+
                       bool isDefaultTitle =
                           customNote.isEmpty ||
                           customNote.contains('➡️') ||
                           customNote == otherCat?.name ||
                           customNote == widget.category.name ||
-                          customNote == 'outgoing_transfer'.tr() ||
-                          customNote == 'top_up'.tr();
+                          customNote == trOutgoing ||
+                          customNote == trTopUp;
 
                       if (isDefaultTitle) customNote = '';
 
                       int displayAmount = isOut
                           ? t.amount
                           : (t.targetAmount ?? t.amount);
-                      String currencySymbol = AppCurrency.fromCode(
+
+                      String currencySymbol = currencyCache.putIfAbsent(
                         widget.category.currency,
-                      ).symbol;
+                        () => AppCurrency.fromCode(
+                          widget.category.currency,
+                        ).symbol,
+                      );
 
                       String prefix = "";
                       Color amountColor = colors.textMain;
@@ -164,16 +227,12 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
                           padding: const EdgeInsets.only(right: 20),
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
-                        onDismissed: (_) {
-                          widget.onDelete(t);
-                        },
+                        onDismissed: (_) => widget.onDelete(t),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 4,
                           ),
-                          onTap: () async {
-                            await widget.onEdit(t);
-                          },
+                          onTap: () async => await widget.onEdit(t),
                           leading: otherCat != null
                               ? CircleAvatar(
                                   backgroundColor: Color(otherCat.bgColor),
@@ -203,10 +262,7 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
                                   ),
                                 ),
                           title: Text(
-                            otherCat?.name ??
-                                (isOut
-                                    ? 'outgoing_transfer'.tr()
-                                    : 'top_up'.tr()),
+                            otherCat?.name ?? (isOut ? trOutgoing : trTopUp),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -221,7 +277,7 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  DateFormatter.formatFull(t.date),
+                                  _fastDateFormat(t.date),
                                   style: TextStyle(
                                     color: colors.textSecondary,
                                     fontSize: 12,

@@ -30,6 +30,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   bool _animatingForward = true;
   DateTime _lastSwipeTime = DateTime.now();
 
+  int _touchedPieIndex = -1;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +48,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     setState(() {
       _animatingForward = newMonth.isAfter(_statsMonth);
       _statsMonth = newMonth;
+      _touchedPieIndex = -1;
     });
   }
 
@@ -76,20 +79,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     const Color(0xFFE91E63),
   ];
 
-  Color _getUniqueColor(String id, CategoryState catState) {
-    List<String> allIds = catState.allCategoriesList
-        .where(
-          (c) =>
-              c.type == CategoryType.expense || c.type == CategoryType.income,
-        )
-        .map((e) => e.id)
-        .toList();
-    allIds.sort();
-    int index = allIds.indexOf(id);
-    if (index == -1) index = 0;
-    return _appCustomPalette[index % _appCustomPalette.length];
-  }
-
   List<Category> _getSortedActiveCategories(CategoryState catState) {
     final allCategories = catState.allCategoriesList;
     final Map<String, Category> categoryMap = {
@@ -113,6 +102,32 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     return activeCategories;
   }
 
+  void _showCategoryTransactions(
+    Category category,
+    AppColorsExtension colors,
+    String baseCurrencySymbol,
+  ) async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return _StatsCategoryBottomSheet(
+          category: category,
+          statsMonth: _statsMonth,
+          baseCurrencySymbol: baseCurrencySymbol,
+          showExpenses: _showExpenses,
+        );
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _touchedPieIndex = -1;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
@@ -121,7 +136,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final txState = ref.watch(transactionProvider);
     final catState = ref.watch(categoryProvider);
 
-    // 👇 ІДЕАЛЬНА ЛОГІКА ВАЛЮТ (за твоїми правилами)
     final now = DateTime.now();
     final isCurrentMonth =
         _statsMonth.year == now.year && _statsMonth.month == now.month;
@@ -129,25 +143,39 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     String displayCurrency;
 
     if (isCurrentMonth) {
-      // 1. Поточний місяць -> завжди показуємо в тій валюті, яку обрано в налаштуваннях
       displayCurrency = settingsState.baseCurrency;
     } else {
-      // 2. Статистика (історія) -> показується в тій валюті, яка була базовою на той момент
       final monthTxs = txState.history.where(
         (tx) =>
             tx.date.year == _statsMonth.year &&
             tx.date.month == _statsMonth.month,
       );
-
       if (monthTxs.isNotEmpty) {
         displayCurrency = monthTxs.first.baseCurrency;
       } else {
-        // Якщо за той місяць немає транзакцій, просто показуємо поточну
         displayCurrency = settingsState.baseCurrency;
       }
     }
 
     final baseCurrencySymbol = AppCurrency.fromCode(displayCurrency).symbol;
+
+    // 👇 ОПТИМІЗАЦІЯ: Формуємо список ID один раз для швидкості кольорів (без сортування всередині білдера)
+    final sortedCatIds =
+        catState.allCategoriesList
+            .where(
+              (c) =>
+                  c.type == CategoryType.expense ||
+                  c.type == CategoryType.income,
+            )
+            .map((e) => e.id)
+            .toList()
+          ..sort();
+
+    Color getUniqueColor(String id) {
+      int index = sortedCatIds.indexOf(id);
+      if (index == -1) index = 0;
+      return _appCustomPalette[index % _appCustomPalette.length];
+    }
 
     return Scaffold(
       backgroundColor: _showTrends ? colors.cardBg : null,
@@ -180,6 +208,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                         baseCurrencySymbol,
                         catState,
                         txState,
+                        getUniqueColor, // Передаємо оптимізовану функцію
                       ),
               ),
             ],
@@ -341,7 +370,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   !_showExpenses,
                   colors.income,
                   baseCurrencySymbol,
-                  () => setState(() => _showExpenses = false),
+                  () {
+                    setState(() {
+                      _showExpenses = false;
+                      _touchedPieIndex = -1;
+                    });
+                  },
                   colors,
                 ),
                 _toggleItem(
@@ -351,7 +385,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   _showExpenses,
                   colors.expense,
                   baseCurrencySymbol,
-                  () => setState(() => _showExpenses = true),
+                  () {
+                    setState(() {
+                      _showExpenses = true;
+                      _touchedPieIndex = -1;
+                    });
+                  },
                   colors,
                 ),
               ],
@@ -444,6 +483,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     String baseCurrencySymbol,
     CategoryState catState,
     TransactionState txState,
+    Color Function(String) getUniqueColor,
   ) {
     final activeData = _getSortedActiveCategories(catState);
     int activeTotal = activeData.fold(
@@ -527,19 +567,52 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                       flex: 5,
                       child: PieChart(
                         PieChartData(
+                          pieTouchData: PieTouchData(
+                            touchCallback:
+                                (FlTouchEvent event, pieTouchResponse) {
+                                  setState(() {
+                                    if (!event.isInterestedForInteractions ||
+                                        pieTouchResponse == null ||
+                                        pieTouchResponse.touchedSection ==
+                                            null) {
+                                      return;
+                                    }
+                                    _touchedPieIndex = pieTouchResponse
+                                        .touchedSection!
+                                        .touchedSectionIndex;
+                                  });
+
+                                  if (event is FlTapUpEvent &&
+                                      _touchedPieIndex != -1) {
+                                    final cat = activeData[_touchedPieIndex];
+                                    _showCategoryTransactions(
+                                      cat,
+                                      colors,
+                                      baseCurrencySymbol,
+                                    );
+                                  }
+                                },
+                          ),
                           sectionsSpace: 2,
                           centerSpaceRadius: 38,
-                          sections: activeData.map((cat) {
+                          sections: activeData.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final cat = entry.value;
+
+                            final isTouched = index == _touchedPieIndex;
                             final value = cat.amount.abs() / 100.0;
                             final percentage =
                                 (value / (activeTotal / 100.0)) * 100;
+
+                            final radius = isTouched ? 48.0 : 42.0;
+
                             return PieChartSectionData(
-                              color: _getUniqueColor(cat.id, catState),
+                              color: getUniqueColor(cat.id),
                               value: value,
                               title: percentage >= 5.0
                                   ? "${percentage.toStringAsFixed(0)}%"
                                   : "",
-                              radius: 42,
+                              radius: radius,
                               titlePositionPercentageOffset: 0.5,
                               titleStyle: const TextStyle(
                                 fontSize: 12,
@@ -560,78 +633,106 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                           final cat = activeData[index];
                           final percentage =
                               (cat.amount.abs() / activeTotal) * 100;
-                          final rowColor = _getUniqueColor(cat.id, catState);
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 12,
-                                  backgroundColor: rowColor.withValues(
-                                    alpha: 0.2,
-                                  ),
-                                  child: Icon(
-                                    IconData(
-                                      cat.icon,
-                                      fontFamily: 'MaterialIcons',
+                          final rowColor = getUniqueColor(cat.id);
+                          final isTouched = index == _touchedPieIndex;
+
+                          return InkWell(
+                            onTap: () {
+                              setState(() => _touchedPieIndex = index);
+                              _showCategoryTransactions(
+                                cat,
+                                colors,
+                                baseCurrencySymbol,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 8,
+                              ),
+                              margin: const EdgeInsets.only(bottom: 4),
+                              decoration: BoxDecoration(
+                                color: isTouched
+                                    ? rowColor.withValues(alpha: 0.1)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 14,
+                                    backgroundColor: rowColor.withValues(
+                                      alpha: 0.2,
                                     ),
-                                    size: 14,
-                                    color: rowColor,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    cat.name,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color: colors.textMain,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  "${percentage.toStringAsFixed(1)}%",
-                                  style: TextStyle(
-                                    color: colors.textSecondary,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Stack(
-                                  alignment: Alignment.centerRight,
-                                  children: [
-                                    Opacity(
-                                      opacity: txState.isMigrating ? 0.0 : 1.0,
-                                      child: Text(
-                                        "${CurrencyFormatter.format(cat.amount.abs())} $baseCurrencySymbol",
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 14,
-                                          color: colors.textMain,
-                                        ),
+                                    child: Icon(
+                                      IconData(
+                                        cat.icon,
+                                        fontFamily: 'MaterialIcons',
                                       ),
+                                      size: 16,
+                                      color: rowColor,
                                     ),
-                                    if (txState.isMigrating)
-                                      Positioned.fill(
-                                        child: Align(
-                                          alignment: Alignment.centerRight,
-                                          child: AnimatedDots(
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 14,
-                                              color: colors.textMain,
-                                            ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      cat.name,
+                                      style: TextStyle(
+                                        fontWeight: isTouched
+                                            ? FontWeight.w800
+                                            : FontWeight.w600,
+                                        fontSize: 14,
+                                        color: colors.textMain,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    "${percentage.toStringAsFixed(1)}%",
+                                    style: TextStyle(
+                                      color: colors.textSecondary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Stack(
+                                    alignment: Alignment.centerRight,
+                                    children: [
+                                      Opacity(
+                                        opacity: txState.isMigrating
+                                            ? 0.0
+                                            : 1.0,
+                                        child: Text(
+                                          "${CurrencyFormatter.format(cat.amount.abs())} $baseCurrencySymbol",
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14,
+                                            color: colors.textMain,
                                           ),
                                         ),
                                       ),
-                                  ],
-                                ),
-                              ],
+                                      if (txState.isMigrating)
+                                        Positioned.fill(
+                                          child: Align(
+                                            alignment: Alignment.centerRight,
+                                            child: AnimatedDots(
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 14,
+                                                color: colors.textMain,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },
@@ -641,6 +742,369 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 ),
         ),
       ),
+    );
+  }
+}
+
+class _StatsCategoryBottomSheet extends ConsumerStatefulWidget {
+  final Category category;
+  final DateTime statsMonth;
+  final String baseCurrencySymbol;
+  final bool showExpenses;
+
+  const _StatsCategoryBottomSheet({
+    required this.category,
+    required this.statsMonth,
+    required this.baseCurrencySymbol,
+    required this.showExpenses,
+  });
+
+  @override
+  ConsumerState<_StatsCategoryBottomSheet> createState() =>
+      _StatsCategoryBottomSheetState();
+}
+
+class _StatsCategoryBottomSheetState
+    extends ConsumerState<_StatsCategoryBottomSheet> {
+  bool _isFetchingMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final filterNotifier = ref.read(filterProvider.notifier);
+      filterNotifier.initForCategory(widget.category.id);
+
+      final start = DateTime(
+        widget.statsMonth.year,
+        widget.statsMonth.month,
+        1,
+      );
+      final end = DateTime(
+        widget.statsMonth.year,
+        widget.statsMonth.month + 1,
+        0,
+        23,
+        59,
+        59,
+      );
+      filterNotifier.setDateRange(start, end);
+    });
+  }
+
+  String _fastDateFormat(DateTime d) {
+    final day = d.day.toString().padLeft(2, '0');
+    final month = d.month.toString().padLeft(2, '0');
+    final hour = d.hour.toString().padLeft(2, '0');
+    final minute = d.minute.toString().padLeft(2, '0');
+    return '$day.$month.${d.year} $hour:$minute';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+    final filterState = ref.watch(filterProvider);
+    final filteredTxs = filterState.results;
+    final showLoader = filterState.hasMore;
+
+    final allCategories = ref.watch(categoryProvider).allCategoriesList;
+    final categoryMap = {for (var c in allCategories) c.id: c};
+
+    // КЕШУЄМО ЛОКАЛІЗАЦІЮ
+    final trUnknown = 'unknown'.tr();
+    final trOutgoing = 'outgoing_transfer'.tr();
+    final trTopUp = 'top_up'.tr();
+
+    final Map<String, String> currencyCache = {};
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      builder: (_, controller) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colors.cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.textSecondary.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Color(widget.category.bgColor),
+                      child: Icon(
+                        IconData(
+                          widget.category.icon,
+                          fontFamily: 'MaterialIcons',
+                        ),
+                        color: Color(widget.category.iconColor),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.category.name,
+                            style: TextStyle(
+                              color: colors.textMain,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            DateFormatter.formatMonthYear(
+                              widget.statsMonth,
+                              context.locale.languageCode,
+                            ),
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      "${CurrencyFormatter.format(widget.category.amount.abs())} ${widget.baseCurrencySymbol}",
+                      style: TextStyle(
+                        color: widget.showExpenses
+                            ? colors.expense
+                            : colors.income,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Divider(
+                height: 1,
+                color: colors.textSecondary.withValues(alpha: 0.1),
+              ),
+
+              Expanded(
+                child: filterState.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : filteredTxs.isEmpty
+                    ? Center(
+                        child: Text(
+                          'no_data'.tr(),
+                          style: TextStyle(color: colors.textSecondary),
+                        ),
+                      )
+                    : NotificationListener<ScrollNotification>(
+                        onNotification: (ScrollNotification scrollInfo) {
+                          if (scrollInfo.metrics.pixels >=
+                              scrollInfo.metrics.maxScrollExtent - 150) {
+                            if (filterState.hasMore && !_isFetchingMore) {
+                              _isFetchingMore = true;
+                              ref
+                                  .read(filterProvider.notifier)
+                                  .loadNextPage()
+                                  .then((_) {
+                                    if (mounted) _isFetchingMore = false;
+                                  });
+                            }
+                          }
+                          return false;
+                        },
+                        child: ListView.builder(
+                          controller: controller,
+                          physics: const BouncingScrollPhysics(),
+                          cacheExtent: 1000,
+                          itemCount: filteredTxs.length + (showLoader ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            if (index == filteredTxs.length) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 24.0,
+                                ),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: colors.textSecondary.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final tx = filteredTxs[index];
+                            final currencySymbol = currencyCache.putIfAbsent(
+                              tx.currency,
+                              () => AppCurrency.fromCode(tx.currency).symbol,
+                            );
+
+                            final fromCat = categoryMap[tx.fromId];
+                            final toCat = categoryMap[tx.toId];
+
+                            // 👇 ВИПРАВЛЕНО: Використовуємо змінні з кешу
+                            String fromName = fromCat?.name ?? trUnknown;
+                            String toName = toCat?.name ?? trUnknown;
+
+                            String customNote = tx.title.trim();
+
+                            // 👇 ВИПРАВЛЕНО: Використовуємо змінні з кешу
+                            bool isDefaultTitle =
+                                customNote.isEmpty ||
+                                customNote.contains('➡️') ||
+                                customNote == fromName ||
+                                customNote == toName ||
+                                customNote == trOutgoing ||
+                                customNote == trTopUp;
+
+                            if (isDefaultTitle) customNote = '';
+
+                            final iconCat = widget.showExpenses
+                                ? fromCat
+                                : toCat;
+
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 4,
+                              ),
+                              leading: CircleAvatar(
+                                backgroundColor: iconCat != null
+                                    ? Color(iconCat.bgColor)
+                                    : colors.iconBg,
+                                child: Icon(
+                                  iconCat != null
+                                      ? IconData(
+                                          iconCat.icon,
+                                          fontFamily: 'MaterialIcons',
+                                        )
+                                      : Icons.help_outline,
+                                  color: iconCat != null
+                                      ? Color(iconCat.iconColor)
+                                      : colors.textSecondary,
+                                  size: 20,
+                                ),
+                              ),
+                              title: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      fromName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: colors.textMain,
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4.0,
+                                    ),
+                                    child: Icon(
+                                      Icons.arrow_forward,
+                                      size: 14,
+                                      color: colors.textSecondary,
+                                    ),
+                                  ),
+                                  Flexible(
+                                    child: Text(
+                                      toName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: colors.textMain,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 4.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _fastDateFormat(tx.date),
+                                      style: TextStyle(
+                                        color: colors.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    if (customNote.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            Icons.notes,
+                                            size: 14,
+                                            color: colors.textSecondary
+                                                .withValues(alpha: 0.7),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              customNote,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontStyle: FontStyle.italic,
+                                                color: colors.textSecondary,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              trailing: Text(
+                                "${widget.showExpenses ? '-' : '+'}${CurrencyFormatter.format(tx.amount.abs())} $currencySymbol",
+                                style: TextStyle(
+                                  color: widget.showExpenses
+                                      ? colors.expense
+                                      : colors.income,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

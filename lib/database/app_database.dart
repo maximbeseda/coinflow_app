@@ -4,10 +4,8 @@ import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
-// Це потрібно для генерації коду (з'явиться після запуску build_runner)
 part 'app_database.g.dart';
 
-// 1. Оголошуємо наш Enum для категорій (такий самий, як був)
 enum CategoryType { income, account, expense }
 
 // ==========================================
@@ -15,11 +13,11 @@ enum CategoryType { income, account, expense }
 // ==========================================
 
 class Categories extends Table {
-  TextColumn get id => text()(); // Робимо текстовий ID, як було в тебе
+  TextColumn get id => text()();
   IntColumn get type => intEnum<CategoryType>()();
   TextColumn get name => text()();
-  IntColumn get icon => integer()(); // codePoint іконки
-  IntColumn get bgColor => integer()(); // колір у форматі ARGB32
+  IntColumn get icon => integer()();
+  IntColumn get bgColor => integer()();
   IntColumn get iconColor => integer()();
   IntColumn get amount => integer().withDefault(const Constant(0))();
   IntColumn get budget => integer().nullable()();
@@ -35,8 +33,8 @@ class Categories extends Table {
 
 class Transactions extends Table {
   TextColumn get id => text()();
-  TextColumn get fromId => text()(); // Посилання на рахунок/дохід
-  TextColumn get toId => text()(); // Посилання на рахунок/витрату
+  TextColumn get fromId => text()();
+  TextColumn get toId => text()();
   TextColumn get title => text()();
   DateTimeColumn get date => dateTime()();
 
@@ -83,20 +81,20 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 1;
 
-  // 👇 ОНОВЛЕНИЙ МЕТОД: Розширений динамічний пошук (SQL Powers)
-  // 👇 ГІБРИДНИЙ ПІДХІД: SQL виконує тільки жорстку фільтрацію
+  // 👇 ДОДАНО: limit та offset для пагінації
   Future<List<Transaction>> getFilteredTransactions({
     DateTime? startDate,
     DateTime? endDate,
     List<String>? filterCategoryIds,
     String? currency,
+    int? limit,
+    int? offset,
   }) {
     final query = select(transactions);
 
     query.where((t) {
       Expression<bool> predicate = const Constant(true);
 
-      // 1. ФІЛЬТР ЗА ДАТАМИ
       if (startDate != null && endDate != null) {
         final endOfDay = DateTime(
           endDate.year,
@@ -121,14 +119,12 @@ class AppDatabase extends _$AppDatabase {
         predicate = predicate & t.date.isSmallerOrEqualValue(endOfDay);
       }
 
-      // 2. СУВОРИЙ ФІЛЬТР КАТЕГОРІЙ (Для історії конкретної категорії або типу)
       if (filterCategoryIds != null && filterCategoryIds.isNotEmpty) {
         predicate =
             predicate &
             (t.fromId.isIn(filterCategoryIds) | t.toId.isIn(filterCategoryIds));
       }
 
-      // 3. ФІЛЬТР ВАЛЮТИ
       if (currency != null && currency.isNotEmpty) {
         predicate =
             predicate &
@@ -141,6 +137,12 @@ class AppDatabase extends _$AppDatabase {
     query.orderBy([
       (t) => OrderingTerm(expression: t.date, mode: OrderingMode.desc),
     ]);
+
+    // 👇 НОВЕ: Застосовуємо пагінацію на рівні SQL
+    if (limit != null) {
+      query.limit(limit, offset: offset);
+    }
+
     return query.get();
   }
 }
