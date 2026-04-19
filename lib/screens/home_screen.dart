@@ -4,7 +4,6 @@ import 'package:drift/drift.dart' as drift;
 import 'dart:math' as math;
 import 'package:vibration/vibration.dart';
 
-// 👇 1. Перейшли на Riverpod
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
@@ -21,13 +20,10 @@ import '../screens/category_screen.dart';
 import '../widgets/dialogs/due_subscription_dialog.dart';
 import '../utils/currency_formatter.dart';
 import '../theme/app_colors_extension.dart';
-
-// 👇 2. Імпортуємо НАШ ЄДИНИЙ ХАБ
 import '../providers/all_providers.dart';
 
 String formatCurrency(int amount) => CurrencyFormatter.format(amount);
 
-// 👇 3. Замінили StatefulWidget на ConsumerStatefulWidget
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -57,7 +53,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       duration: const Duration(milliseconds: 250),
     );
 
-    // Первинна перевірка підписок (використовуємо read, бо ми не в build)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkDueSubscriptions();
     });
@@ -90,9 +85,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       barrierDismissible: false,
       builder: (context) => DueSubscriptionDialog(subscription: sub),
     ).then((_) {
-      // 👇 ФІКС: Просто скидаємо прапорець.
-      // Більше не викликаємо _checkDueSubscriptions() вручну,
-      // бо це робить ref.listen автоматично і коректно.
       _isShowingDueDialog = false;
     });
   }
@@ -113,21 +105,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             TransactionScreen(source: source, target: target),
+        // 👇 ВИПРАВЛЕНО: Екран фізично виїжджає справа, створюючи просторовий контекст
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(1.0, 0.0);
-          const end = Offset.zero;
-          const curve = Curves.easeOutQuart;
-
-          var tween = Tween(
-            begin: begin,
-            end: end,
-          ).chain(CurveTween(curve: curve));
-
           return SlideTransition(
-            position: animation.drive(tween),
+            position:
+                Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves
+                        .easeOutQuart, // Дуже плавне та природне гальмування
+                  ),
+                ),
             child: child,
           );
         },
+        transitionDuration: const Duration(milliseconds: 350),
       ),
     );
 
@@ -140,7 +135,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       final comment = result['comment'] as String;
 
       if (amount > 0) {
-        // 👇 Використовуємо Notifiers для виклику функцій
         final txNotifier = ref.read(transactionProvider.notifier);
         final catNotifier = ref.read(categoryProvider.notifier);
 
@@ -202,19 +196,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               initialDate: t.date,
               initialNote: initialNote,
             ),
+        // 👇 ВИПРАВЛЕНО: Екран виїжджає справа
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(1.0, 0.0);
-          const end = Offset.zero;
-          const curve = Curves.easeOutQuart;
-          var tween = Tween(
-            begin: begin,
-            end: end,
-          ).chain(CurveTween(curve: curve));
           return SlideTransition(
-            position: animation.drive(tween),
+            position:
+                Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutQuart,
+                  ),
+                ),
             child: child,
           );
         },
+        transitionDuration: const Duration(milliseconds: 350),
       ),
     );
 
@@ -243,19 +241,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             CategoryScreen(category: c, type: type),
+        // 👇 ВИПРАВЛЕНО: Екран категорій виїжджає знизу (як модальне вікно)
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(0.0, 1.0);
-          const end = Offset.zero;
-          const curve = Curves.easeOutQuart;
-          var tween = Tween(
-            begin: begin,
-            end: end,
-          ).chain(CurveTween(curve: curve));
           return SlideTransition(
-            position: animation.drive(tween),
+            position:
+                Tween<Offset>(
+                  begin: const Offset(0.0, 1.0),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutQuart,
+                  ),
+                ),
             child: child,
           );
         },
+        transitionDuration: const Duration(milliseconds: 350),
       ),
     );
 
@@ -319,24 +321,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // 👇 4. Магія Riverpod: Миттєво слухаємо зміни у підписках і викликаємо діалог!
     ref.listen(subscriptionProvider, (prev, next) {
       if (next.dueSubscriptions.isNotEmpty && !_isShowingDueDialog) {
         _showDueSubscriptionDialog(next.dueSubscriptions.first);
       }
     });
 
-    // 👇 Читаємо всі стани одним рядком без Consumer-матрьошок!
     final catState = ref.watch(categoryProvider);
     final txState = ref.watch(transactionProvider);
-    ref.watch(settingsProvider); // Просто слідкуємо за оновленнями налаштувань
+    ref.watch(settingsProvider);
 
-    // Щоб екран оновлювався, коли міняється статистика (графіки/рахунки)
     ref.watch(statsProvider);
     final statsNotifier = ref.read(statsProvider.notifier);
     final settingsNotifier = ref.read(settingsProvider.notifier);
 
-    // Якщо дані ще вантажаться
     if (catState.isLoading || txState.isLoading) {
       return Scaffold(
         backgroundColor: colors.bgGradientStart,
@@ -344,7 +342,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
     }
 
-    // Рахуємо дані для шапки
     final monthTotals = statsNotifier.calculateTotalsForMonth(
       txState.selectedMonth,
     );
@@ -359,7 +356,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               sum + settingsNotifier.convertToBase(item.amount, item.currency),
         );
 
-    // Рахуємо дані для секцій (доходи)
     final incomeMap = statsNotifier.calculateCategoryTotalsForMonth(
       txState.selectedMonth,
       false,
@@ -369,7 +365,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         .map((c) => c.copyWith(amount: incomeMap[c.id] ?? 0))
         .toList();
 
-    // Рахуємо дані для секцій (витрати)
     final expenseMap = statsNotifier.calculateCategoryTotalsForMonth(
       txState.selectedMonth,
       true,
@@ -679,7 +674,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     Widget dragFeedback = Material(
       color: Colors.transparent,
-      child: CoinWidget(category: c, isFeedback: true),
+      child: CoinWidget(category: c, isFeedback: true, enableHero: false),
     );
 
     Widget buildInteractiveInnerCoin(
@@ -790,7 +785,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
       Widget dragFeedbackReorder = Material(
         color: Colors.transparent,
-        child: CoinWidget(category: c),
+        child: CoinWidget(category: c, enableHero: false),
       );
 
       if (isEditMode) {

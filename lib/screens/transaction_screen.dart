@@ -556,31 +556,53 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     final Color iconColor = Color(cat.iconColor);
     final IconData iconData = IconData(cat.icon, fontFamily: 'MaterialIcons');
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      decoration: BoxDecoration(
-        color: catColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(iconData, color: iconColor, size: 14),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              cat.name,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style: TextStyle(
-                color: iconColor,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+    // 👇 ДОДАНО: Обгортаємо в Hero, щоб вона ловила іконку з HomeScreen
+    return Hero(
+      tag: 'category_coin_${cat.id}',
+      flightShuttleBuilder:
+          (
+            flightContext,
+            animation,
+            flightDirection,
+            fromHeroContext,
+            toHeroContext,
+          ) {
+            // Простий шатл, щоб уникнути помилок Overflow під час розширення віджета
+            return DefaultTextStyle(
+              style: DefaultTextStyle.of(toHeroContext).style,
+              child: toHeroContext.widget,
+            );
+          },
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          // Прибрали width: double.infinity (бо він конфліктує з Hero), але
+          // зовнішній Expanded все одно розтягне його ідеально!
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          decoration: BoxDecoration(
+            color: catColor,
+            borderRadius: BorderRadius.circular(16),
           ),
-        ],
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(iconData, color: iconColor, size: 14),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  cat.name,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: iconColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

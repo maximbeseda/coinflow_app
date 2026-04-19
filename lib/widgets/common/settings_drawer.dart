@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-import '../../screens/stats_screen.dart';
+import '../../screens/stats/stats_screen.dart';
 import '../../screens/subscriptions_screen.dart';
 import '../../services/backup_service.dart';
 import '../../screens/profile_screen.dart';

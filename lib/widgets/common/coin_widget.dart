@@ -4,10 +4,11 @@ import '../../database/app_database.dart';
 import '../../models/app_currency.dart';
 import '../../theme/app_colors_extension.dart';
 
-class CoinWidget extends StatelessWidget {
+class CoinWidget extends StatefulWidget {
   final Category category;
   final bool isFeedback;
   final bool isHovered;
+  final bool enableHero;
   final Widget Function(Widget normalCoin, Widget placeholderCoin)? coinWrapper;
 
   const CoinWidget({
@@ -15,34 +16,47 @@ class CoinWidget extends StatelessWidget {
     required this.category,
     this.isFeedback = false,
     this.isHovered = false,
+    this.enableHero = true,
     this.coinWrapper,
   });
+
+  @override
+  State<CoinWidget> createState() => _CoinWidgetState();
+}
+
+class _CoinWidgetState extends State<CoinWidget> {
+  bool _isPressed = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // 👇 КОНВЕРТАЦІЯ ТИПІВ DRIFT (int) НА ОБ'ЄКТИ FLUTTER
-    final Color catBgColor = Color(category.bgColor);
-    final Color catIconColor = Color(category.iconColor);
+    final Color catBgColor = Color(widget.category.bgColor);
+    final Color catIconColor = Color(widget.category.iconColor);
     final IconData catIconData = IconData(
-      category.icon,
+      widget.category.icon,
       fontFamily: 'MaterialIcons',
     );
 
-    String displayAmount = CurrencyFormatter.format(category.amount);
-    String currencySymbol = AppCurrency.fromCode(category.currency).symbol;
+    String displayAmount = CurrencyFormatter.format(widget.category.amount);
+    String currencySymbol = AppCurrency.fromCode(
+      widget.category.currency,
+    ).symbol;
 
-    bool isIncome = category.type == CategoryType.income;
-    bool isExpense = category.type == CategoryType.expense;
+    bool isIncome = widget.category.type == CategoryType.income;
+    bool isExpense = widget.category.type == CategoryType.expense;
 
     double progress = 0.0;
     Color ringColor = Colors.blueAccent;
-    bool hasBudget = category.budget != null && category.budget! > 0;
+    bool hasBudget =
+        widget.category.budget != null && widget.category.budget! > 0;
 
     if (hasBudget) {
-      double amountAbs = category.amount.abs().toDouble();
-      progress = (amountAbs / category.budget!.toDouble()).clamp(0.0, 1.0);
+      double amountAbs = widget.category.amount.abs().toDouble();
+      progress = (amountAbs / widget.category.budget!.toDouble()).clamp(
+        0.0,
+        1.0,
+      );
 
       if (isIncome) {
         ringColor = progress >= 1.0 ? colors.income : Colors.blueAccent;
@@ -52,9 +66,9 @@ class CoinWidget extends StatelessWidget {
         int currentDay = now.day;
 
         double expectedPace =
-            (category.budget!.toDouble() / daysInMonth) * currentDay;
+            (widget.category.budget!.toDouble() / daysInMonth) * currentDay;
 
-        if (amountAbs >= category.budget!.toDouble()) {
+        if (amountAbs >= widget.category.budget!.toDouble()) {
           ringColor = colors.expense;
         } else if (amountAbs > expectedPace) {
           ringColor = Colors.orange;
@@ -66,11 +80,11 @@ class CoinWidget extends StatelessWidget {
 
     Color shadowColor = colors.textMain.withValues(alpha: 0.1);
 
-    Widget basicCoin = Container(
+    Widget innerCoin = Container(
       width: 55,
       height: 55,
       decoration: BoxDecoration(
-        color: catBgColor, // ЗМІНЕНО: використовуємо Color
+        color: catBgColor,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
@@ -84,19 +98,15 @@ class CoinWidget extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Icon(
-            catIconData,
-            color: catIconColor,
-            size: 24,
-          ), // ЗМІНЕНО: IconData та Color
+          Icon(catIconData, color: catIconColor, size: 24),
           if (hasBudget)
             Positioned(
               bottom: 6,
               child: Text(
-                CurrencyFormatter.formatBudget(category.budget!),
+                CurrencyFormatter.formatBudget(widget.category.budget!),
                 style: TextStyle(
                   fontSize: 8,
-                  color: catIconColor.withValues(alpha: 0.7), // ТЕПЕР ПРАЦЮЄ
+                  color: catIconColor.withValues(alpha: 0.7),
                 ),
               ),
             ),
@@ -104,23 +114,43 @@ class CoinWidget extends StatelessWidget {
       ),
     );
 
+    Widget basicCoin = widget.enableHero
+        ? Hero(
+            tag: 'category_coin_${widget.category.id}',
+            flightShuttleBuilder:
+                (
+                  flightContext,
+                  animation,
+                  flightDirection,
+                  fromHeroContext,
+                  toHeroContext,
+                ) {
+                  return Material(
+                    type: MaterialType.transparency,
+                    child: toHeroContext.widget,
+                  );
+                },
+            child: Material(type: MaterialType.transparency, child: innerCoin),
+          )
+        : innerCoin;
+
     Widget placeholderCoin = Container(
       width: 55,
       height: 55,
       decoration: BoxDecoration(color: colors.iconBg, shape: BoxShape.circle),
       child: Icon(
-        catIconData, // ЗМІНЕНО: IconData
+        catIconData,
         color: colors.textSecondary.withValues(alpha: 0.3),
         size: 24,
       ),
     );
 
-    if (isFeedback) {
+    if (widget.isFeedback) {
       return basicCoin;
     }
 
-    Widget interactiveCoin = coinWrapper != null
-        ? coinWrapper!(basicCoin, placeholderCoin)
+    Widget interactiveCoin = widget.coinWrapper != null
+        ? widget.coinWrapper!(basicCoin, placeholderCoin)
         : basicCoin;
 
     Widget coinWithBudget = SizedBox(
@@ -145,11 +175,23 @@ class CoinWidget extends StatelessWidget {
       ),
     );
 
-    Widget scaledCoin = AnimatedScale(
-      scale: isHovered ? 1.15 : 1.0,
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOutBack,
-      child: coinWithBudget,
+    // 👇 ВИПРАВЛЕНО: Додано перевірку if (mounted)
+    Widget scaledCoin = Listener(
+      onPointerDown: (_) {
+        if (mounted) setState(() => _isPressed = true);
+      },
+      onPointerUp: (_) {
+        if (mounted) setState(() => _isPressed = false);
+      },
+      onPointerCancel: (_) {
+        if (mounted) setState(() => _isPressed = false);
+      },
+      child: AnimatedScale(
+        scale: _isPressed ? 0.9 : (widget.isHovered ? 1.15 : 1.0),
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutBack,
+        child: coinWithBudget,
+      ),
     );
 
     return Column(
@@ -159,7 +201,7 @@ class CoinWidget extends StatelessWidget {
           width: 70,
           height: 14,
           child: Text(
-            category.name,
+            widget.category.name,
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
