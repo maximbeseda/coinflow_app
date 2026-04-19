@@ -104,6 +104,7 @@
   "no_transactions_yet": "Noch keine Transaktionen",
   "outgoing_transfer": "Ausgehende Überweisung",
   "top_up": "Aufladung",
+  "base_currency_label": "Basis",
 
   "edit_transaction": "Transaktion bearbeiten",
   "enter_amount": "Betrag eingeben",

@@ -105,7 +105,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             TransactionScreen(source: source, target: target),
-        // 👇 ВИПРАВЛЕНО: Екран фізично виїжджає справа, створюючи просторовий контекст
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position:
@@ -115,8 +114,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ).animate(
                   CurvedAnimation(
                     parent: animation,
-                    curve: Curves
-                        .easeOutQuart, // Дуже плавне та природне гальмування
+                    curve: Curves.easeOutQuart,
                   ),
                 ),
             child: child,
@@ -136,11 +134,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
       if (amount > 0) {
         final txNotifier = ref.read(transactionProvider.notifier);
-        final catNotifier = ref.read(categoryProvider.notifier);
+
+        final settingsNotifier = ref.read(settingsProvider.notifier);
+        final settingsState = ref.read(settingsProvider);
 
         String txTitle = comment.trim().isNotEmpty
             ? comment.trim()
             : '${'transfer'.tr()} ${source.name} ➡️ ${target.name}';
+
+        int baseAmt = settingsNotifier.convertToBase(amount, source.currency);
 
         final newTx = Transaction(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -154,12 +156,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           targetCurrency: source.currency != target.currency
               ? target.currency
               : null,
-          baseAmount: 0,
-          baseCurrency: '',
+          baseAmount: baseAmt, 
+          baseCurrency: settingsState.baseCurrency, 
         );
-
-        catNotifier.updateCategoryAmount(source.id, -amount);
-        catNotifier.updateCategoryAmount(target.id, targetAmount ?? amount);
 
         txNotifier.addTransactionDirectly(newTx);
       }
@@ -195,8 +194,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               initialTargetAmount: t.targetAmount,
               initialDate: t.date,
               initialNote: initialNote,
+              initialSourceCurrency: t.currency,
+              initialTargetCurrency: t.targetCurrency ?? t.currency,
             ),
-        // 👇 ВИПРАВЛЕНО: Екран виїжджає справа
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position:
@@ -241,7 +241,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             CategoryScreen(category: c, type: type),
-        // 👇 ВИПРАВЛЕНО: Екран категорій виїжджає знизу (як модальне вікно)
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position:
@@ -329,7 +328,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     final catState = ref.watch(categoryProvider);
     final txState = ref.watch(transactionProvider);
-    ref.watch(settingsProvider);
+    
+    // 👇 ДОДАНО: зберігаємо settingsState для перевірки базової валюти
+    final settingsState = ref.watch(settingsProvider);
 
     ref.watch(statsProvider);
     final statsNotifier = ref.read(statsProvider.notifier);
@@ -342,6 +343,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
     }
 
+    // Підсумки у шапці (ЗАВЖДИ В БАЗОВІЙ ВАЛЮТІ ДОДАТКУ)
     final monthTotals = statsNotifier.calculateTotalsForMonth(
       txState.selectedMonth,
     );
@@ -356,23 +358,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               sum + settingsNotifier.convertToBase(item.amount, item.currency),
         );
 
-    final incomeMap = statsNotifier.calculateCategoryTotalsForMonth(
-      txState.selectedMonth,
-      false,
-      inBaseCurrency: false,
+    // 👇 ІДЕАЛЬНА ЛОГІКА ДИНАМІЧНИХ КАТЕГОРІЙ (ВИПРАВЛЕННЯ 2)
+    final baseIncomeMap = statsNotifier.calculateCategoryTotalsForMonth(
+      txState.selectedMonth, false, inBaseCurrency: true, 
     );
-    final displayIncomes = catState.incomes
-        .map((c) => c.copyWith(amount: incomeMap[c.id] ?? 0))
-        .toList();
+    final rawIncomeMap = statsNotifier.calculateCategoryTotalsForMonth(
+      txState.selectedMonth, false, inBaseCurrency: false, 
+    );
 
-    final expenseMap = statsNotifier.calculateCategoryTotalsForMonth(
-      txState.selectedMonth,
-      true,
-      inBaseCurrency: false,
+    final displayIncomes = catState.incomes.map((c) {
+      bool isBase = c.currency == settingsState.baseCurrency;
+      // Якщо категорія базова - беремо конвертовану суму (UAH -> PLN)
+      // Якщо кастомна (USD) - беремо сиру суму (залишається USD)
+      return c.copyWith(amount: isBase ? (baseIncomeMap[c.id] ?? 0) : (rawIncomeMap[c.id] ?? 0));
+    }).toList();
+
+    final baseExpenseMap = statsNotifier.calculateCategoryTotalsForMonth(
+      txState.selectedMonth, true, inBaseCurrency: true,
     );
-    final displayExpenses = catState.expenses
-        .map((c) => c.copyWith(amount: expenseMap[c.id] ?? 0))
-        .toList();
+    final rawExpenseMap = statsNotifier.calculateCategoryTotalsForMonth(
+      txState.selectedMonth, true, inBaseCurrency: false,
+    );
+
+    final displayExpenses = catState.expenses.map((c) {
+      bool isBase = c.currency == settingsState.baseCurrency;
+      return c.copyWith(amount: isBase ? (baseExpenseMap[c.id] ?? 0) : (rawExpenseMap[c.id] ?? 0));
+    }).toList();
 
     return Scaffold(
       key: _scaffoldKey,
@@ -461,17 +472,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   },
                 ),
 
-                // СЕКЦІЯ: ДОХОДИ
+                // СЕКЦІЯ: ДОХОДИ (Динамічні суми)
                 _buildSection(displayIncomes, CategoryType.income),
 
-                // СЕКЦІЯ: РАХУНКИ
+                // СЕКЦІЯ: РАХУНКИ (Статичні баланси)
                 _buildSection(
                   catState.accounts,
                   CategoryType.account,
                   isTarget: true,
                 ),
 
-                // СЕКЦІЯ: ВИТРАТИ
+                // СЕКЦІЯ: ВИТРАТИ (Динамічні суми)
                 Expanded(
                   child: _buildSection(
                     displayExpenses,

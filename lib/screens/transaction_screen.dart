@@ -2,12 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-// 👇 1. Замінили provider на flutter_riverpod
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// 👇 2. Підключаємо наш хаб провайдерів
 import '../providers/all_providers.dart';
-
 import '../database/app_database.dart';
 import '../models/app_currency.dart';
 import '../theme/app_colors_extension.dart';
@@ -16,7 +13,6 @@ import '../utils/calculator_helper.dart';
 import '../widgets/common/date_strip_selector.dart';
 import '../widgets/dialogs/premium_date_picker.dart';
 
-// 👇 3. Змінили StatefulWidget на ConsumerStatefulWidget
 class TransactionScreen extends ConsumerStatefulWidget {
   final Category source;
   final Category target;
@@ -26,6 +22,10 @@ class TransactionScreen extends ConsumerStatefulWidget {
   final DateTime? initialDate;
   final String? initialNote;
 
+  // 👇 ДОДАНО: Валюти оригінальної транзакції (щоб історія не ламалася при редагуванні)
+  final String? initialSourceCurrency;
+  final String? initialTargetCurrency;
+
   const TransactionScreen({
     super.key,
     required this.source,
@@ -34,13 +34,14 @@ class TransactionScreen extends ConsumerStatefulWidget {
     this.initialTargetAmount,
     this.initialDate,
     this.initialNote,
+    this.initialSourceCurrency,
+    this.initialTargetCurrency,
   });
 
   @override
   ConsumerState<TransactionScreen> createState() => _TransactionScreenState();
 }
 
-// 👇 4. Змінили State на ConsumerState
 class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   String _sourceExpression = "";
   String _sourceAmount = "0";
@@ -68,11 +69,19 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
 
   Timer? _rateDebounceTimer;
 
+  // 👇 ДОДАНО: Локальні змінні для валют
+  late String _sourceCurrency;
+  late String _targetCurrency;
+
   @override
   void initState() {
     super.initState();
 
     _selectedDate = widget.initialDate ?? DateTime.now();
+
+    // 👇 Беремо оригінальну валюту (якщо є) або поточну валюту категорії
+    _sourceCurrency = widget.initialSourceCurrency ?? widget.source.currency;
+    _targetCurrency = widget.initialTargetCurrency ?? widget.target.currency;
 
     if (widget.initialAmount != null && widget.initialAmount! > 0) {
       _sourceAmount = _formatAmount(widget.initialAmount!);
@@ -100,7 +109,8 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   }
 
   Future<void> _fetchRateForDate(DateTime date) async {
-    if (widget.source.currency == widget.target.currency) return;
+    // 👇 Використовуємо локальні валюти замість widget.source.currency
+    if (_sourceCurrency == _targetCurrency) return;
 
     if (mounted) {
       setState(() {
@@ -108,18 +118,17 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       });
     }
 
-    // 👇 5. Використовуємо ref.read для отримання стану та Notifier
     final settingsState = ref.read(settingsProvider);
     final settingsNotifier = ref.read(settingsProvider.notifier);
 
     final baseCurrency = settingsState.baseCurrency;
 
     double? sourceRate = await settingsNotifier.getRateForDate(
-      widget.source.currency,
+      _sourceCurrency,
       date,
     );
     double? targetRate = await settingsNotifier.getRateForDate(
-      widget.target.currency,
+      _targetCurrency,
       date,
     );
 
@@ -127,8 +136,8 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     if (date.year == now.year &&
         date.month == now.month &&
         date.day == now.day) {
-      sourceRate ??= settingsState.exchangeRates[widget.source.currency];
-      targetRate ??= settingsState.exchangeRates[widget.target.currency];
+      sourceRate ??= settingsState.exchangeRates[_sourceCurrency];
+      targetRate ??= settingsState.exchangeRates[_targetCurrency];
     }
 
     if (sourceRate == null ||
@@ -434,11 +443,15 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
 
     Navigator.pop(context, {
       'amount': finalSourceAmount,
-      'targetAmount': widget.source.currency != widget.target.currency
+      // 👇 Використовуємо локальні валюти для перевірки
+      'targetAmount': _sourceCurrency != _targetCurrency
           ? finalTargetAmount
           : null,
       'date': _selectedDate,
       'comment': _commentCtrl.text.trim(),
+      // 👇 Передаємо назад фінальні валюти
+      'currency': _sourceCurrency,
+      'targetCurrency': _targetCurrency,
     });
   }
 
@@ -556,7 +569,6 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     final Color iconColor = Color(cat.iconColor);
     final IconData iconData = IconData(cat.icon, fontFamily: 'MaterialIcons');
 
-    // 👇 ДОДАНО: Обгортаємо в Hero, щоб вона ловила іконку з HomeScreen
     return Hero(
       tag: 'category_coin_${cat.id}',
       flightShuttleBuilder:
@@ -567,7 +579,6 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
             fromHeroContext,
             toHeroContext,
           ) {
-            // Простий шатл, щоб уникнути помилок Overflow під час розширення віджета
             return DefaultTextStyle(
               style: DefaultTextStyle.of(toHeroContext).style,
               child: toHeroContext.widget,
@@ -576,8 +587,6 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       child: Material(
         color: Colors.transparent,
         child: Container(
-          // Прибрали width: double.infinity (бо він конфліктує з Hero), але
-          // зовнішній Expanded все одно розтягне його ідеально!
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           decoration: BoxDecoration(
             color: catColor,
@@ -707,7 +716,6 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     String sourceSymbol,
     String targetSymbol,
   ) {
-    // 👇 6. Використовуємо ref.read для отримання стану в build
     final settingsState = ref.read(settingsProvider);
     String rateText = "";
 
@@ -715,8 +723,8 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       rateText = "updating_rates".tr();
     } else if (_isUsingFallbackRate) {
       rateText = "${"rate_unavailable".tr()}\n${"enter_manually".tr()}";
-    } else if (widget.source.currency == settingsState.baseCurrency &&
-        widget.target.currency != settingsState.baseCurrency) {
+    } else if (_sourceCurrency == settingsState.baseCurrency &&
+        _targetCurrency != settingsState.baseCurrency) {
       double invertedRate = _currentExchangeRate > 0
           ? (1.0 / _currentExchangeRate)
           : 1.0;
@@ -796,9 +804,10 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   }
 
   Widget _buildAmountArea(AppColorsExtension colors) {
-    bool isMultiCurrency = widget.source.currency != widget.target.currency;
-    String sourceSymbol = AppCurrency.fromCode(widget.source.currency).symbol;
-    String targetSymbol = AppCurrency.fromCode(widget.target.currency).symbol;
+    // 👇 Використовуємо локальні валюти для відображення
+    bool isMultiCurrency = _sourceCurrency != _targetCurrency;
+    String sourceSymbol = AppCurrency.fromCode(_sourceCurrency).symbol;
+    String targetSymbol = AppCurrency.fromCode(_targetCurrency).symbol;
 
     if (!isMultiCurrency) {
       return Center(

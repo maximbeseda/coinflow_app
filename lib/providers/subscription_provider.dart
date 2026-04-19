@@ -133,7 +133,6 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
   ) async {
     final db = ref.read(databaseProvider);
     final catState = ref.read(categoryProvider);
-    final catNotifier = ref.read(categoryProvider.notifier);
     final txNotifier = ref.read(transactionProvider.notifier);
     final settingsState = ref.read(settingsProvider);
 
@@ -177,9 +176,6 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
       _checkDueSubscriptions();
       return (false, 'not_enough_funds'.tr(args: [sourceAccount.name]));
     }
-
-    catNotifier.updateCategoryAmount(sourceAccount.id, -accountDeduction);
-    catNotifier.updateCategoryAmount(targetExpense.id, expenseAddition);
 
     bool isMultiCurrency = sourceAccount.currency != targetExpense.currency;
 
@@ -225,7 +221,6 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
   Future<void> processAutoPayments() async {
     final db = ref.read(databaseProvider);
     final catState = ref.read(categoryProvider);
-    final catNotifier = ref.read(categoryProvider.notifier);
     final txNotifier = ref.read(transactionProvider.notifier);
     final settingsState = ref.read(settingsProvider);
 
@@ -298,9 +293,6 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
 
           pendingTransactions.add(newTx);
           currentBalance -= accountDeduction;
-
-          catNotifier.updateCategoryAmount(account.id, -accountDeduction);
-          catNotifier.updateCategoryAmount(expense.id, expenseAddition);
 
           if (currentSub.periodicity == 'monthly') {
             int nextMonth = pDate.month == 12 ? 1 : pDate.month + 1;

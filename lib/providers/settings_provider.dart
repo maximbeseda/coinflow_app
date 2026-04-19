@@ -3,6 +3,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../services/storage_service.dart';
 import '../services/currency_repository.dart';
 
+// 👇 ДОДАНО: Імпорт провайдера категорій, щоб мати змогу їх оновити
+import 'category_provider.dart';
+
 part 'settings_provider.g.dart';
 
 @Riverpod(keepAlive: true)
@@ -129,7 +132,9 @@ class SettingsNotifier extends _$SettingsNotifier {
   Future<void> setBaseCurrency(String code) async {
     if (state.baseCurrency == code) return;
 
-    // 👇 1. Спочатку завантажуємо нові курси для нової валюти
+    // 👇 1. Фіксуємо СТАРУ базову валюту перед зміною
+    final oldBaseCurrency = state.baseCurrency;
+
     final newRates = await _api.fetchLatestRates(code);
 
     if (newRates == null) {
@@ -141,7 +146,6 @@ class SettingsNotifier extends _$SettingsNotifier {
 
     final now = DateTime.now();
 
-    // 👇 2. Зберігаємо все в локальне сховище
     await StorageService.saveBaseCurrency(code);
     await StorageService.saveExchangeRates(newRates);
     await StorageService.setLastRatesUpdateTime(now);
@@ -152,8 +156,13 @@ class SettingsNotifier extends _$SettingsNotifier {
     await StorageService.setSelectedCurrencies(newSelected);
     await StorageService.saveHistoricalRatesCache({});
 
-    // 👇 3. Оновлюємо стан ОДНИМ МАХОМ
-    // Це важливо: TransactionNotifier побачить зміну валюти ТІЛЬКИ разом з новими курсами
+    // 👇 2. ВИКЛИКАЄМО РОЗУМНЕ ОНОВЛЕННЯ КАТЕГОРІЙ
+    // Провайдер категорій знайде всі "старі" базові категорії і замінить їм валюту на нову
+    ref
+        .read(categoryProvider.notifier)
+        .updateBaseCurrencyForCategories(oldBaseCurrency, code);
+
+    // 3. Оновлюємо власний стан
     state = state.copyWith(
       baseCurrency: code,
       selectedCurrencies: newSelected,
@@ -194,7 +203,6 @@ class SettingsNotifier extends _$SettingsNotifier {
   }
 
   int convertToBase(int amount, String fromCurrency) {
-    // 👇 Принцип ідентичності: якщо валюти однакові, повертаємо оригінал без розрахунків
     if (fromCurrency == state.baseCurrency) return amount;
 
     final rate = state.exchangeRates[fromCurrency];

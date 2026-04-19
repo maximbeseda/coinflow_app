@@ -217,10 +217,6 @@ class _StatsCategoryBottomSheetState
                             }
 
                             final tx = filteredTxs[index];
-                            final currencySymbol = currencyCache.putIfAbsent(
-                              tx.currency,
-                              () => AppCurrency.fromCode(tx.currency).symbol,
-                            );
 
                             final fromCat = categoryMap[tx.fromId];
                             final toCat = categoryMap[tx.toId];
@@ -243,6 +239,43 @@ class _StatsCategoryBottomSheetState
                             final iconCat = widget.showExpenses
                                 ? fromCat
                                 : toCat;
+
+                            // 👇 ЛОГІКА ПЕРСПЕКТИВИ ДЛЯ МУЛЬТИВАЛЮТНОСТІ
+                            bool isOut = tx.fromId == widget.category.id;
+
+                            int mainAmount = isOut
+                                ? tx.amount
+                                : (tx.targetAmount ?? tx.amount);
+                            String mainCurrency = isOut
+                                ? tx.currency
+                                : (tx.targetCurrency ?? tx.currency);
+
+                            int secondaryAmount = isOut
+                                ? (tx.targetAmount ?? tx.amount)
+                                : tx.amount;
+                            String secondaryCurrency = isOut
+                                ? (tx.targetCurrency ?? tx.currency)
+                                : tx.currency;
+
+                            bool isMultiCurrency =
+                                mainCurrency != secondaryCurrency &&
+                                tx.targetCurrency != null;
+
+                            String mainSymbol = currencyCache.putIfAbsent(
+                              mainCurrency,
+                              () => AppCurrency.fromCode(mainCurrency).symbol,
+                            );
+                            String secondarySymbol = currencyCache.putIfAbsent(
+                              secondaryCurrency,
+                              () => AppCurrency.fromCode(
+                                secondaryCurrency,
+                              ).symbol,
+                            );
+
+                            String prefix = widget.showExpenses ? "-" : "+";
+                            Color amountColor = widget.showExpenses
+                                ? colors.expense
+                                : colors.income;
 
                             return ListTile(
                               contentPadding: const EdgeInsets.symmetric(
@@ -347,15 +380,32 @@ class _StatsCategoryBottomSheetState
                                   ],
                                 ),
                               ),
-                              trailing: Text(
-                                "${widget.showExpenses ? '-' : '+'}${CurrencyFormatter.format(tx.amount.abs())} $currencySymbol",
-                                style: TextStyle(
-                                  color: widget.showExpenses
-                                      ? colors.expense
-                                      : colors.income,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
+                              trailing: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "$prefix${CurrencyFormatter.format(mainAmount.abs())} $mainSymbol",
+                                    style: TextStyle(
+                                      color: amountColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  if (isMultiCurrency)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2.0),
+                                      child: Text(
+                                        "~ ${CurrencyFormatter.format(secondaryAmount.abs())} $secondarySymbol",
+                                        style: TextStyle(
+                                          color: colors.textSecondary,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             );
                           },

@@ -34,7 +34,7 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
   void initState() {
     super.initState();
     _showExpenses = widget.showExpenses;
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchData();
     });
@@ -42,17 +42,13 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
 
   void _fetchData() {
     final filterNotifier = ref.read(filterProvider.notifier);
-    filterNotifier.initGeneral(); 
+    filterNotifier.initGeneral();
 
     filterNotifier.setCategoryType(
       _showExpenses ? CategoryType.expense : CategoryType.income,
     );
 
-    final start = DateTime(
-      widget.statsMonth.year,
-      widget.statsMonth.month,
-      1,
-    );
+    final start = DateTime(widget.statsMonth.year, widget.statsMonth.month, 1);
     final end = DateTime(
       widget.statsMonth.year,
       widget.statsMonth.month + 1,
@@ -162,7 +158,7 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // ПЕРЕМИКАЧ (Доходи зліва, Витрати справа)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -309,10 +305,6 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
                             }
 
                             final tx = filteredTxs[index];
-                            final currencySymbol = currencyCache.putIfAbsent(
-                              tx.currency,
-                              () => AppCurrency.fromCode(tx.currency).symbol,
-                            );
 
                             final fromCat = categoryMap[tx.fromId];
                             final toCat = categoryMap[tx.toId];
@@ -321,7 +313,7 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
                             String toName = toCat?.name ?? trUnknown;
 
                             String customNote = tx.title.trim();
-                            
+
                             bool isDefaultTitle =
                                 customNote.isEmpty ||
                                 customNote.contains('➡️') ||
@@ -332,13 +324,45 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
 
                             if (isDefaultTitle) customNote = '';
 
-                            bool isIncome = fromCat?.type == CategoryType.income;
-                            bool isTransfer = fromCat?.type == CategoryType.account && toCat?.type == CategoryType.account;
-                            
+                            bool isIncome =
+                                fromCat?.type == CategoryType.income;
+                            bool isTransfer =
+                                fromCat?.type == CategoryType.account &&
+                                toCat?.type == CategoryType.account;
+
                             final iconCat = isIncome ? toCat : fromCat;
-                            
-                            String prefix = isIncome ? "+" : (isTransfer ? "" : "-");
-                            Color amountColor = isIncome ? colors.income : (isTransfer ? colors.textSecondary : colors.expense);
+
+                            // 👇 ЛОГІКА ПЕРСПЕКТИВИ ДЛЯ МУЛЬТИВАЛЮТНОСТІ
+                            int mainAmount = tx.amount;
+                            String mainCurrency = tx.currency;
+
+                            int secondaryAmount = tx.targetAmount ?? tx.amount;
+                            String secondaryCurrency =
+                                tx.targetCurrency ?? tx.currency;
+
+                            bool isMultiCurrency =
+                                mainCurrency != secondaryCurrency &&
+                                tx.targetCurrency != null;
+
+                            String mainSymbol = currencyCache.putIfAbsent(
+                              mainCurrency,
+                              () => AppCurrency.fromCode(mainCurrency).symbol,
+                            );
+                            String secondarySymbol = currencyCache.putIfAbsent(
+                              secondaryCurrency,
+                              () => AppCurrency.fromCode(
+                                secondaryCurrency,
+                              ).symbol,
+                            );
+
+                            String prefix = isIncome
+                                ? "+"
+                                : (isTransfer ? "" : "-");
+                            Color amountColor = isIncome
+                                ? colors.income
+                                : (isTransfer
+                                      ? colors.textSecondary
+                                      : colors.expense);
 
                             return ListTile(
                               contentPadding: const EdgeInsets.symmetric(
@@ -421,9 +445,8 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
                                           Icon(
                                             Icons.notes,
                                             size: 14,
-                                            color: colors.textSecondary.withValues(
-                                              alpha: 0.7,
-                                            ),
+                                            color: colors.textSecondary
+                                                .withValues(alpha: 0.7),
                                           ),
                                           const SizedBox(width: 4),
                                           Expanded(
@@ -444,13 +467,32 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
                                   ],
                                 ),
                               ),
-                              trailing: Text(
-                                "$prefix${CurrencyFormatter.format(tx.amount.abs())} $currencySymbol",
-                                style: TextStyle(
-                                  color: amountColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
+                              trailing: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "$prefix${CurrencyFormatter.format(mainAmount.abs())} $mainSymbol",
+                                    style: TextStyle(
+                                      color: amountColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  if (isMultiCurrency)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2.0),
+                                      child: Text(
+                                        "~ ${CurrencyFormatter.format(secondaryAmount.abs())} $secondarySymbol",
+                                        style: TextStyle(
+                                          color: colors.textSecondary,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             );
                           },

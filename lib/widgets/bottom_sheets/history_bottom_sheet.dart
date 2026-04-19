@@ -33,6 +33,9 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
   final ScrollController _scrollController = ScrollController();
   bool _isFetchingMore = false;
 
+  // 👇 ДОДАНО: Локальний кеш видалених транзакцій для миттєвого приховування
+  final Set<String> _localDeletedIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -86,11 +89,8 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
 
     final categoryMap = {for (var c in allCategories) c.id: c};
 
-    // 👇 ВИПРАВЛЕНО: Прибрали trUnknown, залишили тільки те, що дійсно використовується
     final trOutgoing = 'outgoing_transfer'.tr();
     final trTopUp = 'top_up'.tr();
-
-    final Map<String, String> currencyCache = {};
 
     return Container(
       padding: const EdgeInsets.only(top: 20, left: 16, right: 16),
@@ -172,6 +172,13 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
                       }
 
                       final t = categoryHistory[index];
+
+                      // 👇 ДОДАНО: Перевірка на локально видалену транзакцію
+                      if (_localDeletedIds.contains(t.id)) {
+                        return const SizedBox.shrink();
+                      }
+
+                      // isOut = true, якщо гроші ПІШЛИ з поточної категорії (напр. витрата з рахунку)
                       bool isOut = t.fromId == widget.category.id;
                       String otherId = isOut ? t.toId : t.fromId;
 
@@ -189,16 +196,34 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
 
                       if (isDefaultTitle) customNote = '';
 
-                      int displayAmount = isOut
+                      // ЛОГІКА "ПЕРСПЕКТИВИ" ВАЛЮТИ
+                      // Головна сума — це сума з боку поточної категорії
+                      int mainAmount = isOut
                           ? t.amount
                           : (t.targetAmount ?? t.amount);
+                      String mainCurrency = isOut
+                          ? t.currency
+                          : (t.targetCurrency ?? t.currency);
 
-                      String currencySymbol = currencyCache.putIfAbsent(
-                        widget.category.currency,
-                        () => AppCurrency.fromCode(
-                          widget.category.currency,
-                        ).symbol,
-                      );
+                      // Другорядна сума — це сума з протилежного боку (напр. скільки списало з картки)
+                      int secondaryAmount = isOut
+                          ? (t.targetAmount ?? t.amount)
+                          : t.amount;
+                      String secondaryCurrency = isOut
+                          ? (t.targetCurrency ?? t.currency)
+                          : t.currency;
+
+                      // Чи є транзакція мультивалютною?
+                      bool isMultiCurrency =
+                          mainCurrency != secondaryCurrency &&
+                          t.targetCurrency != null;
+
+                      String mainSymbol = AppCurrency.fromCode(
+                        mainCurrency,
+                      ).symbol;
+                      String secondarySymbol = AppCurrency.fromCode(
+                        secondaryCurrency,
+                      ).symbol;
 
                       String prefix = "";
                       Color amountColor = colors.textMain;
@@ -227,7 +252,13 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
                           padding: const EdgeInsets.only(right: 20),
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
-                        onDismissed: (_) => widget.onDelete(t),
+                        // 👇 ОНОВЛЕНО: Миттєво приховуємо транзакцію перед тим, як викликати onDelete
+                        onDismissed: (_) {
+                          setState(() {
+                            _localDeletedIds.add(t.id);
+                          });
+                          widget.onDelete(t);
+                        },
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 4,
@@ -317,14 +348,36 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Text(
-                                "$prefix${CurrencyFormatter.format(displayAmount)} $currencySymbol",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: amountColor,
-                                  fontSize: 14,
-                                ),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Головна сума
+                                  Text(
+                                    "$prefix${CurrencyFormatter.format(mainAmount)} $mainSymbol",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: amountColor,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  // Додаткова сума дрібним шрифтом (тільки для мультивалютних)
+                                  if (isMultiCurrency)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2.0),
+                                      child: Text(
+                                        "~ ${CurrencyFormatter.format(secondaryAmount)} $secondarySymbol",
+                                        style: TextStyle(
+                                          color: colors.textSecondary,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                               const SizedBox(width: 4),
                               Icon(

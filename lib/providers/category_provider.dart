@@ -227,6 +227,39 @@ class CategoryNotifier extends _$CategoryNotifier {
     }
   }
 
+  // 👇 НОВИЙ МЕТОД: "Розумне" оновлення валюти для категорій при зміні базової валюти
+  Future<void> updateBaseCurrencyForCategories(
+    String oldBase,
+    String newBase,
+  ) async {
+    final db = ref.read(databaseProvider);
+
+    // Оновлюємо доходи: якщо валюта була oldBase, ставимо newBase. Інакше - не чіпаємо.
+    final newIncomes = state.incomes.map((c) {
+      if (c.currency == oldBase) return c.copyWith(currency: newBase);
+      return c;
+    }).toList();
+
+    // Аналогічно для витрат
+    final newExpenses = state.expenses.map((c) {
+      if (c.currency == oldBase) return c.copyWith(currency: newBase);
+      return c;
+    }).toList();
+
+    // УВАГА: Ми НЕ чіпаємо state.accounts, тому що рахунки це фізичні гроші, їх валюта незмінна!
+
+    // Зберігаємо всі категорії в базу даних одним списком
+    await StorageService.saveCategories(db, [
+      ...newIncomes,
+      ...state.accounts,
+      ...newExpenses,
+      ...state.archivedCategories,
+    ]);
+
+    // Оновлюємо стан провайдера
+    state = state.copyWith(incomes: newIncomes, expenses: newExpenses);
+  }
+
   Future<void> resetAllBalances() async {
     final db = ref.read(databaseProvider);
 

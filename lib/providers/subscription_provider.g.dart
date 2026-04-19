@@ -42,7 +42,7 @@ final class SubscriptionNotifierProvider
 }
 
 String _$subscriptionNotifierHash() =>
-    r'82bd5582eb66422fd5d73c6e71accffc6d1bb692';
+    r'94261b1ef5823f6671a3d33c63c5640a84aaada3';
 
 abstract class _$SubscriptionNotifier extends $Notifier<SubscriptionState> {
   SubscriptionState build();

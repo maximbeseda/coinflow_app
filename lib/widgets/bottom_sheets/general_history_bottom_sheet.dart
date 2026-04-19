@@ -37,6 +37,9 @@ class _GeneralHistoryBottomSheetState
   final ScrollController _scrollController = ScrollController();
   bool _isFetchingMore = false;
 
+  // 👇 ДОДАНО: Локальний кеш видалених транзакцій
+  final Set<String> _localDeletedIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -92,7 +95,6 @@ class _GeneralHistoryBottomSheetState
 
     final categoryMap = {for (var c in allCategories) c.id: c};
 
-    // КЕШУЄМО ЛОКАЛІЗАЦІЮ
     final trUnknown = 'unknown'.tr();
     final trOutgoing = 'outgoing_transfer'.tr();
     final trTopUp = 'top_up'.tr();
@@ -180,10 +182,14 @@ class _GeneralHistoryBottomSheetState
 
                       final t = filteredHistory[index];
 
+                      // 👇 ДОДАНО: Перевірка на локально видалену транзакцію
+                      if (_localDeletedIds.contains(t.id)) {
+                        return const SizedBox.shrink();
+                      }
+
                       final fromCat = categoryMap[t.fromId];
                       final toCat = categoryMap[t.toId];
 
-                      // 👇 ВИПРАВЛЕНО: Використовуємо змінні з кешу
                       String fromName = fromCat?.name ?? trUnknown;
                       String toName = toCat?.name ?? trUnknown;
 
@@ -194,7 +200,6 @@ class _GeneralHistoryBottomSheetState
 
                       String customNote = t.title.trim();
 
-                      // 👇 ВИПРАВЛЕНО: Використовуємо змінні з кешу
                       bool isDefaultTitle =
                           customNote.isEmpty ||
                           customNote.contains('➡️') ||
@@ -205,22 +210,26 @@ class _GeneralHistoryBottomSheetState
 
                       if (isDefaultTitle) customNote = '';
 
-                      int displayAmount = t.amount;
-                      String currencyCode = t.currency;
+                      // ЛОГІКА ДЛЯ ЗАГАЛЬНОЇ ІСТОРІЇ
+                      // Головною завжди є оригінальна сума списання (amount / currency)
+                      int mainAmount = t.amount;
+                      String mainCurrency = t.currency;
 
-                      if (widget.filterType == CategoryType.expense &&
-                          toCat?.type == CategoryType.expense) {
-                        displayAmount = t.targetAmount ?? t.amount;
-                        currencyCode = t.targetCurrency ?? t.currency;
-                      } else if (widget.filterType == CategoryType.income ||
-                          widget.filterType == CategoryType.account) {
-                        displayAmount = t.amount;
-                        currencyCode = t.currency;
-                      }
+                      // Додатковою є цільова сума (targetAmount / targetCurrency)
+                      int secondaryAmount = t.targetAmount ?? t.amount;
+                      String secondaryCurrency = t.targetCurrency ?? t.currency;
 
-                      String currencySymbol = currencyCache.putIfAbsent(
-                        currencyCode,
-                        () => AppCurrency.fromCode(currencyCode).symbol,
+                      bool isMultiCurrency =
+                          mainCurrency != secondaryCurrency &&
+                          t.targetCurrency != null;
+
+                      String mainSymbol = currencyCache.putIfAbsent(
+                        mainCurrency,
+                        () => AppCurrency.fromCode(mainCurrency).symbol,
+                      );
+                      String secondarySymbol = currencyCache.putIfAbsent(
+                        secondaryCurrency,
+                        () => AppCurrency.fromCode(secondaryCurrency).symbol,
                       );
 
                       String prefix = "-";
@@ -254,7 +263,13 @@ class _GeneralHistoryBottomSheetState
                           padding: const EdgeInsets.only(right: 20),
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
-                        onDismissed: (_) => widget.onDelete(t),
+                        // 👇 ОНОВЛЕНО: Миттєво приховуємо транзакцію
+                        onDismissed: (_) {
+                          setState(() {
+                            _localDeletedIds.add(t.id);
+                          });
+                          widget.onDelete(t);
+                        },
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 4,
@@ -361,14 +376,36 @@ class _GeneralHistoryBottomSheetState
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Text(
-                                "$prefix${CurrencyFormatter.format(displayAmount)} $currencySymbol",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: amountColor,
-                                  fontSize: 14,
-                                ),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Головна сума
+                                  Text(
+                                    "$prefix${CurrencyFormatter.format(mainAmount)} $mainSymbol",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: amountColor,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  // Додаткова сума дрібним шрифтом (тільки для мультивалютних)
+                                  if (isMultiCurrency)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2.0),
+                                      child: Text(
+                                        "~ ${CurrencyFormatter.format(secondaryAmount)} $secondarySymbol",
+                                        style: TextStyle(
+                                          color: colors.textSecondary,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                               const SizedBox(width: 4),
                               Icon(

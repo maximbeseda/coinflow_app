@@ -80,8 +80,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
       }
     });
 
-    // 👇 5. Оскільки ми в ConsumerState, ми маємо доступ до ref прямо в initState!
-    // Цим ми замінили didChangeDependencies, зробивши код чистішим.
+    // 👇 5. Отримуємо базову валюту з налаштувань
     final settings = ref.read(settingsProvider);
     _selectedCurrency = widget.category?.currency ?? settings.baseCurrency;
     _includeInTotal = widget.category?.includeInTotal ?? true;
@@ -204,9 +203,16 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
   void _openCurrencyPicker() {
     FocusScope.of(context).unfocus();
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    // Сортуємо: базова валюта завжди перша, інші за алфавітом
+    final baseCurrency = ref.read(settingsProvider).baseCurrency;
     List<String> availableCurrencies = AppCurrency.supportedCurrencies
         .map((c) => c.code)
         .toList();
+
+    availableCurrencies.remove(baseCurrency);
+    availableCurrencies.sort();
+    availableCurrencies.insert(0, baseCurrency);
 
     showModalBottomSheet(
       context: context,
@@ -248,7 +254,16 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                   itemBuilder: (context, index) {
                     final code = availableCurrencies[index];
                     final curr = AppCurrency.fromCode(code);
+
                     bool isSelected = _selectedCurrency == code;
+                    bool isBase =
+                        code ==
+                        baseCurrency; // 👈 Визначаємо, чи це базова валюта
+
+                    // Колір акценту: зелений для базової, синій для кастомних
+                    Color activeColor = isBase
+                        ? colors.income
+                        : Colors.blueAccent;
 
                     return ListTile(
                       onTap: () {
@@ -265,8 +280,10 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                       leading: CircleAvatar(
                         radius: 16,
                         backgroundColor: isSelected
-                            ? Colors.blueAccent
-                            : colors.iconBg,
+                            ? activeColor
+                            : (isBase
+                                  ? activeColor.withValues(alpha: 0.15)
+                                  : colors.iconBg),
                         child: Padding(
                           padding: const EdgeInsets.all(2.0),
                           child: FittedBox(
@@ -288,7 +305,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                               style: TextStyle(
                                 color: isSelected
                                     ? Colors.white
-                                    : colors.textMain,
+                                    : (isBase ? activeColor : colors.textMain),
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 height: 1.0,
@@ -297,20 +314,43 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                           ),
                         ),
                       ),
-                      title: Text(
-                        curr.code,
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.blueAccent
-                              : colors.textMain,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.w500,
-                          fontSize: 16,
-                        ),
+                      title: Row(
+                        children: [
+                          Text(
+                            curr.code,
+                            style: TextStyle(
+                              color: isSelected ? activeColor : colors.textMain,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                              fontSize: 16,
+                            ),
+                          ),
+                          if (isBase) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: activeColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'base_currency_label'.tr(),
+                                style: TextStyle(
+                                  color: activeColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       trailing: isSelected
-                          ? const Icon(Icons.check, color: Colors.blueAccent)
+                          ? Icon(Icons.check, color: activeColor)
                           : null,
                     );
                   },
@@ -486,6 +526,13 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
 
     Color previewBgColor = CategoryDefaults.getBgColor(widget.type);
     Color previewIconColor = CategoryDefaults.getIconColor(widget.type);
+
+    // 👇 Візуально підсвічуємо валюту на формі, якщо вона базова
+    bool isCurrentBase = _selectedCurrency == settings.baseCurrency;
+    Color currencyAccentColor = isCurrentBase
+        ? colors.income
+        : Colors.blueAccent;
+
     final currencySymbol = AppCurrency.fromCode(
       _selectedCurrency ?? settings.baseCurrency,
     ).symbol;
@@ -613,9 +660,11 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                           readOnly: true,
                           onTap: _openCurrencyPicker,
                           style: TextStyle(
-                            color: colors.textMain,
+                            color: isCurrentBase
+                                ? currencyAccentColor
+                                : colors.textMain, // Підсвітка в полі
                             fontSize: 18,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.bold,
                           ),
                           decoration: InputDecoration(
                             filled: false,
@@ -624,8 +673,8 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                               color: colors.textSecondary,
                               fontSize: 16,
                             ),
-                            floatingLabelStyle: const TextStyle(
-                              color: Colors.blueAccent,
+                            floatingLabelStyle: TextStyle(
+                              color: currencyAccentColor,
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
@@ -633,7 +682,11 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                               padding: const EdgeInsets.only(right: 12.0),
                               child: CircleAvatar(
                                 radius: 14,
-                                backgroundColor: colors.iconBg,
+                                backgroundColor: isCurrentBase
+                                    ? currencyAccentColor.withValues(
+                                        alpha: 0.15,
+                                      )
+                                    : colors.iconBg,
                                 child: Padding(
                                   padding: const EdgeInsets.all(2.0),
                                   child: FittedBox(
@@ -654,7 +707,9 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                                             applyHeightToLastDescent: false,
                                           ),
                                       style: TextStyle(
-                                        color: colors.textMain,
+                                        color: isCurrentBase
+                                            ? currencyAccentColor
+                                            : colors.textMain,
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
                                         height: 1.0,
@@ -674,15 +729,17 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                             counterText: "",
                             enabledBorder: UnderlineInputBorder(
                               borderSide: BorderSide(
-                                color: colors.textSecondary.withValues(
-                                  alpha: 0.3,
-                                ),
+                                color: isCurrentBase
+                                    ? currencyAccentColor.withValues(alpha: 0.5)
+                                    : colors.textSecondary.withValues(
+                                        alpha: 0.3,
+                                      ),
                                 width: 1,
                               ),
                             ),
-                            focusedBorder: const UnderlineInputBorder(
+                            focusedBorder: UnderlineInputBorder(
                               borderSide: BorderSide(
-                                color: Colors.blueAccent,
+                                color: currencyAccentColor,
                                 width: 2,
                               ),
                             ),

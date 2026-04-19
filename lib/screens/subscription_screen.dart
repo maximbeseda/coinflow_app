@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-// 👇 1. Перейшли на Riverpod
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
 
-// 👇 2. Імпортуємо наш єдиний хаб
 import '../providers/all_providers.dart';
 
 import '../database/app_database.dart';
@@ -16,7 +14,6 @@ import '../utils/date_formatter.dart';
 import '../widgets/dialogs/premium_date_picker.dart';
 import '../theme/app_colors_extension.dart';
 
-// 👇 3. Замінили StatefulWidget на ConsumerStatefulWidget
 class SubscriptionScreen extends ConsumerStatefulWidget {
   final Subscription? subscription;
 
@@ -26,7 +23,6 @@ class SubscriptionScreen extends ConsumerStatefulWidget {
   ConsumerState<SubscriptionScreen> createState() => _SubscriptionScreenState();
 }
 
-// 👇 4. Замінили State на ConsumerState
 class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   late TextEditingController _nameCtrl;
   late TextEditingController _amountCtrl;
@@ -104,7 +100,6 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     super.didChangeDependencies();
 
     if (!_isInitialized) {
-      // 👇 5. Отримуємо стани через ref.read (безпечно в didChangeDependencies)
       final catState = ref.read(categoryProvider);
       final settingsState = ref.read(settingsProvider);
 
@@ -187,13 +182,20 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     _dateCtrl.text = DateFormatter.formatFull(date);
   }
 
+  // 👇 ОНОВЛЕНО ДЛЯ КОНСИСТЕНТНОСТІ З КАТЕГОРІЯМИ
   Future<void> _openCurrencyPicker() async {
     FocusManager.instance.primaryFocus?.unfocus();
 
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
+
+    final baseCurrency = ref.read(settingsProvider).baseCurrency;
     List<String> availableCurrencies = AppCurrency.supportedCurrencies
         .map((c) => c.code)
         .toList();
+
+    availableCurrencies.remove(baseCurrency);
+    availableCurrencies.sort();
+    availableCurrencies.insert(0, baseCurrency);
 
     await showModalBottomSheet(
       context: context,
@@ -235,7 +237,13 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                   itemBuilder: (context, index) {
                     final code = availableCurrencies[index];
                     final curr = AppCurrency.fromCode(code);
+
                     bool isSelected = _selectedCurrency == code;
+                    bool isBase = code == baseCurrency;
+
+                    Color activeColor = isBase
+                        ? colors.income
+                        : Colors.blueAccent;
 
                     return ListTile(
                       onTap: () {
@@ -253,8 +261,10 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                       leading: CircleAvatar(
                         radius: 16,
                         backgroundColor: isSelected
-                            ? Colors.blueAccent
-                            : colors.iconBg,
+                            ? activeColor
+                            : (isBase
+                                  ? activeColor.withValues(alpha: 0.15)
+                                  : colors.iconBg),
                         child: Padding(
                           padding: const EdgeInsets.all(2.0),
                           child: FittedBox(
@@ -276,7 +286,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                               style: TextStyle(
                                 color: isSelected
                                     ? Colors.white
-                                    : colors.textMain,
+                                    : (isBase ? activeColor : colors.textMain),
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 height: 1.0,
@@ -285,20 +295,43 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                           ),
                         ),
                       ),
-                      title: Text(
-                        curr.code,
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.blueAccent
-                              : colors.textMain,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.w500,
-                          fontSize: 16,
-                        ),
+                      title: Row(
+                        children: [
+                          Text(
+                            curr.code,
+                            style: TextStyle(
+                              color: isSelected ? activeColor : colors.textMain,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                              fontSize: 16,
+                            ),
+                          ),
+                          if (isBase) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: activeColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'base_currency_label'.tr(),
+                                style: TextStyle(
+                                  color: activeColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       trailing: isSelected
-                          ? const Icon(Icons.check, color: Colors.blueAccent)
+                          ? Icon(Icons.check, color: activeColor)
                           : null,
                     );
                   },
@@ -309,8 +342,6 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         ),
       ),
     );
-
-    if (mounted) FocusManager.instance.primaryFocus?.unfocus();
   }
 
   Future<void> _openCategoryPicker(
@@ -319,9 +350,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   ) async {
     FocusManager.instance.primaryFocus?.unfocus();
 
-    // 👇 6. Читаємо стан категорій через ref.read
     final catState = ref.read(categoryProvider);
-
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final list = type == CategoryType.account
         ? catState.accounts
@@ -671,7 +700,6 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       return;
     }
 
-    // 👇 7. Отримуємо Notifier для збереження
     final subNotifier = ref.read(subscriptionProvider.notifier);
     final settingsState = ref.read(settingsProvider);
 
@@ -775,7 +803,6 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                       );
                     },
                   ),
-
                   const SizedBox(height: 32),
                   Row(
                     children: [
@@ -819,7 +846,6 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
     if (!mounted) return;
     if (confirmed) {
-      // 👇 8. Викликаємо видалення через Notifier
       ref
           .read(subscriptionProvider.notifier)
           .deleteSubscription(widget.subscription!.id);
@@ -927,6 +953,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     );
   }
 
+  // 👇 ОНОВЛЕНО: Додали можливість передавати кастомні кольори (для валюти)
   Widget _buildSelectorField({
     required TextEditingController controller,
     required String label,
@@ -935,12 +962,19 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     bool isError = false,
     Widget? prefix,
     Widget? suffix,
+    Color? customActiveColor,
+    Color? customTextColor,
   }) {
     final baseColor = isError ? Colors.red : colors.textSecondary;
-    final activeColor = isError ? Colors.red : Colors.blueAccent;
+    final activeColor = isError
+        ? Colors.red
+        : (customActiveColor ?? Colors.blueAccent);
+    final textColor = customTextColor ?? colors.textMain;
     final underlineBaseColor = isError
         ? Colors.red
-        : colors.textSecondary.withValues(alpha: 0.3);
+        : (customActiveColor != null
+              ? customActiveColor.withValues(alpha: 0.5)
+              : colors.textSecondary.withValues(alpha: 0.3));
 
     return GestureDetector(
       onTap: onTap,
@@ -982,7 +1016,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
           alignment: Alignment.centerLeft,
           children: [
             const Text(
-              'Wj',
+              'Wj', // Для підтримки висоти
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
@@ -998,9 +1032,10 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                   child: Text(
                     controller.text,
                     style: TextStyle(
-                      color: colors.textMain,
+                      color: textColor,
                       fontSize: 18,
-                      fontWeight: FontWeight.w500,
+                      fontWeight:
+                          FontWeight.bold, // Зробили трохи жирнішим для краси
                     ),
                   ),
                 ),
@@ -1016,12 +1051,20 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // 👇 9. Отримуємо стан категорій напряму
     final catState = ref.watch(categoryProvider);
+    final settingsState = ref.watch(settingsProvider);
     final isEditing = widget.subscription != null;
 
+    // 👇 ОНОВЛЕНО: Логіка підсвітки базової валюти
+    bool isCurrentBase =
+        (_selectedCurrency ?? settingsState.baseCurrency) ==
+        settingsState.baseCurrency;
+    Color currencyAccentColor = isCurrentBase
+        ? colors.income
+        : Colors.blueAccent;
+
     final currencySymbol = AppCurrency.fromCode(
-      _selectedCurrency ?? 'UAH',
+      _selectedCurrency ?? settingsState.baseCurrency,
     ).symbol;
 
     IconData displayIcon = Icons.card_giftcard;
@@ -1192,11 +1235,20 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                               label: 'currency'.tr(),
                               colors: colors,
                               onTap: _openCurrencyPicker,
+                              // 👇 Застосовуємо наші нові кольори
+                              customActiveColor: currencyAccentColor,
+                              customTextColor: isCurrentBase
+                                  ? currencyAccentColor
+                                  : colors.textMain,
                               prefix: Padding(
                                 padding: const EdgeInsets.only(right: 12.0),
                                 child: CircleAvatar(
                                   radius: 14,
-                                  backgroundColor: colors.iconBg,
+                                  backgroundColor: isCurrentBase
+                                      ? currencyAccentColor.withValues(
+                                          alpha: 0.15,
+                                        )
+                                      : colors.iconBg,
                                   child: Padding(
                                     padding: const EdgeInsets.all(2.0),
                                     child: FittedBox(
@@ -1217,7 +1269,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                                               applyHeightToLastDescent: false,
                                             ),
                                         style: TextStyle(
-                                          color: colors.textMain,
+                                          color: isCurrentBase
+                                              ? currencyAccentColor
+                                              : colors.textMain,
                                           fontSize: 14,
                                           fontWeight: FontWeight.bold,
                                           height: 1.0,
