@@ -27,6 +27,9 @@ class Categories extends Table {
       boolean().withDefault(const Constant(true))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
+  // 👇 ДОДАНО ДЛЯ КОШИКА
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -50,6 +53,9 @@ class Transactions extends Table {
   IntColumn get baseAmount => integer().withDefault(const Constant(0))();
   TextColumn get baseCurrency => text()();
 
+  // 👇 ДОДАНО ДЛЯ КОШИКА
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -66,6 +72,9 @@ class Subscriptions extends Table {
   BoolColumn get isAutoPay => boolean().withDefault(const Constant(false))();
   TextColumn get currency => text().withDefault(const Constant('UAH'))();
 
+  // 👇 ДОДАНО ДЛЯ КОШИКА
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -78,10 +87,28 @@ class Subscriptions extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  // 👇 ЗБІЛЬШИЛИ ВЕРСІЮ СХЕМИ ДО 2
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
-  // 👇 ДОДАНО: limit та offset для пагінації
+  // 👇 ДОДАЛИ МІГРАЦІЮ, ЩОБ НЕ ЗЛАМАТИ ІСНУЮЧУ БАЗУ
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onCreate: (Migrator m) async {
+        await m.createAll();
+      },
+      onUpgrade: (Migrator m, int from, int to) async {
+        if (from < 2) {
+          // Якщо оновлюємося з 1-ї версії до 2-ї, просто додаємо нові колонки
+          await m.addColumn(categories, categories.deletedAt);
+          await m.addColumn(transactions, transactions.deletedAt);
+          await m.addColumn(subscriptions, subscriptions.deletedAt);
+        }
+      },
+    );
+  }
+
   Future<List<Transaction>> getFilteredTransactions({
     DateTime? startDate,
     DateTime? endDate,
@@ -89,11 +116,18 @@ class AppDatabase extends _$AppDatabase {
     String? currency,
     int? limit,
     int? offset,
+    // 👇 Додаємо можливість явно просити видалені або ні (за замовчуванням - тільки живі)
+    bool includeDeleted = false,
   }) {
     final query = select(transactions);
 
     query.where((t) {
       Expression<bool> predicate = const Constant(true);
+
+      // Фільтруємо кошик
+      if (!includeDeleted) {
+        predicate = predicate & t.deletedAt.isNull();
+      }
 
       if (startDate != null && endDate != null) {
         final endOfDay = DateTime(
@@ -138,7 +172,6 @@ class AppDatabase extends _$AppDatabase {
       (t) => OrderingTerm(expression: t.date, mode: OrderingMode.desc),
     ]);
 
-    // 👇 НОВЕ: Застосовуємо пагінацію на рівні SQL
     if (limit != null) {
       query.limit(limit, offset: offset);
     }

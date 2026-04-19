@@ -140,6 +140,17 @@ class $CategoriesTable extends Categories
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -154,6 +165,7 @@ class $CategoriesTable extends Categories
     currency,
     includeInTotal,
     sortOrder,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -243,6 +255,12 @@ class $CategoriesTable extends Categories
         sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
       );
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -302,6 +320,10 @@ class $CategoriesTable extends Categories
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
       )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -327,6 +349,7 @@ class Category extends DataClass implements Insertable<Category> {
   final String currency;
   final bool includeInTotal;
   final int sortOrder;
+  final DateTime? deletedAt;
   const Category({
     required this.id,
     required this.type,
@@ -340,6 +363,7 @@ class Category extends DataClass implements Insertable<Category> {
     required this.currency,
     required this.includeInTotal,
     required this.sortOrder,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -360,6 +384,9 @@ class Category extends DataClass implements Insertable<Category> {
     map['currency'] = Variable<String>(currency);
     map['include_in_total'] = Variable<bool>(includeInTotal);
     map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
     return map;
   }
 
@@ -379,6 +406,9 @@ class Category extends DataClass implements Insertable<Category> {
       currency: Value(currency),
       includeInTotal: Value(includeInTotal),
       sortOrder: Value(sortOrder),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -402,6 +432,7 @@ class Category extends DataClass implements Insertable<Category> {
       currency: serializer.fromJson<String>(json['currency']),
       includeInTotal: serializer.fromJson<bool>(json['includeInTotal']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -422,6 +453,7 @@ class Category extends DataClass implements Insertable<Category> {
       'currency': serializer.toJson<String>(currency),
       'includeInTotal': serializer.toJson<bool>(includeInTotal),
       'sortOrder': serializer.toJson<int>(sortOrder),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -438,6 +470,7 @@ class Category extends DataClass implements Insertable<Category> {
     String? currency,
     bool? includeInTotal,
     int? sortOrder,
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => Category(
     id: id ?? this.id,
     type: type ?? this.type,
@@ -451,6 +484,7 @@ class Category extends DataClass implements Insertable<Category> {
     currency: currency ?? this.currency,
     includeInTotal: includeInTotal ?? this.includeInTotal,
     sortOrder: sortOrder ?? this.sortOrder,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   Category copyWithCompanion(CategoriesCompanion data) {
     return Category(
@@ -470,6 +504,7 @@ class Category extends DataClass implements Insertable<Category> {
           ? data.includeInTotal.value
           : this.includeInTotal,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -487,7 +522,8 @@ class Category extends DataClass implements Insertable<Category> {
           ..write('isArchived: $isArchived, ')
           ..write('currency: $currency, ')
           ..write('includeInTotal: $includeInTotal, ')
-          ..write('sortOrder: $sortOrder')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -506,6 +542,7 @@ class Category extends DataClass implements Insertable<Category> {
     currency,
     includeInTotal,
     sortOrder,
+    deletedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -522,7 +559,8 @@ class Category extends DataClass implements Insertable<Category> {
           other.isArchived == this.isArchived &&
           other.currency == this.currency &&
           other.includeInTotal == this.includeInTotal &&
-          other.sortOrder == this.sortOrder);
+          other.sortOrder == this.sortOrder &&
+          other.deletedAt == this.deletedAt);
 }
 
 class CategoriesCompanion extends UpdateCompanion<Category> {
@@ -538,6 +576,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
   final Value<String> currency;
   final Value<bool> includeInTotal;
   final Value<int> sortOrder;
+  final Value<DateTime?> deletedAt;
   final Value<int> rowid;
   const CategoriesCompanion({
     this.id = const Value.absent(),
@@ -552,6 +591,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     this.currency = const Value.absent(),
     this.includeInTotal = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CategoriesCompanion.insert({
@@ -567,6 +607,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     this.currency = const Value.absent(),
     this.includeInTotal = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        type = Value(type),
@@ -587,6 +628,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     Expression<String>? currency,
     Expression<bool>? includeInTotal,
     Expression<int>? sortOrder,
+    Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -602,6 +644,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
       if (currency != null) 'currency': currency,
       if (includeInTotal != null) 'include_in_total': includeInTotal,
       if (sortOrder != null) 'sort_order': sortOrder,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -619,6 +662,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     Value<String>? currency,
     Value<bool>? includeInTotal,
     Value<int>? sortOrder,
+    Value<DateTime?>? deletedAt,
     Value<int>? rowid,
   }) {
     return CategoriesCompanion(
@@ -634,6 +678,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
       currency: currency ?? this.currency,
       includeInTotal: includeInTotal ?? this.includeInTotal,
       sortOrder: sortOrder ?? this.sortOrder,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -679,6 +724,9 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -700,6 +748,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
           ..write('currency: $currency, ')
           ..write('includeInTotal: $includeInTotal, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -822,6 +871,17 @@ class $TransactionsTable extends Transactions
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -835,6 +895,7 @@ class $TransactionsTable extends Transactions
     targetCurrency,
     baseAmount,
     baseCurrency,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -936,6 +997,12 @@ class $TransactionsTable extends Transactions
     } else if (isInserting) {
       context.missing(_baseCurrencyMeta);
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -989,6 +1056,10 @@ class $TransactionsTable extends Transactions
         DriftSqlType.string,
         data['${effectivePrefix}base_currency'],
       )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -1010,6 +1081,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String? targetCurrency;
   final int baseAmount;
   final String baseCurrency;
+  final DateTime? deletedAt;
   const Transaction({
     required this.id,
     required this.fromId,
@@ -1022,6 +1094,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     this.targetCurrency,
     required this.baseAmount,
     required this.baseCurrency,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1041,6 +1114,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     }
     map['base_amount'] = Variable<int>(baseAmount);
     map['base_currency'] = Variable<String>(baseCurrency);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
     return map;
   }
 
@@ -1061,6 +1137,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           : Value(targetCurrency),
       baseAmount: Value(baseAmount),
       baseCurrency: Value(baseCurrency),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -1081,6 +1160,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       targetCurrency: serializer.fromJson<String?>(json['targetCurrency']),
       baseAmount: serializer.fromJson<int>(json['baseAmount']),
       baseCurrency: serializer.fromJson<String>(json['baseCurrency']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -1098,6 +1178,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'targetCurrency': serializer.toJson<String?>(targetCurrency),
       'baseAmount': serializer.toJson<int>(baseAmount),
       'baseCurrency': serializer.toJson<String>(baseCurrency),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -1113,6 +1194,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     Value<String?> targetCurrency = const Value.absent(),
     int? baseAmount,
     String? baseCurrency,
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => Transaction(
     id: id ?? this.id,
     fromId: fromId ?? this.fromId,
@@ -1127,6 +1209,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
         : this.targetCurrency,
     baseAmount: baseAmount ?? this.baseAmount,
     baseCurrency: baseCurrency ?? this.baseCurrency,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   Transaction copyWithCompanion(TransactionsCompanion data) {
     return Transaction(
@@ -1149,6 +1232,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       baseCurrency: data.baseCurrency.present
           ? data.baseCurrency.value
           : this.baseCurrency,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -1165,7 +1249,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('targetAmount: $targetAmount, ')
           ..write('targetCurrency: $targetCurrency, ')
           ..write('baseAmount: $baseAmount, ')
-          ..write('baseCurrency: $baseCurrency')
+          ..write('baseCurrency: $baseCurrency, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -1183,6 +1268,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     targetCurrency,
     baseAmount,
     baseCurrency,
+    deletedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -1198,7 +1284,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.targetAmount == this.targetAmount &&
           other.targetCurrency == this.targetCurrency &&
           other.baseAmount == this.baseAmount &&
-          other.baseCurrency == this.baseCurrency);
+          other.baseCurrency == this.baseCurrency &&
+          other.deletedAt == this.deletedAt);
 }
 
 class TransactionsCompanion extends UpdateCompanion<Transaction> {
@@ -1213,6 +1300,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String?> targetCurrency;
   final Value<int> baseAmount;
   final Value<String> baseCurrency;
+  final Value<DateTime?> deletedAt;
   final Value<int> rowid;
   const TransactionsCompanion({
     this.id = const Value.absent(),
@@ -1226,6 +1314,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.targetCurrency = const Value.absent(),
     this.baseAmount = const Value.absent(),
     this.baseCurrency = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsCompanion.insert({
@@ -1240,6 +1329,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.targetCurrency = const Value.absent(),
     this.baseAmount = const Value.absent(),
     required String baseCurrency,
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        fromId = Value(fromId),
@@ -1261,6 +1351,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? targetCurrency,
     Expression<int>? baseAmount,
     Expression<String>? baseCurrency,
+    Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1275,6 +1366,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (targetCurrency != null) 'target_currency': targetCurrency,
       if (baseAmount != null) 'base_amount': baseAmount,
       if (baseCurrency != null) 'base_currency': baseCurrency,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1291,6 +1383,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<String?>? targetCurrency,
     Value<int>? baseAmount,
     Value<String>? baseCurrency,
+    Value<DateTime?>? deletedAt,
     Value<int>? rowid,
   }) {
     return TransactionsCompanion(
@@ -1305,6 +1398,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       targetCurrency: targetCurrency ?? this.targetCurrency,
       baseAmount: baseAmount ?? this.baseAmount,
       baseCurrency: baseCurrency ?? this.baseCurrency,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1345,6 +1439,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (baseCurrency.present) {
       map['base_currency'] = Variable<String>(baseCurrency.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1365,6 +1462,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('targetCurrency: $targetCurrency, ')
           ..write('baseAmount: $baseAmount, ')
           ..write('baseCurrency: $baseCurrency, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1487,6 +1585,17 @@ class $SubscriptionsTable extends Subscriptions
     requiredDuringInsert: false,
     defaultValue: const Constant('UAH'),
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1499,6 +1608,7 @@ class $SubscriptionsTable extends Subscriptions
     customIconCodePoint,
     isAutoPay,
     currency,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1590,6 +1700,12 @@ class $SubscriptionsTable extends Subscriptions
         currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
       );
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -1639,6 +1755,10 @@ class $SubscriptionsTable extends Subscriptions
         DriftSqlType.string,
         data['${effectivePrefix}currency'],
       )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -1659,6 +1779,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
   final int? customIconCodePoint;
   final bool isAutoPay;
   final String currency;
+  final DateTime? deletedAt;
   const Subscription({
     required this.id,
     required this.name,
@@ -1670,6 +1791,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
     this.customIconCodePoint,
     required this.isAutoPay,
     required this.currency,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1686,6 +1808,9 @@ class Subscription extends DataClass implements Insertable<Subscription> {
     }
     map['is_auto_pay'] = Variable<bool>(isAutoPay);
     map['currency'] = Variable<String>(currency);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
     return map;
   }
 
@@ -1703,6 +1828,9 @@ class Subscription extends DataClass implements Insertable<Subscription> {
           : Value(customIconCodePoint),
       isAutoPay: Value(isAutoPay),
       currency: Value(currency),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -1724,6 +1852,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
       ),
       isAutoPay: serializer.fromJson<bool>(json['isAutoPay']),
       currency: serializer.fromJson<String>(json['currency']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -1740,6 +1869,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
       'customIconCodePoint': serializer.toJson<int?>(customIconCodePoint),
       'isAutoPay': serializer.toJson<bool>(isAutoPay),
       'currency': serializer.toJson<String>(currency),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -1754,6 +1884,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
     Value<int?> customIconCodePoint = const Value.absent(),
     bool? isAutoPay,
     String? currency,
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => Subscription(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -1767,6 +1898,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
         : this.customIconCodePoint,
     isAutoPay: isAutoPay ?? this.isAutoPay,
     currency: currency ?? this.currency,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   Subscription copyWithCompanion(SubscriptionsCompanion data) {
     return Subscription(
@@ -1788,6 +1920,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
           : this.customIconCodePoint,
       isAutoPay: data.isAutoPay.present ? data.isAutoPay.value : this.isAutoPay,
       currency: data.currency.present ? data.currency.value : this.currency,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -1803,7 +1936,8 @@ class Subscription extends DataClass implements Insertable<Subscription> {
           ..write('periodicity: $periodicity, ')
           ..write('customIconCodePoint: $customIconCodePoint, ')
           ..write('isAutoPay: $isAutoPay, ')
-          ..write('currency: $currency')
+          ..write('currency: $currency, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -1820,6 +1954,7 @@ class Subscription extends DataClass implements Insertable<Subscription> {
     customIconCodePoint,
     isAutoPay,
     currency,
+    deletedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -1834,7 +1969,8 @@ class Subscription extends DataClass implements Insertable<Subscription> {
           other.periodicity == this.periodicity &&
           other.customIconCodePoint == this.customIconCodePoint &&
           other.isAutoPay == this.isAutoPay &&
-          other.currency == this.currency);
+          other.currency == this.currency &&
+          other.deletedAt == this.deletedAt);
 }
 
 class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
@@ -1848,6 +1984,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
   final Value<int?> customIconCodePoint;
   final Value<bool> isAutoPay;
   final Value<String> currency;
+  final Value<DateTime?> deletedAt;
   final Value<int> rowid;
   const SubscriptionsCompanion({
     this.id = const Value.absent(),
@@ -1860,6 +1997,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
     this.customIconCodePoint = const Value.absent(),
     this.isAutoPay = const Value.absent(),
     this.currency = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SubscriptionsCompanion.insert({
@@ -1873,6 +2011,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
     this.customIconCodePoint = const Value.absent(),
     this.isAutoPay = const Value.absent(),
     this.currency = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -1891,6 +2030,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
     Expression<int>? customIconCodePoint,
     Expression<bool>? isAutoPay,
     Expression<String>? currency,
+    Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1905,6 +2045,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
         'custom_icon_code_point': customIconCodePoint,
       if (isAutoPay != null) 'is_auto_pay': isAutoPay,
       if (currency != null) 'currency': currency,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1920,6 +2061,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
     Value<int?>? customIconCodePoint,
     Value<bool>? isAutoPay,
     Value<String>? currency,
+    Value<DateTime?>? deletedAt,
     Value<int>? rowid,
   }) {
     return SubscriptionsCompanion(
@@ -1933,6 +2075,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
       customIconCodePoint: customIconCodePoint ?? this.customIconCodePoint,
       isAutoPay: isAutoPay ?? this.isAutoPay,
       currency: currency ?? this.currency,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1970,6 +2113,9 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
     if (currency.present) {
       map['currency'] = Variable<String>(currency.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1989,6 +2135,7 @@ class SubscriptionsCompanion extends UpdateCompanion<Subscription> {
           ..write('customIconCodePoint: $customIconCodePoint, ')
           ..write('isAutoPay: $isAutoPay, ')
           ..write('currency: $currency, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2026,6 +2173,7 @@ typedef $$CategoriesTableCreateCompanionBuilder =
       Value<String> currency,
       Value<bool> includeInTotal,
       Value<int> sortOrder,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 typedef $$CategoriesTableUpdateCompanionBuilder =
@@ -2042,6 +2190,7 @@ typedef $$CategoriesTableUpdateCompanionBuilder =
       Value<String> currency,
       Value<bool> includeInTotal,
       Value<int> sortOrder,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 
@@ -2114,6 +2263,11 @@ class $$CategoriesTableFilterComposer
     column: $table.sortOrder,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$CategoriesTableOrderingComposer
@@ -2184,6 +2338,11 @@ class $$CategoriesTableOrderingComposer
     column: $table.sortOrder,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CategoriesTableAnnotationComposer
@@ -2234,6 +2393,9 @@ class $$CategoriesTableAnnotationComposer
 
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 }
 
 class $$CategoriesTableTableManager
@@ -2276,6 +2438,7 @@ class $$CategoriesTableTableManager
                 Value<String> currency = const Value.absent(),
                 Value<bool> includeInTotal = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CategoriesCompanion(
                 id: id,
@@ -2290,6 +2453,7 @@ class $$CategoriesTableTableManager
                 currency: currency,
                 includeInTotal: includeInTotal,
                 sortOrder: sortOrder,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2306,6 +2470,7 @@ class $$CategoriesTableTableManager
                 Value<String> currency = const Value.absent(),
                 Value<bool> includeInTotal = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CategoriesCompanion.insert(
                 id: id,
@@ -2320,6 +2485,7 @@ class $$CategoriesTableTableManager
                 currency: currency,
                 includeInTotal: includeInTotal,
                 sortOrder: sortOrder,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -2357,6 +2523,7 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       Value<String?> targetCurrency,
       Value<int> baseAmount,
       required String baseCurrency,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 typedef $$TransactionsTableUpdateCompanionBuilder =
@@ -2372,6 +2539,7 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<String?> targetCurrency,
       Value<int> baseAmount,
       Value<String> baseCurrency,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 
@@ -2436,6 +2604,11 @@ class $$TransactionsTableFilterComposer
 
   ColumnFilters<String> get baseCurrency => $composableBuilder(
     column: $table.baseCurrency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2503,6 +2676,11 @@ class $$TransactionsTableOrderingComposer
     column: $table.baseCurrency,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$TransactionsTableAnnotationComposer
@@ -2554,6 +2732,9 @@ class $$TransactionsTableAnnotationComposer
     column: $table.baseCurrency,
     builder: (column) => column,
   );
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 }
 
 class $$TransactionsTableTableManager
@@ -2598,6 +2779,7 @@ class $$TransactionsTableTableManager
                 Value<String?> targetCurrency = const Value.absent(),
                 Value<int> baseAmount = const Value.absent(),
                 Value<String> baseCurrency = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion(
                 id: id,
@@ -2611,6 +2793,7 @@ class $$TransactionsTableTableManager
                 targetCurrency: targetCurrency,
                 baseAmount: baseAmount,
                 baseCurrency: baseCurrency,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2626,6 +2809,7 @@ class $$TransactionsTableTableManager
                 Value<String?> targetCurrency = const Value.absent(),
                 Value<int> baseAmount = const Value.absent(),
                 required String baseCurrency,
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion.insert(
                 id: id,
@@ -2639,6 +2823,7 @@ class $$TransactionsTableTableManager
                 targetCurrency: targetCurrency,
                 baseAmount: baseAmount,
                 baseCurrency: baseCurrency,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -2678,6 +2863,7 @@ typedef $$SubscriptionsTableCreateCompanionBuilder =
       Value<int?> customIconCodePoint,
       Value<bool> isAutoPay,
       Value<String> currency,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 typedef $$SubscriptionsTableUpdateCompanionBuilder =
@@ -2692,6 +2878,7 @@ typedef $$SubscriptionsTableUpdateCompanionBuilder =
       Value<int?> customIconCodePoint,
       Value<bool> isAutoPay,
       Value<String> currency,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 
@@ -2751,6 +2938,11 @@ class $$SubscriptionsTableFilterComposer
 
   ColumnFilters<String> get currency => $composableBuilder(
     column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2813,6 +3005,11 @@ class $$SubscriptionsTableOrderingComposer
     column: $table.currency,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SubscriptionsTableAnnotationComposer
@@ -2861,6 +3058,9 @@ class $$SubscriptionsTableAnnotationComposer
 
   GeneratedColumn<String> get currency =>
       $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 }
 
 class $$SubscriptionsTableTableManager
@@ -2904,6 +3104,7 @@ class $$SubscriptionsTableTableManager
                 Value<int?> customIconCodePoint = const Value.absent(),
                 Value<bool> isAutoPay = const Value.absent(),
                 Value<String> currency = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SubscriptionsCompanion(
                 id: id,
@@ -2916,6 +3117,7 @@ class $$SubscriptionsTableTableManager
                 customIconCodePoint: customIconCodePoint,
                 isAutoPay: isAutoPay,
                 currency: currency,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2930,6 +3132,7 @@ class $$SubscriptionsTableTableManager
                 Value<int?> customIconCodePoint = const Value.absent(),
                 Value<bool> isAutoPay = const Value.absent(),
                 Value<String> currency = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SubscriptionsCompanion.insert(
                 id: id,
@@ -2942,6 +3145,7 @@ class $$SubscriptionsTableTableManager
                 customIconCodePoint: customIconCodePoint,
                 isAutoPay: isAutoPay,
                 currency: currency,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -5,10 +5,10 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../../screens/stats/stats_screen.dart';
 import '../../screens/subscriptions_screen.dart';
+import '../../screens/trash_screen.dart';
 import '../../services/backup_service.dart';
 import '../../screens/profile_screen.dart';
 import '../../screens/currencies_screen.dart';
-// 👇 ДОДАНО: Імпорт нашого нового екрану
 import '../../screens/import_export_screen.dart';
 import '../../theme/app_colors_extension.dart';
 
@@ -28,6 +28,22 @@ class SettingsDrawer extends ConsumerWidget {
     final hasPendingSubscriptions = ref
         .watch(subscriptionProvider)
         .hasPendingPayments;
+
+    // 👇 НОВЕ: Рахуємо загальну кількість елементів у кошику
+    final deletedCatsCount = ref
+        .watch(categoryProvider)
+        .deletedCategories
+        .length;
+    final deletedTxsCount = ref
+        .watch(transactionProvider)
+        .deletedHistory
+        .length;
+    final deletedSubsCount = ref
+        .watch(subscriptionProvider)
+        .deletedSubscriptions
+        .length;
+    final totalTrashCount =
+        deletedCatsCount + deletedTxsCount + deletedSubsCount;
 
     return Drawer(
       backgroundColor: colors.cardBg,
@@ -126,12 +142,11 @@ class SettingsDrawer extends ConsumerWidget {
               },
             ),
 
-            // 👇 ДОДАНО: КНОПКА ЕКСПОРТУ/ІМПОРТУ (CSV)
+            // КНОПКА ЕКСПОРТУ/ІМПОРТУ (CSV)
             ListTile(
               leading: Icon(Icons.import_export, color: colors.textMain),
               title: Text(
-                'data_management'
-                    .tr(), // Або інший ключ, який тобі більше подобається
+                'data_management'.tr(),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -218,6 +233,48 @@ class SettingsDrawer extends ConsumerWidget {
                   MaterialPageRoute(
                     builder: (context) => const SubscriptionsScreen(),
                   ),
+                );
+              },
+            ),
+
+            // 👇 ОНОВЛЕНО: Кнопка кошика з правильними стилями та лічильником
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: colors.textMain),
+              title: Text(
+                'trash'.tr(),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: colors.textMain,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: totalTrashCount > 0
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.expense.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        totalTrashCount.toString(),
+                        style: TextStyle(
+                          color: colors.expense,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : null,
+              onTap: () {
+                Navigator.pop(context); // Закриваємо drawer
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const TrashScreen()),
                 );
               },
             ),

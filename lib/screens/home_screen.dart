@@ -156,8 +156,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           targetCurrency: source.currency != target.currency
               ? target.currency
               : null,
-          baseAmount: baseAmt, 
-          baseCurrency: settingsState.baseCurrency, 
+          baseAmount: baseAmt,
+          baseCurrency: settingsState.baseCurrency,
         );
 
         txNotifier.addTransactionDirectly(newTx);
@@ -274,7 +274,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (!mounted) return;
       setState(() => deletingIds.add(c.id));
       await Future.delayed(const Duration(milliseconds: 350));
-      catNotifier.deleteCategory(c);
+      await catNotifier.moveToTrash(c);
       if (mounted) setState(() => deletingIds.remove(c.id));
       return;
     }
@@ -328,7 +328,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     final catState = ref.watch(categoryProvider);
     final txState = ref.watch(transactionProvider);
-    
+
     // 👇 ДОДАНО: зберігаємо settingsState для перевірки базової валюти
     final settingsState = ref.watch(settingsProvider);
 
@@ -360,29 +360,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     // 👇 ІДЕАЛЬНА ЛОГІКА ДИНАМІЧНИХ КАТЕГОРІЙ (ВИПРАВЛЕННЯ 2)
     final baseIncomeMap = statsNotifier.calculateCategoryTotalsForMonth(
-      txState.selectedMonth, false, inBaseCurrency: true, 
+      txState.selectedMonth,
+      false,
+      inBaseCurrency: true,
     );
     final rawIncomeMap = statsNotifier.calculateCategoryTotalsForMonth(
-      txState.selectedMonth, false, inBaseCurrency: false, 
+      txState.selectedMonth,
+      false,
+      inBaseCurrency: false,
     );
 
     final displayIncomes = catState.incomes.map((c) {
       bool isBase = c.currency == settingsState.baseCurrency;
       // Якщо категорія базова - беремо конвертовану суму (UAH -> PLN)
       // Якщо кастомна (USD) - беремо сиру суму (залишається USD)
-      return c.copyWith(amount: isBase ? (baseIncomeMap[c.id] ?? 0) : (rawIncomeMap[c.id] ?? 0));
+      return c.copyWith(
+        amount: isBase ? (baseIncomeMap[c.id] ?? 0) : (rawIncomeMap[c.id] ?? 0),
+      );
     }).toList();
 
     final baseExpenseMap = statsNotifier.calculateCategoryTotalsForMonth(
-      txState.selectedMonth, true, inBaseCurrency: true,
+      txState.selectedMonth,
+      true,
+      inBaseCurrency: true,
     );
     final rawExpenseMap = statsNotifier.calculateCategoryTotalsForMonth(
-      txState.selectedMonth, true, inBaseCurrency: false,
+      txState.selectedMonth,
+      true,
+      inBaseCurrency: false,
     );
 
     final displayExpenses = catState.expenses.map((c) {
       bool isBase = c.currency == settingsState.baseCurrency;
-      return c.copyWith(amount: isBase ? (baseExpenseMap[c.id] ?? 0) : (rawExpenseMap[c.id] ?? 0));
+      return c.copyWith(
+        amount: isBase
+            ? (baseExpenseMap[c.id] ?? 0)
+            : (rawExpenseMap[c.id] ?? 0),
+      );
     }).toList();
 
     return Scaffold(
@@ -517,8 +531,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         filterType: type,
         transactions: txState.history,
         allCategories: allCategories,
-        onDelete: (t) =>
-            ref.read(transactionProvider.notifier).deleteTransaction(t),
+        onDelete: (t) async =>
+            await ref.read(transactionProvider.notifier).moveToTrash(t),
         onEdit: (t) => _handleEditTransaction(t, allCategories),
       ),
     );
@@ -725,8 +739,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           category: c,
           transactions: txState.history,
           allCategories: catState.allCategoriesList,
-          onDelete: (t) =>
-              ref.read(transactionProvider.notifier).deleteTransaction(t),
+          onDelete: (t) async =>
+              await ref.read(transactionProvider.notifier).moveToTrash(t),
           onEdit: (t) => _handleEditTransaction(t, catState.allCategoriesList),
         ),
       );

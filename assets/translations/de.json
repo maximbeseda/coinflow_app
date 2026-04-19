@@ -253,5 +253,19 @@
   "week_fr": "fr",
   "week_sa": "sa",
   "week_su": "so",
-  "reset": "Zurücksetzen"
+  "reset": "Zurücksetzen",
+
+  "trash": "Papierkorb",
+  "trash_empty": "Papierkorb ist leer",
+  "empty_trash": "Papierkorb leeren",
+  "empty_trash_title": "Papierkorb leeren?",
+  "empty_trash_msg": "Sind Sie sicher, dass Sie alle Elemente endgültig aus dem Papierkorb löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+  "trash_emptied": "Papierkorb erfolgreich geleert",
+  "restore": "Wiederherstellen",
+  "delete_forever": "Endgültig löschen",
+  "days_left": "Löschung in {} Tg.",
+  "category": "Kategorie",
+  "transaction": "Transaktion",
+  "subscription": "Abo",
+  "deleted_category": "Gelöschte Kategorie"
 }

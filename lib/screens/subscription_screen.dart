@@ -846,9 +846,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
     if (!mounted) return;
     if (confirmed) {
-      ref
-          .read(subscriptionProvider.notifier)
-          .deleteSubscription(widget.subscription!.id);
+      ref.read(subscriptionProvider.notifier).moveToTrash(widget.subscription!);
       Navigator.pop(context);
     }
   }

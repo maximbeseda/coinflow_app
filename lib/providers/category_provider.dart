@@ -1,8 +1,8 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:drift/drift.dart' as drift; // 👇 ДОДАНО для drift.Value()
 
 import '../database/app_database.dart';
 import '../services/storage_service.dart';
-// 👇 Додали імпорт хабу, де лежить databaseProvider
 import 'all_providers.dart';
 
 part 'category_provider.g.dart';
@@ -13,6 +13,7 @@ class CategoryState {
   final List<Category> accounts;
   final List<Category> expenses;
   final List<Category> archivedCategories;
+  final List<Category> deletedCategories; // 👇 НОВЕ: Кошик
   final bool isLoading;
 
   CategoryState({
@@ -20,6 +21,7 @@ class CategoryState {
     required this.accounts,
     required this.expenses,
     required this.archivedCategories,
+    required this.deletedCategories,
     required this.isLoading,
   });
 
@@ -28,6 +30,7 @@ class CategoryState {
     List<Category>? accounts,
     List<Category>? expenses,
     List<Category>? archivedCategories,
+    List<Category>? deletedCategories,
     bool? isLoading,
   }) {
     return CategoryState(
@@ -35,6 +38,7 @@ class CategoryState {
       accounts: accounts ?? this.accounts,
       expenses: expenses ?? this.expenses,
       archivedCategories: archivedCategories ?? this.archivedCategories,
+      deletedCategories: deletedCategories ?? this.deletedCategories,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -44,6 +48,7 @@ class CategoryState {
     ...accounts,
     ...expenses,
     ...archivedCategories,
+    ...deletedCategories, // Включаємо кошик у загальний список для безпеки
   ];
 }
 
@@ -57,6 +62,7 @@ class CategoryNotifier extends _$CategoryNotifier {
       accounts: [],
       expenses: [],
       archivedCategories: [],
+      deletedCategories: [],
       isLoading: true,
     );
 
@@ -66,7 +72,6 @@ class CategoryNotifier extends _$CategoryNotifier {
   }
 
   Future<void> loadCategories() async {
-    // 👇 Отримуємо базу з провайдера
     final db = ref.read(databaseProvider);
     final savedCats = await StorageService.loadCategories(db);
 
@@ -74,21 +79,28 @@ class CategoryNotifier extends _$CategoryNotifier {
     List<Category> newAccounts = [];
     List<Category> newExpenses = [];
     List<Category> newArchived = [];
+    List<Category> newDeleted = []; // 👇 НОВЕ
 
     if (savedCats.isNotEmpty) {
       final sorted = List<Category>.from(savedCats)
         ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
-      newIncomes = sorted
+      // Спочатку відфільтровуємо ті, що в кошику
+      newDeleted = sorted.where((c) => c.deletedAt != null).toList();
+
+      // Усі інші (живі та архівні)
+      final notDeleted = sorted.where((c) => c.deletedAt == null).toList();
+
+      newIncomes = notDeleted
           .where((c) => c.type == CategoryType.income && !c.isArchived)
           .toList();
-      newAccounts = sorted
+      newAccounts = notDeleted
           .where((c) => c.type == CategoryType.account && !c.isArchived)
           .toList();
-      newExpenses = sorted
+      newExpenses = notDeleted
           .where((c) => c.type == CategoryType.expense && !c.isArchived)
           .toList();
-      newArchived = sorted.where((c) => c.isArchived).toList();
+      newArchived = notDeleted.where((c) => c.isArchived).toList();
     }
 
     state = state.copyWith(
@@ -96,6 +108,7 @@ class CategoryNotifier extends _$CategoryNotifier {
       accounts: newAccounts,
       expenses: newExpenses,
       archivedCategories: newArchived,
+      deletedCategories: newDeleted,
       isLoading: false,
     );
   }
@@ -129,7 +142,6 @@ class CategoryNotifier extends _$CategoryNotifier {
     StorageService.saveCategory(db, updatedCategory);
   }
 
-  // 👇 ВИПРАВЛЕНО: Тепер метод асинхронний і повертає Future
   Future<void> addOrUpdateCategory(Category cat) async {
     final db = ref.read(databaseProvider);
     List<Category> targetList;
@@ -146,11 +158,9 @@ class CategoryNotifier extends _$CategoryNotifier {
     if (index == -1) {
       final newCat = cat.copyWith(sortOrder: targetList.length);
       targetList.add(newCat);
-      // 👇 ДОДАНО: await для гарантованого запису в БД
       await StorageService.saveCategory(db, newCat);
     } else {
       targetList[index] = cat;
-      // 👇 ДОДАНО: await
       await StorageService.saveCategory(db, cat);
     }
 
@@ -163,34 +173,62 @@ class CategoryNotifier extends _$CategoryNotifier {
     }
   }
 
-  void deleteCategory(Category cat) {
+  // ==========================================
+  // 👇 НОВА ЛОГІКА КОШИКА ТА ВИДАЛЕННЯ
+  // ==========================================
+
+  // 1. Перемістити в кошик (Soft Delete)
+  Future<void> moveToTrash(Category cat) async {
     final db = ref.read(databaseProvider);
-    final archived = cat.copyWith(isArchived: true);
-    StorageService.saveCategory(db, archived);
 
-    final newArchived = List<Category>.from(state.archivedCategories)
-      ..add(archived);
+    // Ставимо поточну дату як дату видалення. Використовуємо drift.Value
+    final deletedCat = cat.copyWith(deletedAt: drift.Value(DateTime.now()));
+    await StorageService.saveCategory(db, deletedCat);
 
-    if (cat.type == CategoryType.income) {
-      final newList = List<Category>.from(state.incomes)
-        ..removeWhere((c) => c.id == cat.id);
-      state = state.copyWith(incomes: newList, archivedCategories: newArchived);
-    } else if (cat.type == CategoryType.account) {
-      final newList = List<Category>.from(state.accounts)
-        ..removeWhere((c) => c.id == cat.id);
-      state = state.copyWith(
-        accounts: newList,
-        archivedCategories: newArchived,
-      );
-    } else {
-      final newList = List<Category>.from(state.expenses)
-        ..removeWhere((c) => c.id == cat.id);
-      state = state.copyWith(
-        expenses: newList,
-        archivedCategories: newArchived,
-      );
-    }
+    // Просто перезавантажуємо стан, щоб списки правильно розклалися
+    await loadCategories();
   }
+
+  // 2. Відновити з кошика
+  Future<void> restoreFromTrash(Category cat) async {
+    final db = ref.read(databaseProvider);
+
+    // Скидаємо deletedAt. Для Drift null передається як const drift.Value(null)
+    final restoredCat = cat.copyWith(deletedAt: const drift.Value(null));
+    await StorageService.saveCategory(db, restoredCat);
+
+    await loadCategories();
+  }
+
+  // 3. Остаточне видалення або Архівація (Твоя геніальна перевірка)
+  Future<void> emptyTrashOrArchive(Category cat) async {
+    final db = ref.read(databaseProvider);
+
+    // Шукаємо, чи є хоча б 1 транзакція, прив'язана до цієї категорії
+    final hasTransactions =
+        await (db.select(db.transactions)
+              ..where((t) => t.fromId.equals(cat.id) | t.toId.equals(cat.id))
+              ..limit(1))
+            .get()
+            .then((list) => list.isNotEmpty);
+
+    if (hasTransactions) {
+      // 🔴 Є транзакції: Відновлюємо з кошика, але робимо АРХІВНОЮ
+      final archivedCat = cat.copyWith(
+        deletedAt: const drift.Value(null),
+        isArchived: true,
+      );
+      await StorageService.saveCategory(db, archivedCat);
+    } else {
+      // 🟢 Немає транзакцій: Видаляємо фізично НАЗАВЖДИ (Hard Delete)
+      await (db.delete(db.categories)..where((c) => c.id.equals(cat.id))).go();
+    }
+
+    // Оновлюємо UI
+    await loadCategories();
+  }
+
+  // ==========================================
 
   void reorderCategories(Category dragged, Category target) {
     final db = ref.read(databaseProvider);
@@ -227,36 +265,30 @@ class CategoryNotifier extends _$CategoryNotifier {
     }
   }
 
-  // 👇 НОВИЙ МЕТОД: "Розумне" оновлення валюти для категорій при зміні базової валюти
   Future<void> updateBaseCurrencyForCategories(
     String oldBase,
     String newBase,
   ) async {
     final db = ref.read(databaseProvider);
 
-    // Оновлюємо доходи: якщо валюта була oldBase, ставимо newBase. Інакше - не чіпаємо.
     final newIncomes = state.incomes.map((c) {
       if (c.currency == oldBase) return c.copyWith(currency: newBase);
       return c;
     }).toList();
 
-    // Аналогічно для витрат
     final newExpenses = state.expenses.map((c) {
       if (c.currency == oldBase) return c.copyWith(currency: newBase);
       return c;
     }).toList();
 
-    // УВАГА: Ми НЕ чіпаємо state.accounts, тому що рахунки це фізичні гроші, їх валюта незмінна!
-
-    // Зберігаємо всі категорії в базу даних одним списком
     await StorageService.saveCategories(db, [
       ...newIncomes,
       ...state.accounts,
       ...newExpenses,
       ...state.archivedCategories,
+      ...state.deletedCategories, // Захоплюємо і кошик теж!
     ]);
 
-    // Оновлюємо стан провайдера
     state = state.copyWith(incomes: newIncomes, expenses: newExpenses);
   }
 
@@ -273,12 +305,16 @@ class CategoryNotifier extends _$CategoryNotifier {
     final newArchived = state.archivedCategories
         .map((c) => c.copyWith(amount: 0))
         .toList();
+    final newDeleted = state.deletedCategories
+        .map((c) => c.copyWith(amount: 0))
+        .toList();
 
     state = state.copyWith(
       incomes: newIncomes,
       accounts: newAccounts,
       expenses: newExpenses,
       archivedCategories: newArchived,
+      deletedCategories: newDeleted,
     );
 
     await StorageService.saveCategories(db, state.allCategoriesList);

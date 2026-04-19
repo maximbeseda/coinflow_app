@@ -253,5 +253,19 @@
   "week_fr": "fr",
   "week_sa": "sa",
   "week_su": "su",
-  "reset": "Reset"
+  "reset": "Reset",
+
+  "trash": "Trash",
+  "trash_empty": "Trash is empty",
+  "empty_trash": "Empty trash",
+  "empty_trash_title": "Empty trash?",
+  "empty_trash_msg": "Are you sure you want to permanently delete all items from the trash? This action cannot be undone.",
+  "trash_emptied": "Trash successfully emptied",
+  "restore": "Restore",
+  "delete_forever": "Delete forever",
+  "days_left": "Deletes in {} days",
+  "category": "Category",
+  "transaction": "Transaction",
+  "subscription": "Subscription",
+  "deleted_category": "Deleted category"
 }
