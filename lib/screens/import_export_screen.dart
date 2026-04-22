@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,7 +35,10 @@ class _ImportExportScreenState extends ConsumerState<ImportExportScreen> {
   final Set<String> _exportCategoryIds = {};
 
   List<Transaction> _getFilteredTransactions() {
-    final allTransactions = ref.read(transactionProvider).history;
+    // 👇 ВИПРАВЛЕНО: дістаємо історію з AsyncValue
+    final txAsync = ref.read(transactionProvider);
+    final allTransactions = txAsync.value?.history ?? [];
+
     if (!_exportOnlyFiltered) return allTransactions;
 
     final categories = ref.read(categoryProvider).allCategoriesList;
@@ -125,10 +129,12 @@ class _ImportExportScreenState extends ConsumerState<ImportExportScreen> {
           ScaffoldMessenger.of(context).clearSnackBars();
 
           if (rawRows != null && rawRows.isNotEmpty) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => CsvMappingScreen(rawRows: rawRows),
+            unawaited(
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CsvMappingScreen(rawRows: rawRows),
+                ),
               ),
             );
           } else {
@@ -143,15 +149,14 @@ class _ImportExportScreenState extends ConsumerState<ImportExportScreen> {
         }
       }
     } catch (e) {
-      debugPrint("Помилка вибору файлу CSV: $e");
+      debugPrint('Помилка вибору файлу CSV: $e');
     } finally {
-      // 👇 ТЕПЕР ТИ ПОБАЧИШ ЦЕЙ ЛОГ (Імпорт CSV)
       if (result != null) {
         try {
           await FilePicker.platform.clearTemporaryFiles();
-          debugPrint("✅ Кеш FilePicker (Імпорт CSV) успішно очищено");
+          debugPrint('✅ Кеш FilePicker (Імпорт CSV) успішно очищено');
         } catch (e) {
-          debugPrint("❌ Не вдалося очистити кеш FilePicker (CSV): $e");
+          debugPrint('❌ Не вдалося очистити кеш FilePicker (CSV): $e');
         }
       }
     }

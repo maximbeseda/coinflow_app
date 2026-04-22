@@ -356,8 +356,8 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
                             );
 
                             String prefix = isIncome
-                                ? "+"
-                                : (isTransfer ? "" : "-");
+                                ? '+'
+                                : (isTransfer ? '' : '-');
                             Color amountColor = isIncome
                                 ? colors.income
                                 : (isTransfer
@@ -473,7 +473,7 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    "$prefix${CurrencyFormatter.format(mainAmount.abs())} $mainSymbol",
+                                    '$prefix${CurrencyFormatter.format(mainAmount.abs())} $mainSymbol',
                                     style: TextStyle(
                                       color: amountColor,
                                       fontWeight: FontWeight.bold,
@@ -484,7 +484,7 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
                                     Padding(
                                       padding: const EdgeInsets.only(top: 2.0),
                                       child: Text(
-                                        "~ ${CurrencyFormatter.format(secondaryAmount.abs())} $secondarySymbol",
+                                        '~ ${CurrencyFormatter.format(secondaryAmount.abs())} $secondarySymbol',
                                         style: TextStyle(
                                           color: colors.textSecondary,
                                           fontSize: 11,

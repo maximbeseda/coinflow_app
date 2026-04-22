@@ -155,7 +155,7 @@ class _CustomDateRangePickerState extends State<CustomDateRangePicker> {
       'dd MMM yyyy',
       context.locale.languageCode,
     ).format(_end!);
-    return "$s - $e";
+    return '$s - $e';
   }
 
   @override

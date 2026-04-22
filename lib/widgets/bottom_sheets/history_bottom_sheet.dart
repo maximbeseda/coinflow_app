@@ -225,17 +225,17 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
                         secondaryCurrency,
                       ).symbol;
 
-                      String prefix = "";
+                      String prefix = '';
                       Color amountColor = colors.textMain;
 
                       if (widget.category.type == CategoryType.income) {
-                        prefix = "+";
+                        prefix = '+';
                         amountColor = colors.income;
                       } else if (widget.category.type == CategoryType.expense) {
-                        prefix = "-";
+                        prefix = '-';
                         amountColor = colors.expense;
                       } else {
-                        prefix = isOut ? "-" : "+";
+                        prefix = isOut ? '-' : '+';
                         if (otherCat?.type == CategoryType.account) {
                           amountColor = colors.textSecondary;
                         } else {
@@ -357,7 +357,7 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
                                 children: [
                                   // Головна сума
                                   Text(
-                                    "$prefix${CurrencyFormatter.format(mainAmount)} $mainSymbol",
+                                    '$prefix${CurrencyFormatter.format(mainAmount)} $mainSymbol',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: amountColor,
@@ -369,7 +369,7 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
                                     Padding(
                                       padding: const EdgeInsets.only(top: 2.0),
                                       child: Text(
-                                        "~ ${CurrencyFormatter.format(secondaryAmount)} $secondarySymbol",
+                                        '~ ${CurrencyFormatter.format(secondaryAmount)} $secondarySymbol',
                                         style: TextStyle(
                                           color: colors.textSecondary,
                                           fontSize: 11,

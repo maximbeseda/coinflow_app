@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-// 👇 1. Перейшли на Riverpod
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-// 👇 2. Підключаємо наш єдиний хаб провайдерів
 import '../providers/all_providers.dart';
-
 import '../database/app_database.dart';
 import '../models/app_currency.dart';
 import '../utils/currency_formatter.dart';
@@ -13,7 +10,6 @@ import '../utils/date_formatter.dart';
 import '../screens/subscription_screen.dart';
 import '../theme/app_colors_extension.dart';
 
-// 👇 3. Замінюємо StatelessWidget на ConsumerWidget
 class SubscriptionsScreen extends ConsumerWidget {
   const SubscriptionsScreen({super.key});
 
@@ -44,12 +40,13 @@ class SubscriptionsScreen extends ConsumerWidget {
   }
 
   @override
-  // 👇 4. Додаємо WidgetRef ref
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // 👇 5. МАГІЯ RIVERPOD: Читаємо стани напряму, без Consumer2!
-    final subState = ref.watch(subscriptionProvider);
+    // 👇 ВИПРАВЛЕНО: Отримуємо AsyncValue та розпаковуємо його
+    final subAsync = ref.watch(subscriptionProvider);
+    final subState = subAsync.value;
+
     final catState = ref.watch(categoryProvider);
 
     return Container(
@@ -109,8 +106,10 @@ class SubscriptionsScreen extends ConsumerWidget {
               ),
             ),
             Expanded(
-              // 👇 6. Більше ніяких Consumer2, просто використовуємо змінні subState та catState
-              child: subState.subscriptions.isEmpty
+              // 👇 Додаємо перевірку на завантаження або відсутність даних
+              child: (subAsync.isLoading || subState == null)
+                  ? const Center(child: CircularProgressIndicator())
+                  : subState.subscriptions.isEmpty
                   ? Center(
                       child: Text(
                         'no_subscriptions'.tr(),
@@ -283,7 +282,7 @@ class SubscriptionsScreen extends ConsumerWidget {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          "-${CurrencyFormatter.format(sub.amount)} $currencySymbol",
+                                          '-${CurrencyFormatter.format(sub.amount)} $currencySymbol',
                                           style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w900,
@@ -360,7 +359,6 @@ class SubscriptionsScreen extends ConsumerWidget {
                                                     elevation: 0,
                                                   ),
                                                   onPressed: () async {
-                                                    // 👇 7. Викликаємо метод через Notifier
                                                     final (
                                                       success,
                                                       message,

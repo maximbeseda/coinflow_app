@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -123,13 +124,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final settingsNotifier = ref.read(settingsProvider.notifier);
 
     await settingsNotifier.setBaseCurrency(_selectedCurrencyCode);
-    await StorageService.completeOnboarding();
+
+    // 👇 ОНОВЛЕНО: Викликаємо completeOnboarding через екземпляр StorageService
+    final storage = StorageService(ref.read(sharedPreferencesProvider));
+    await storage.completeOnboarding();
 
     if (!mounted) return;
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    unawaited(
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      ),
     );
   }
 
@@ -547,7 +553,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
                 const Spacer(),
 
-                // КНОПКА СТАРТУ (змінили назву тут)
+                // КНОПКА СТАРТУ
                 _buildStartButton(colors),
               ],
             ),
@@ -557,7 +563,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  // 👇 Змінили назву функції на правильну (lowerCamelCase)
   Widget _buildStartButton(AppColorsExtension colors) {
     return ElevatedButton(
       onPressed: _isSaving ? null : _finishOnboarding,

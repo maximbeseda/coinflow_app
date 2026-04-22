@@ -242,7 +242,7 @@ class DueSubscriptionDialog extends ConsumerWidget {
                             );
 
                             if (!canPay) {
-                              subNotifier.ignoreSubscriptionPermanently(
+                              await subNotifier.ignoreSubscriptionPermanently(
                                 subscription.id,
                               );
                               navigator.pop();

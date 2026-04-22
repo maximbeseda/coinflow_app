@@ -13,7 +13,7 @@ part of 'subscription_provider.dart';
 const subscriptionProvider = SubscriptionNotifierProvider._();
 
 final class SubscriptionNotifierProvider
-    extends $NotifierProvider<SubscriptionNotifier, SubscriptionState> {
+    extends $AsyncNotifierProvider<SubscriptionNotifier, SubscriptionState> {
   const SubscriptionNotifierProvider._()
     : super(
         from: null,
@@ -31,31 +31,25 @@ final class SubscriptionNotifierProvider
   @$internal
   @override
   SubscriptionNotifier create() => SubscriptionNotifier();
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(SubscriptionState value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<SubscriptionState>(value),
-    );
-  }
 }
 
 String _$subscriptionNotifierHash() =>
-    r'c8e4d289ec113eae9ca8e2192156e2701574331e';
+    r'2722c2a0329e67f12e474897ec03b8a00281cf6a';
 
-abstract class _$SubscriptionNotifier extends $Notifier<SubscriptionState> {
-  SubscriptionState build();
+abstract class _$SubscriptionNotifier
+    extends $AsyncNotifier<SubscriptionState> {
+  FutureOr<SubscriptionState> build();
   @$mustCallSuper
   @override
   void runBuild() {
     final created = build();
-    final ref = this.ref as $Ref<SubscriptionState, SubscriptionState>;
+    final ref =
+        this.ref as $Ref<AsyncValue<SubscriptionState>, SubscriptionState>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<SubscriptionState, SubscriptionState>,
-              SubscriptionState,
+              AnyNotifier<AsyncValue<SubscriptionState>, SubscriptionState>,
+              AsyncValue<SubscriptionState>,
               Object?,
               Object?
             >;

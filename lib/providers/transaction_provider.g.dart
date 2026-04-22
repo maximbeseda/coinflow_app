@@ -13,7 +13,7 @@ part of 'transaction_provider.dart';
 const transactionProvider = TransactionNotifierProvider._();
 
 final class TransactionNotifierProvider
-    extends $NotifierProvider<TransactionNotifier, TransactionState> {
+    extends $AsyncNotifierProvider<TransactionNotifier, TransactionState> {
   const TransactionNotifierProvider._()
     : super(
         from: null,
@@ -31,31 +31,24 @@ final class TransactionNotifierProvider
   @$internal
   @override
   TransactionNotifier create() => TransactionNotifier();
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(TransactionState value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<TransactionState>(value),
-    );
-  }
 }
 
 String _$transactionNotifierHash() =>
-    r'44c2970e8367739b1b63a9f64f1252486e233dd3';
+    r'555a6767d4330db87d833698a5f6d1195ad831ca';
 
-abstract class _$TransactionNotifier extends $Notifier<TransactionState> {
-  TransactionState build();
+abstract class _$TransactionNotifier extends $AsyncNotifier<TransactionState> {
+  FutureOr<TransactionState> build();
   @$mustCallSuper
   @override
   void runBuild() {
     final created = build();
-    final ref = this.ref as $Ref<TransactionState, TransactionState>;
+    final ref =
+        this.ref as $Ref<AsyncValue<TransactionState>, TransactionState>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<TransactionState, TransactionState>,
-              TransactionState,
+              AnyNotifier<AsyncValue<TransactionState>, TransactionState>,
+              AsyncValue<TransactionState>,
               Object?,
               Object?
             >;

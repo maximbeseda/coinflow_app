@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -9,7 +10,6 @@ import '../theme/app_colors_extension.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_constants.dart';
 import '../services/security_service.dart';
-// 👇 ДОДАНО: Імпорт для повного очищення бази
 import '../services/storage_service.dart';
 import 'lock_screen.dart';
 
@@ -108,10 +108,8 @@ class ProfileScreen extends ConsumerWidget {
     if (confirmed) {
       final db = ref.read(databaseProvider);
 
-      // 👇 ВИПРАВЛЕНО: Фізичне та повне очищення бази даних
       await StorageService.wipeEntireDatabase(db);
 
-      // 👇 МАГІЯ RIVERPOD: Змушуємо всі екрани миттєво обнулитися
       ref.invalidate(transactionProvider);
       ref.invalidate(categoryProvider);
       ref.invalidate(subscriptionProvider);
@@ -182,167 +180,190 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ),
         child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Column(
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: colors.cardBg,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: colors.cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          _buildSettingsRow(
+                            colors: colors,
+                            icon: Icons.palette_outlined,
+                            title: 'interface_theme'.tr(),
+                            dropdownValue: ref.watch(themeProvider),
+                            items: AppTheme.allThemes.entries.map((entry) {
+                              return DropdownMenuItem(
+                                value: entry.key,
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  entry.value.tr(),
+                                  style: TextStyle(color: colors.textMain),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                ref.read(themeProvider.notifier).setTheme(val);
+                              }
+                            },
+                          ),
+
+                          Divider(
+                            height: 1,
+                            indent: 20,
+                            endIndent: 20,
+                            color: colors.textSecondary.withValues(alpha: 0.1),
+                          ),
+
+                          // Мова
+                          _buildSettingsRow(
+                            colors: colors,
+                            icon: Icons.language_outlined,
+                            title: 'language'.tr(),
+                            dropdownValue: context.locale.languageCode,
+                            items: context.supportedLocales.map((locale) {
+                              return DropdownMenuItem(
+                                value: locale.languageCode,
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  AppConstants.languages[locale.languageCode] ??
+                                      locale.languageCode.toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Colors.blueAccent,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) => val != null
+                                ? context.setLocale(Locale(val))
+                                : null,
+                          ),
+
+                          Divider(
+                            height: 1,
+                            indent: 20,
+                            endIndent: 20,
+                            color: colors.textSecondary.withValues(alpha: 0.1),
+                          ),
+
+                          // Валюта
+                          _buildSettingsRow(
+                            colors: colors,
+                            icon: Icons.monetization_on_outlined,
+                            title: 'base_currency'.tr(),
+                            dropdownValue: ref
+                                .watch(settingsProvider)
+                                .baseCurrency,
+                            items: AppCurrency.supportedCurrencies.map((
+                              currency,
+                            ) {
+                              return DropdownMenuItem(
+                                value: currency.code,
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  '${currency.code} (${currency.symbol})',
+                                  style: TextStyle(
+                                    color: colors.income,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                ref
+                                    .read(settingsProvider.notifier)
+                                    .setBaseCurrency(val);
+                              }
+                            },
+                          ),
+
+                          Divider(
+                            height: 1,
+                            indent: 20,
+                            endIndent: 20,
+                            color: colors.textSecondary.withValues(alpha: 0.1),
+                          ),
+
+                          const SecuritySettingsSection(),
+
+                          // Кнопка очищення даних
+                          ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 8,
+                            ),
+                            leading: Icon(
+                              Icons.delete_forever_rounded,
+                              color: colors.expense,
+                            ),
+                            title: Text(
+                              'clear_all_data'.tr(),
+                              style: TextStyle(
+                                color: colors.expense,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            onTap: () async {
+                              final isPinSet = await SecurityService.isPinSet();
+
+                              if (isPinSet) {
+                                if (!context.mounted) return;
+
+                                final authSuccess = await Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const LockScreen(isSetupMode: false),
+                                  ),
+                                );
+
+                                if (authSuccess != true) {
+                                  return;
+                                }
+                              }
+
+                              if (!context.mounted) return;
+
+                              await _showClearDataDialog(context, ref);
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                child: Column(
-                  children: [
-                    _buildSettingsRow(
-                      colors: colors,
-                      icon: Icons.palette_outlined,
-                      title: 'interface_theme'.tr(),
-                      dropdownValue: ref.watch(themeProvider),
-                      items: AppTheme.allThemes.entries.map((entry) {
-                        return DropdownMenuItem(
-                          value: entry.key,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            entry.value.tr(),
-                            style: TextStyle(color: colors.textMain),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          ref.read(themeProvider.notifier).setTheme(val);
-                        }
-                      },
-                    ),
+              ),
 
-                    Divider(
-                      height: 1,
-                      indent: 20,
-                      endIndent: 20,
-                      color: colors.textSecondary.withValues(alpha: 0.1),
-                    ),
-
-                    // Мова
-                    _buildSettingsRow(
-                      colors: colors,
-                      icon: Icons.language_outlined,
-                      title: 'language'.tr(),
-                      dropdownValue: context.locale.languageCode,
-                      items: context.supportedLocales.map((locale) {
-                        return DropdownMenuItem(
-                          value: locale.languageCode,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            AppConstants.languages[locale.languageCode] ??
-                                locale.languageCode.toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.blueAccent,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (val) =>
-                          val != null ? context.setLocale(Locale(val)) : null,
-                    ),
-
-                    Divider(
-                      height: 1,
-                      indent: 20,
-                      endIndent: 20,
-                      color: colors.textSecondary.withValues(alpha: 0.1),
-                    ),
-
-                    // Валюта
-                    _buildSettingsRow(
-                      colors: colors,
-                      icon: Icons.monetization_on_outlined,
-                      title: 'base_currency'.tr(),
-                      dropdownValue: ref.watch(settingsProvider).baseCurrency,
-                      items: AppCurrency.supportedCurrencies.map((currency) {
-                        return DropdownMenuItem(
-                          value: currency.code,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            "${currency.code} (${currency.symbol})",
-                            style: TextStyle(
-                              color: colors.income,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          ref
-                              .read(settingsProvider.notifier)
-                              .setBaseCurrency(val);
-                        }
-                      },
-                    ),
-
-                    Divider(
-                      height: 1,
-                      indent: 20,
-                      endIndent: 20,
-                      color: colors.textSecondary.withValues(alpha: 0.1),
-                    ),
-
-                    const SecuritySettingsSection(),
-
-                    // Кнопка очищення даних
-                    ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
-                      leading: Icon(
-                        Icons.delete_forever_rounded,
-                        color: colors.expense,
-                      ),
-                      title: Text(
-                        'clear_all_data'.tr(),
-                        style: TextStyle(
-                          color: colors.expense,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      // 👇 ДОДАНО: Перевірка ПІН-коду перед видаленням
-                      onTap: () async {
-                        final isPinSet = await SecurityService.isPinSet();
-
-                        if (isPinSet) {
-                          if (!context.mounted) return;
-
-                          // Викликаємо екран перевірки
-                          final authSuccess = await Navigator.push<bool>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  const LockScreen(isSetupMode: false),
-                            ),
-                          );
-
-                          // Якщо користувач скасував введення або ввів неправильно - перериваємо процес
-                          if (authSuccess != true) {
-                            return;
-                          }
-                        }
-
-                        if (!context.mounted) return;
-
-                        // Якщо ПІН-коду немає або його ввели правильно - показуємо діалог видалення
-                        _showClearDataDialog(context, ref);
-                      },
-                    ),
-                  ],
+              // 👇 ДОДАНО: Версія прибита до нижнього краю екрана
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0, top: 8.0),
+                child: Text(
+                  'v${ref.watch(packageInfoProvider).version}',
+                  style: TextStyle(
+                    color: colors.textSecondary.withValues(alpha: 0.5),
+                    fontSize: 12,
+                    letterSpacing: 1.2,
+                  ),
                 ),
               ),
             ],
@@ -435,7 +456,7 @@ class _SecuritySettingsSectionState extends State<SecuritySettingsSection> {
         context,
         MaterialPageRoute(builder: (_) => const LockScreen(isSetupMode: true)),
       );
-      if (success == true) _loadSecuritySettings();
+      if (success == true) await _loadSecuritySettings();
     } else {
       final success = await Navigator.push<bool>(
         context,
@@ -443,7 +464,7 @@ class _SecuritySettingsSectionState extends State<SecuritySettingsSection> {
       );
       if (success == true) {
         await SecurityService.disableSecurity();
-        _loadSecuritySettings();
+        await _loadSecuritySettings();
       }
     }
   }
@@ -517,7 +538,7 @@ class _SecuritySettingsSectionState extends State<SecuritySettingsSection> {
                   activeThumbColor: colors.accent,
                   onChanged: (val) async {
                     await SecurityService.setBiometricsEnabled(val);
-                    _loadSecuritySettings();
+                    await _loadSecuritySettings();
                   },
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:vibration/vibration.dart';
 import '../../theme/app_colors_extension.dart';
@@ -11,7 +12,8 @@ class CustomNumpad extends StatelessWidget {
   void _handleKeyPress(String key) async {
     bool? hasVibrator = await Vibration.hasVibrator();
     if (hasVibrator == true) {
-      Vibration.vibrate(duration: 15, amplitude: 30);
+      // ДОДАНО: unawaited
+      unawaited(Vibration.vibrate(duration: 15, amplitude: 30));
     }
     onKeyPressed(key);
   }

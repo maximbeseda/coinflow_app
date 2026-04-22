@@ -307,7 +307,7 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
             }
           }
 
-          String label = "";
+          String label = '';
           if (isFocused) {
             label = CurrencyFormatter.format((spot.y * 100).round());
           }
@@ -776,7 +776,7 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              "${CurrencyFormatter.format(avgInc.round())} $symbol",
+                              '${CurrencyFormatter.format(avgInc.round())} $symbol',
                               style: TextStyle(
                                 color: widget.colors.income,
                                 fontWeight: FontWeight.bold,
@@ -807,7 +807,7 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              "${(avgInc > 0 ? ((avgInc - avgExp) / avgInc * 100) : 0).round()}%",
+                              '${(avgInc > 0 ? ((avgInc - avgExp) / avgInc * 100) : 0).round()}%',
                               style: TextStyle(
                                 color: widget.colors.textMain,
                                 fontWeight: FontWeight.bold,
@@ -838,7 +838,7 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              "${CurrencyFormatter.format(avgExp.round())} $symbol",
+                              '${CurrencyFormatter.format(avgExp.round())} $symbol',
                               style: TextStyle(
                                 color: widget.colors.expense,
                                 fontWeight: FontWeight.bold,

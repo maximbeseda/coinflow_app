@@ -430,7 +430,7 @@ class YearSummaryScreen extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            "${CurrencyFormatter.format(value)} $symbol",
+            '${CurrencyFormatter.format(value)} $symbol',
             style: TextStyle(
               color: colors.textMain,
               fontWeight: FontWeight.w600,

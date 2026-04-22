@@ -51,7 +51,8 @@ class FawazahmedApi implements CurrencyRepository {
       final response = await _fetchWithFallback('latest', baseLower);
 
       if (response != null) {
-        final data = json.decode(response.body);
+        // ВИПРАВЛЕНО: Додано "as Map<String, dynamic>", щоб Dart знав тип даних
+        final data = json.decode(response.body) as Map<String, dynamic>;
         final ratesData = data[baseLower] as Map<String, dynamic>;
 
         // Тут ми приводимо дані до формату, який вимагає наш додаток
@@ -80,7 +81,8 @@ class FawazahmedApi implements CurrencyRepository {
       final response = await _fetchWithFallback(dateStr, baseLower);
 
       if (response != null) {
-        final data = json.decode(response.body);
+        // ВИПРАВЛЕНО: Додано явне приведення типу
+        final data = json.decode(response.body) as Map<String, dynamic>;
         final ratesData = data[baseLower] as Map<String, dynamic>;
 
         return ratesData.map(

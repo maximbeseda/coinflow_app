@@ -172,7 +172,7 @@ class _PremiumDatePickerState extends State<PremiumDatePicker> {
                     controller: _yearController,
                     items: List.generate(
                       _endYear - _startYear + 1,
-                      (i) => "${_startYear + i}",
+                      (i) => '${_startYear + i}',
                     ),
                     colors: colors,
                     overlayWidth: 65, // Однакова ширина
@@ -180,14 +180,14 @@ class _PremiumDatePickerState extends State<PremiumDatePicker> {
                   const SizedBox(width: 10),
                   _buildPickerWithIsland(
                     controller: _monthController,
-                    items: List.generate(12, (i) => "${i + 1}".padLeft(2, '0')),
+                    items: List.generate(12, (i) => '${i + 1}'.padLeft(2, '0')),
                     colors: colors,
                     overlayWidth: 65, // Однакова ширина
                   ),
                   const SizedBox(width: 10),
                   _buildPickerWithIsland(
                     controller: _dayController,
-                    items: List.generate(31, (i) => "${i + 1}".padLeft(2, '0')),
+                    items: List.generate(31, (i) => '${i + 1}'.padLeft(2, '0')),
                     colors: colors,
                     overlayWidth: 65, // Однакова ширина
                   ),

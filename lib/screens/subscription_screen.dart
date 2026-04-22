@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
+import 'package:uuid/uuid.dart';
 
 import '../providers/all_providers.dart';
 
@@ -675,7 +677,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     if (mounted) FocusManager.instance.primaryFocus?.unfocus();
   }
 
-  void _save() {
+  Future<void> _save() async {
     FocusManager.instance.primaryFocus?.unfocus();
 
     double parsedAmount =
@@ -706,7 +708,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     final newSub = Subscription(
       id:
           widget.subscription?.id ??
-          DateTime.now().millisecondsSinceEpoch.toString(),
+          const Uuid().v4(), // ВИПРАВЛЕНО: надійна генерація ID
       name: _nameCtrl.text.trim(),
       amount: amountInCents,
       categoryId: _selectedExpenseId!,
@@ -719,12 +721,14 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     );
 
     if (widget.subscription == null) {
-      subNotifier.addSubscription(newSub);
+      // ДОДАНО: await
+      await subNotifier.addSubscription(newSub);
     } else {
-      subNotifier.updateSubscription(newSub);
+      // ДОДАНО: await
+      await subNotifier.updateSubscription(newSub);
     }
 
-    Navigator.pop(context);
+    if (mounted) Navigator.pop(context);
   }
 
   Future<void> _delete() async {
@@ -846,8 +850,12 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
     if (!mounted) return;
     if (confirmed) {
-      ref.read(subscriptionProvider.notifier).moveToTrash(widget.subscription!);
-      Navigator.pop(context);
+      // ДОДАНО: await, щоб дочекатися видалення в базу
+      await ref
+          .read(subscriptionProvider.notifier)
+          .moveToTrash(widget.subscription!);
+
+      if (mounted) Navigator.pop(context);
     }
   }
 
@@ -929,7 +937,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       decoration: InputDecoration(
         filled: false,
         labelText: label,
-        counterText: "",
+        counterText: '',
         labelStyle: TextStyle(color: baseColor, fontSize: 16),
         floatingLabelStyle: TextStyle(
           color: activeColor,
@@ -1143,7 +1151,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                             color: Colors.blueAccent,
                             size: 28,
                           ),
-                          onPressed: _save,
+                          onPressed: () => unawaited(_save()),
                         ),
                       ],
                     ),

@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../database/app_database.dart';
 import '../services/storage_service.dart';
@@ -8,12 +10,11 @@ import 'all_providers.dart';
 
 part 'transaction_provider.g.dart';
 
-// 1. СТАН (State) - Тільки повна історія для статистики
+// 1. СТАН (State)
 class TransactionState {
   final List<Transaction> history;
-  final List<Transaction> deletedHistory; // 👇 НОВЕ: Кошик транзакцій
+  final List<Transaction> deletedHistory;
   final DateTime selectedMonth;
-  final bool isLoading;
   final bool isMigrating;
   final String? lastKnownBaseCurrency;
 
@@ -21,7 +22,6 @@ class TransactionState {
     required this.history,
     required this.deletedHistory,
     required this.selectedMonth,
-    required this.isLoading,
     required this.isMigrating,
     this.lastKnownBaseCurrency,
   });
@@ -30,7 +30,6 @@ class TransactionState {
     List<Transaction>? history,
     List<Transaction>? deletedHistory,
     DateTime? selectedMonth,
-    bool? isLoading,
     bool? isMigrating,
     String? lastKnownBaseCurrency,
   }) {
@@ -38,7 +37,6 @@ class TransactionState {
       history: history ?? this.history,
       deletedHistory: deletedHistory ?? this.deletedHistory,
       selectedMonth: selectedMonth ?? this.selectedMonth,
-      isLoading: isLoading ?? this.isLoading,
       isMigrating: isMigrating ?? this.isMigrating,
       lastKnownBaseCurrency:
           lastKnownBaseCurrency ?? this.lastKnownBaseCurrency,
@@ -51,11 +49,11 @@ class TransactionState {
   }
 }
 
-// 2. СУЧАСНИЙ NOTIFIER
+// 2. СУЧАСНИЙ АСИНХРОННИЙ NOTIFIER
 @Riverpod(keepAlive: true)
 class TransactionNotifier extends _$TransactionNotifier {
   @override
-  TransactionState build() {
+  Future<TransactionState> build() async {
     ref.listen<String>(settingsProvider.select((s) => s.baseCurrency), (
       previous,
       next,
@@ -65,31 +63,43 @@ class TransactionNotifier extends _$TransactionNotifier {
       }
     });
 
+    final db = ref.read(databaseProvider);
+    final loadedHistory = await StorageService.loadHistory(db);
+    loadedHistory.sort((a, b) => b.date.compareTo(a.date));
+
+    final activeHistory = loadedHistory
+        .where((t) => t.deletedAt == null)
+        .toList();
+    final deletedHistory = loadedHistory
+        .where((t) => t.deletedAt != null)
+        .toList();
+
     final initialState = TransactionState(
-      history: [],
-      deletedHistory: [], // 👇 Ініціалізація
+      history: activeHistory,
+      deletedHistory: deletedHistory,
       selectedMonth: DateTime(DateTime.now().year, DateTime.now().month, 1),
-      isLoading: true,
       isMigrating: false,
     );
 
-    Future.microtask(() => _init());
-
-    return initialState;
-  }
-
-  Future<void> _init() async {
-    await loadHistory();
-
+    // Міграція валюти (якщо потрібно)
     final currentBase = ref.read(settingsProvider).baseCurrency;
     final now = DateTime.now();
-    final currentMonthTxs = state.history
+    final currentMonthTxs = activeHistory
         .where((tx) => tx.date.year == now.year && tx.date.month == now.month)
         .toList();
 
     if (currentMonthTxs.isNotEmpty &&
         currentMonthTxs.first.baseCurrency != currentBase) {
-      _migrateCurrentMonthBaseCurrency(currentBase);
+      unawaited(_migrateCurrentMonthBaseCurrency(currentBase));
+    }
+
+    return initialState;
+  }
+
+  // Хелпер для безпечного оновлення стану
+  void _updateState(TransactionState Function(TransactionState) update) {
+    if (state is AsyncData) {
+      state = AsyncData(update(state.value!));
     }
   }
 
@@ -98,7 +108,6 @@ class TransactionNotifier extends _$TransactionNotifier {
     final loadedHistory = await StorageService.loadHistory(db);
     loadedHistory.sort((a, b) => b.date.compareTo(a.date));
 
-    // 👇 РОЗДІЛЯЄМО НА АКТИВНІ ТА ВИДАЛЕНІ
     final activeHistory = loadedHistory
         .where((t) => t.deletedAt == null)
         .toList();
@@ -106,26 +115,27 @@ class TransactionNotifier extends _$TransactionNotifier {
         .where((t) => t.deletedAt != null)
         .toList();
 
-    state = state.copyWith(
-      history: activeHistory,
-      deletedHistory: deletedHistory,
-      isLoading: false,
+    _updateState(
+      (s) => s.copyWith(history: activeHistory, deletedHistory: deletedHistory),
     );
   }
 
   void changeMonth(int offset) {
-    state = state.copyWith(
-      selectedMonth: DateTime(
-        state.selectedMonth.year,
-        state.selectedMonth.month + offset,
-        1,
+    _updateState(
+      (s) => s.copyWith(
+        selectedMonth: DateTime(
+          s.selectedMonth.year,
+          s.selectedMonth.month + offset,
+          1,
+        ),
       ),
     );
   }
 
   void setMonth(DateTime newMonth) {
-    state = state.copyWith(
-      selectedMonth: DateTime(newMonth.year, newMonth.month, 1),
+    _updateState(
+      (s) =>
+          s.copyWith(selectedMonth: DateTime(newMonth.year, newMonth.month, 1)),
     );
   }
 
@@ -163,6 +173,9 @@ class TransactionNotifier extends _$TransactionNotifier {
   }
 
   Future<void> addTransactionDirectly(Transaction tx) async {
+    if (state is! AsyncData) return;
+    final currentState = state.value!;
+
     final db = ref.read(databaseProvider);
     final currentBase = ref.read(settingsProvider).baseCurrency;
 
@@ -185,10 +198,11 @@ class TransactionNotifier extends _$TransactionNotifier {
       baseAmount: baseAmt,
     );
 
-    final newHistory = List<Transaction>.from(state.history)..add(updatedTx);
+    final newHistory = List<Transaction>.from(currentState.history)
+      ..add(updatedTx);
     newHistory.sort((a, b) => b.date.compareTo(a.date));
 
-    state = state.copyWith(history: newHistory);
+    _updateState((s) => s.copyWith(history: newHistory));
     await StorageService.saveTransaction(db, updatedTx);
 
     _updateAccountBalance(updatedTx.fromId, -updatedTx.amount);
@@ -205,6 +219,9 @@ class TransactionNotifier extends _$TransactionNotifier {
     DateTime date, {
     int? targetAmount,
   }) async {
+    if (state is! AsyncData) return;
+    final currentState = state.value!;
+
     final db = ref.read(databaseProvider);
     final catNotifier = ref.read(categoryProvider.notifier);
 
@@ -226,7 +243,7 @@ class TransactionNotifier extends _$TransactionNotifier {
     );
 
     final newTx = Transaction(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: const Uuid().v4(),
       fromId: source.id,
       toId: target.id,
       title: target.name,
@@ -239,9 +256,10 @@ class TransactionNotifier extends _$TransactionNotifier {
       baseCurrency: currentBase,
     );
 
-    final newHistory = List<Transaction>.from(state.history)..insert(0, newTx);
+    final newHistory = List<Transaction>.from(currentState.history)
+      ..insert(0, newTx);
 
-    state = state.copyWith(history: newHistory);
+    _updateState((s) => s.copyWith(history: newHistory));
     await StorageService.saveTransaction(db, newTx);
   }
 
@@ -251,6 +269,9 @@ class TransactionNotifier extends _$TransactionNotifier {
     DateTime newDate, {
     int? newTargetAmount,
   }) async {
+    if (state is! AsyncData) return;
+    final currentState = state.value!;
+
     final db = ref.read(databaseProvider);
     _updateAccountBalance(oldT.fromId, oldT.amount);
     _updateAccountBalance(oldT.toId, -(oldT.targetAmount ?? oldT.amount));
@@ -294,75 +315,61 @@ class TransactionNotifier extends _$TransactionNotifier {
       updatedT.targetAmount ?? updatedT.amount,
     );
 
-    final newHistory = List<Transaction>.from(state.history);
+    final newHistory = List<Transaction>.from(currentState.history);
     int index = newHistory.indexWhere((t) => t.id == oldT.id);
     if (index != -1) newHistory[index] = updatedT;
     newHistory.sort((a, b) => b.date.compareTo(a.date));
 
-    state = state.copyWith(history: newHistory);
+    _updateState((s) => s.copyWith(history: newHistory));
     await StorageService.saveTransaction(db, updatedT);
   }
 
-  // ==========================================
-  // 👇 НОВА ЛОГІКА КОШИКА (Soft Delete)
-  // ==========================================
-
-  // 1. М'яке видалення в кошик
   Future<void> moveToTrash(Transaction t) async {
     final db = ref.read(databaseProvider);
-
-    // ВАЖЛИВО: Скасовуємо вплив транзакції на баланси рахунків (повертаємо гроші)
     _updateAccountBalance(t.fromId, t.amount);
     _updateAccountBalance(t.toId, -(t.targetAmount ?? t.amount));
 
-    // Встановлюємо дату видалення
     final trashedT = t.copyWith(deletedAt: drift.Value(DateTime.now()));
     await StorageService.saveTransaction(db, trashedT);
-
-    await loadHistory(); // Оновлюємо списки
-  }
-
-  // 2. Відновлення з кошика
-  Future<void> restoreFromTrash(Transaction t) async {
-    final db = ref.read(databaseProvider);
-
-    // ВАЖЛИВО: Знову застосовуємо вплив транзакції на баланси
-    _updateAccountBalance(t.fromId, -t.amount);
-    _updateAccountBalance(t.toId, (t.targetAmount ?? t.amount));
-
-    // Очищаємо дату видалення
-    final restoredT = t.copyWith(deletedAt: const drift.Value(null));
-    await StorageService.saveTransaction(db, restoredT);
-
     await loadHistory();
   }
 
-  // 3. Фізичне видалення назавжди (з кошика)
+  Future<void> restoreFromTrash(Transaction t) async {
+    final db = ref.read(databaseProvider);
+    _updateAccountBalance(t.fromId, -t.amount);
+    _updateAccountBalance(t.toId, (t.targetAmount ?? t.amount));
+
+    final restoredT = t.copyWith(deletedAt: const drift.Value(null));
+    await StorageService.saveTransaction(db, restoredT);
+    await loadHistory();
+  }
+
   Future<void> deletePermanently(Transaction t) async {
     final db = ref.read(databaseProvider);
-
-    // Ми НЕ міняємо баланси, бо ми їх вже змінили під час moveToTrash!
     await StorageService.removeTransaction(db, t.id);
     await loadHistory();
   }
 
-  // ==========================================
-
   Future<void> _migrateCurrentMonthBaseCurrency(String newBase) async {
+    if (state is! AsyncData) return;
+    final currentState = state.value!;
+
     final db = ref.read(databaseProvider);
     final now = DateTime.now();
-    final newHistory = List<Transaction>.from(state.history);
+    final newHistory = List<Transaction>.from(currentState.history);
 
     final currentMonthTxs = newHistory
         .where((tx) => tx.date.year == now.year && tx.date.month == now.month)
         .toList();
 
     if (currentMonthTxs.isEmpty) {
-      state = state.copyWith(lastKnownBaseCurrency: newBase);
+      _updateState((s) => s.copyWith(lastKnownBaseCurrency: newBase));
       return;
     }
 
-    state = state.copyWith(isMigrating: true, lastKnownBaseCurrency: newBase);
+    _updateState(
+      (s) => s.copyWith(isMigrating: true, lastKnownBaseCurrency: newBase),
+    );
 
     for (int i = 0; i < currentMonthTxs.length; i++) {
       var tx = currentMonthTxs[i];
@@ -388,14 +395,12 @@ class TransactionNotifier extends _$TransactionNotifier {
       await StorageService.saveTransaction(db, tx);
     }
 
-    state = state.copyWith(history: newHistory, isMigrating: false);
+    _updateState((s) => s.copyWith(history: newHistory, isMigrating: false));
   }
 
   Future<void> clearAllTransactions() async {
     final db = ref.read(databaseProvider);
-    state = state.copyWith(history: [], deletedHistory: []);
-
-    // Тут в ідеалі теж треба було б чистити все через базу, але поки залишимо так
-    await StorageService.saveHistory(db, []);
+    _updateState((s) => s.copyWith(history: [], deletedHistory: []));
+    await StorageService.deleteAllTransactions(db);
   }
 }

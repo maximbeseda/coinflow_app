@@ -146,7 +146,7 @@ class _StatsCategoryBottomSheetState
                       ),
                     ),
                     Text(
-                      "${CurrencyFormatter.format(widget.category.amount.abs())} ${widget.baseCurrencySymbol}",
+                      '${CurrencyFormatter.format(widget.category.amount.abs())} ${widget.baseCurrencySymbol}',
                       style: TextStyle(
                         color: widget.showExpenses
                             ? colors.expense
@@ -272,7 +272,7 @@ class _StatsCategoryBottomSheetState
                               ).symbol,
                             );
 
-                            String prefix = widget.showExpenses ? "-" : "+";
+                            String prefix = widget.showExpenses ? '-' : '+';
                             Color amountColor = widget.showExpenses
                                 ? colors.expense
                                 : colors.income;
@@ -386,7 +386,7 @@ class _StatsCategoryBottomSheetState
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    "$prefix${CurrencyFormatter.format(mainAmount.abs())} $mainSymbol",
+                                    '$prefix${CurrencyFormatter.format(mainAmount.abs())} $mainSymbol',
                                     style: TextStyle(
                                       color: amountColor,
                                       fontWeight: FontWeight.bold,
@@ -397,7 +397,7 @@ class _StatsCategoryBottomSheetState
                                     Padding(
                                       padding: const EdgeInsets.only(top: 2.0),
                                       child: Text(
-                                        "~ ${CurrencyFormatter.format(secondaryAmount.abs())} $secondarySymbol",
+                                        '~ ${CurrencyFormatter.format(secondaryAmount.abs())} $secondarySymbol',
                                         style: TextStyle(
                                           color: colors.textSecondary,
                                           fontSize: 11,

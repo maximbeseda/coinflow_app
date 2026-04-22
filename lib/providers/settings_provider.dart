@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+
 import '../services/storage_service.dart';
 import '../services/currency_repository.dart';
 
-// 👇 ДОДАНО: Імпорт провайдера категорій, щоб мати змогу їх оновити
-import 'category_provider.dart';
+// 👇 Імпортуємо файл, де лежить sharedPreferencesProvider
+import 'all_providers.dart';
 
 part 'settings_provider.g.dart';
 
@@ -52,10 +54,14 @@ class SettingsState {
 class SettingsNotifier extends _$SettingsNotifier {
   CurrencyRepository get _api => ref.read(currencyRepoProvider);
 
+  // 👇 Зручний геттер для доступу до StorageService
+  StorageService get _storage =>
+      StorageService(ref.read(sharedPreferencesProvider));
+
   @override
   SettingsState build() {
-    String base = StorageService.getBaseCurrency();
-    List<String> selected = StorageService.getSelectedCurrencies();
+    String base = _storage.getBaseCurrency();
+    List<String> selected = _storage.getSelectedCurrencies();
 
     if (!selected.contains(base)) {
       selected.insert(0, base);
@@ -64,9 +70,9 @@ class SettingsNotifier extends _$SettingsNotifier {
       selected.insert(0, base);
     }
 
-    final rates = StorageService.getExchangeRates();
-    final lastUpdate = StorageService.getLastRatesUpdateTime();
-    final cache = StorageService.getHistoricalRatesCache();
+    final rates = _storage.getExchangeRates();
+    final lastUpdate = _storage.getLastRatesUpdateTime();
+    final cache = _storage.getHistoricalRatesCache();
 
     final initialState = SettingsState(
       baseCurrency: base,
@@ -76,7 +82,7 @@ class SettingsNotifier extends _$SettingsNotifier {
       historicalCache: cache,
     );
 
-    Future.microtask(() => _checkRatesUpdate(initialState));
+    unawaited(Future.microtask(() => _checkRatesUpdate(initialState)));
 
     return initialState;
   }
@@ -120,7 +126,7 @@ class SettingsNotifier extends _$SettingsNotifier {
       newCache[dateKey] = historicalRates;
 
       state = state.copyWith(historicalCache: newCache);
-      await StorageService.saveHistoricalRatesCache(newCache);
+      await _storage.saveHistoricalRatesCache(newCache); // 👇 Оновлено
 
       if (historicalRates.containsKey(currencyCode)) {
         return historicalRates[currencyCode]!;
@@ -132,9 +138,7 @@ class SettingsNotifier extends _$SettingsNotifier {
   Future<void> setBaseCurrency(String code) async {
     if (state.baseCurrency == code) return;
 
-    // 👇 1. Фіксуємо СТАРУ базову валюту перед зміною
     final oldBaseCurrency = state.baseCurrency;
-
     final newRates = await _api.fetchLatestRates(code);
 
     if (newRates == null) {
@@ -146,23 +150,21 @@ class SettingsNotifier extends _$SettingsNotifier {
 
     final now = DateTime.now();
 
-    await StorageService.saveBaseCurrency(code);
-    await StorageService.saveExchangeRates(newRates);
-    await StorageService.setLastRatesUpdateTime(now);
+    // 👇 Оновлено: використовуємо екземпляр _storage
+    await _storage.saveBaseCurrency(code);
+    await _storage.saveExchangeRates(newRates);
+    await _storage.setLastRatesUpdateTime(now);
 
     List<String> newSelected = List.from(state.selectedCurrencies);
     newSelected.remove(code);
     newSelected.insert(0, code);
-    await StorageService.setSelectedCurrencies(newSelected);
-    await StorageService.saveHistoricalRatesCache({});
+    await _storage.setSelectedCurrencies(newSelected);
+    await _storage.saveHistoricalRatesCache({});
 
-    // 👇 2. ВИКЛИКАЄМО РОЗУМНЕ ОНОВЛЕННЯ КАТЕГОРІЙ
-    // Провайдер категорій знайде всі "старі" базові категорії і замінить їм валюту на нову
-    ref
+    await ref
         .read(categoryProvider.notifier)
         .updateBaseCurrencyForCategories(oldBaseCurrency, code);
 
-    // 3. Оновлюємо власний стан
     state = state.copyWith(
       baseCurrency: code,
       selectedCurrencies: newSelected,
@@ -182,7 +184,7 @@ class SettingsNotifier extends _$SettingsNotifier {
       newSelected.add(code);
     }
 
-    await StorageService.setSelectedCurrencies(newSelected);
+    await _storage.setSelectedCurrencies(newSelected); // 👇 Оновлено
     state = state.copyWith(selectedCurrencies: newSelected);
   }
 
@@ -193,8 +195,8 @@ class SettingsNotifier extends _$SettingsNotifier {
 
     if (newRates != null) {
       final now = DateTime.now();
-      await StorageService.saveExchangeRates(newRates);
-      await StorageService.setLastRatesUpdateTime(now);
+      await _storage.saveExchangeRates(newRates); // 👇 Оновлено
+      await _storage.setLastRatesUpdateTime(now); // 👇 Оновлено
 
       state = state.copyWith(exchangeRates: newRates, lastRatesUpdate: now);
       return true;

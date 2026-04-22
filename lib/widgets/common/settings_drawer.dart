@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-// 👇 1. Замінили provider на flutter_riverpod
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 
@@ -12,41 +11,45 @@ import '../../screens/currencies_screen.dart';
 import '../../screens/import_export_screen.dart';
 import '../../theme/app_colors_extension.dart';
 
-// 👇 2. Імпортуємо наш єдиний хаб провайдерів
+// 👇 Імпортуємо наш хаб провайдерів
 import '../../providers/all_providers.dart';
 
-// 👇 3. Змінили StatelessWidget на ConsumerWidget
 class SettingsDrawer extends ConsumerWidget {
   const SettingsDrawer({super.key});
 
   @override
-  // 👇 4. Додали WidgetRef ref
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+    // Отримуємо кольори безпечно
+    final colors = Theme.of(context).extension<AppColorsExtension>();
 
-    // 👇 5. Отримуємо стан підписок напряму через ref
-    final hasPendingSubscriptions = ref
-        .watch(subscriptionProvider)
-        .hasPendingPayments;
+    // Отримуємо асинхронні стани
+    final subAsync = ref.watch(subscriptionProvider);
+    final txAsync = ref.watch(transactionProvider);
 
-    // 👇 НОВЕ: Рахуємо загальну кількість елементів у кошику
+    final subState = subAsync.value;
+    final txState = txAsync.value;
+
+    final hasPendingSubscriptions = subState?.hasPendingPayments ?? false;
+
+    // Рахуємо елементи в кошику (безпечно, якщо дані ще вантажаться)
     final deletedCatsCount = ref
         .watch(categoryProvider)
         .deletedCategories
         .length;
-    final deletedTxsCount = ref
-        .watch(transactionProvider)
-        .deletedHistory
-        .length;
-    final deletedSubsCount = ref
-        .watch(subscriptionProvider)
-        .deletedSubscriptions
-        .length;
+    final deletedTxsCount = txState?.deletedHistory.length ?? 0;
+    final deletedSubsCount = subState?.deletedSubscriptions.length ?? 0;
+
     final totalTrashCount =
         deletedCatsCount + deletedTxsCount + deletedSubsCount;
 
+    // Фолбеки для кольорів, щоб не було Null error
+    final textMainColor = colors?.textMain ?? Colors.black;
+    final textSecondaryColor = colors?.textSecondary ?? Colors.grey;
+    final cardBgColor = colors?.cardBg ?? Colors.white;
+    final iconBgColor = colors?.iconBg ?? Colors.grey.shade200;
+
     return Drawer(
-      backgroundColor: colors.cardBg,
+      backgroundColor: cardBgColor,
       child: SafeArea(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -62,30 +65,28 @@ class SettingsDrawer extends ConsumerWidget {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: colors.textMain,
+                        color: textMainColor,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Icon(Icons.settings_outlined, color: colors.textSecondary),
+                  Icon(Icons.settings_outlined, color: textSecondaryColor),
                 ],
               ),
             ),
-            Divider(color: colors.iconBg, height: 1),
+            Divider(color: iconBgColor, height: 1),
 
             // КНОПКА ПРОФІЛЮ
             ListTile(
-              leading: Icon(Icons.person_outline, color: colors.textMain),
+              leading: Icon(Icons.person_outline, color: textMainColor),
               title: Text(
                 'profile'.tr(),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: colors.textMain,
+                  color: textMainColor,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               onTap: () {
                 Navigator.pop(context);
@@ -100,16 +101,14 @@ class SettingsDrawer extends ConsumerWidget {
 
             // КНОПКА СТАТИСТИКИ
             ListTile(
-              leading: Icon(Icons.pie_chart_outline, color: colors.textMain),
+              leading: Icon(Icons.pie_chart_outline, color: textMainColor),
               title: Text(
                 'statistics'.tr(),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: colors.textMain,
+                  color: textMainColor,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               onTap: () {
                 Navigator.pop(context);
@@ -122,13 +121,13 @@ class SettingsDrawer extends ConsumerWidget {
 
             // КНОПКА КУРСИ ВАЛЮТ
             ListTile(
-              leading: Icon(Icons.currency_exchange, color: colors.textMain),
+              leading: Icon(Icons.currency_exchange, color: textMainColor),
               title: Text(
                 'exchange_rates'.tr(),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: colors.textMain,
+                  color: textMainColor,
                 ),
               ),
               onTap: () {
@@ -144,19 +143,17 @@ class SettingsDrawer extends ConsumerWidget {
 
             // КНОПКА ЕКСПОРТУ/ІМПОРТУ (CSV)
             ListTile(
-              leading: Icon(Icons.import_export, color: colors.textMain),
+              leading: Icon(Icons.import_export, color: textMainColor),
               title: Text(
                 'data_management'.tr(),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: colors.textMain,
+                  color: textMainColor,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               onTap: () {
-                Navigator.pop(context); // Закриваємо бокове меню
+                Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -168,28 +165,22 @@ class SettingsDrawer extends ConsumerWidget {
 
             // КНОПКА БЕКАПУ
             ListTile(
-              leading: Icon(Icons.save_alt_rounded, color: colors.textMain),
+              leading: Icon(Icons.save_alt_rounded, color: textMainColor),
               title: Text(
                 'backup_title'.tr(),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: colors.textMain,
+                  color: textMainColor,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               onTap: () {
                 final navContext = Navigator.of(context).context;
-                final sheetColors = Theme.of(
-                  context,
-                ).extension<AppColorsExtension>()!;
-
                 Navigator.pop(context);
 
                 showModalBottomSheet(
                   context: navContext,
-                  backgroundColor: sheetColors.cardBg,
+                  backgroundColor: cardBgColor,
                   isScrollControlled: true,
                   builder: (ctx) => const _BackupBottomSheet(),
                 );
@@ -198,27 +189,27 @@ class SettingsDrawer extends ConsumerWidget {
 
             // КНОПКА ПІДПИСОК
             ListTile(
-              leading: Icon(Icons.autorenew, color: colors.textMain),
+              leading: Icon(Icons.autorenew, color: textMainColor),
               title: Text(
                 'regular_payments'.tr(),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: colors.textMain,
+                  color: textMainColor,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               trailing: hasPendingSubscriptions
                   ? Container(
                       width: 10,
                       height: 10,
                       decoration: BoxDecoration(
-                        color: colors.expense,
+                        color: colors?.expense ?? Colors.red,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: colors.expense.withValues(alpha: 0.4),
+                            color: (colors?.expense ?? Colors.red).withValues(
+                              alpha: 0.4,
+                            ),
                             blurRadius: 4,
                             spreadRadius: 1,
                           ),
@@ -237,18 +228,16 @@ class SettingsDrawer extends ConsumerWidget {
               },
             ),
 
-            // 👇 ОНОВЛЕНО: Кнопка кошика з правильними стилями та лічильником
+            // КНОПКА КОШИКА
             ListTile(
-              leading: Icon(Icons.delete_outline, color: colors.textMain),
+              leading: Icon(Icons.delete_outline, color: textMainColor),
               title: Text(
                 'trash'.tr(),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: colors.textMain,
+                  color: textMainColor,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               trailing: totalTrashCount > 0
                   ? Container(
@@ -257,13 +246,15 @@ class SettingsDrawer extends ConsumerWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: colors.expense.withValues(alpha: 0.1),
+                        color: (colors?.expense ?? Colors.red).withValues(
+                          alpha: 0.1,
+                        ),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         totalTrashCount.toString(),
                         style: TextStyle(
-                          color: colors.expense,
+                          color: colors?.expense ?? Colors.red,
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                         ),
@@ -271,7 +262,7 @@ class SettingsDrawer extends ConsumerWidget {
                     )
                   : null,
               onTap: () {
-                Navigator.pop(context); // Закриваємо drawer
+                Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const TrashScreen()),
@@ -300,6 +291,7 @@ class _BackupBottomSheet extends ConsumerStatefulWidget {
 class _BackupBottomSheetState extends ConsumerState<_BackupBottomSheet> {
   _ExpandedMode _expandedMode = _ExpandedMode.none;
   bool _isObscured = true;
+  bool _isLoading = false; // 👇 НОВА змінна для лоадера
   final TextEditingController _passwordCtrl = TextEditingController();
   final FocusNode _focusNode = FocusNode();
 
@@ -311,6 +303,7 @@ class _BackupBottomSheetState extends ConsumerState<_BackupBottomSheet> {
   }
 
   void _toggleExpand(_ExpandedMode mode) {
+    if (_isLoading) return; // Блокуємо перемикання під час завантаження
     setState(() {
       if (_expandedMode == mode) {
         _expandedMode = _ExpandedMode.none;
@@ -326,19 +319,105 @@ class _BackupBottomSheetState extends ConsumerState<_BackupBottomSheet> {
     });
   }
 
-  void _submit() {
+  void _showSnackBar(BuildContext ctx, String message, bool isSuccess) {
+    if (!ctx.mounted) return;
+    final colors = Theme.of(ctx).extension<AppColorsExtension>()!;
+    final accentColor = isSuccess ? colors.income : colors.expense;
+
+    ScaffoldMessenger.of(ctx).clearSnackBars();
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(
+        backgroundColor: colors.cardBg,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(bottom: 30, left: 20, right: 20),
+        elevation: 10,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: accentColor.withValues(alpha: 0.3), width: 1),
+        ),
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isSuccess ? Icons.check_circle_outline : Icons.error_outline,
+                color: accentColor,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: colors.textMain,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
     final pwd = _passwordCtrl.text;
-    if (pwd.isEmpty) return;
+    if (pwd.isEmpty || _isLoading) return;
+
+    setState(() => _isLoading = true); // 👇 Вмикаємо лоадер
 
     final mode = _expandedMode;
     final rootContext = Navigator.of(context).context;
 
-    Navigator.pop(context);
+    try {
+      if (mode == _ExpandedMode.export) {
+        final categories = ref.read(categoryProvider).allCategoriesList;
+        final transactions = ref.read(transactionProvider).value?.history ?? [];
+        final subscriptions =
+            ref.read(subscriptionProvider).value?.subscriptions ?? [];
 
-    if (mode == _ExpandedMode.export) {
-      BackupService.exportData(rootContext, ref, pwd);
-    } else if (mode == _ExpandedMode.import) {
-      BackupService.importData(rootContext, ref, pwd);
+        await BackupService.exportData(
+          pwd,
+          categories,
+          transactions,
+          subscriptions,
+        );
+
+        if (mounted) Navigator.pop(context); // Закриваємо тільки після успіху
+        if (rootContext.mounted) {
+          _showSnackBar(rootContext, 'export_success'.tr(), true);
+        }
+      } else if (mode == _ExpandedMode.import) {
+        final db = ref.read(databaseProvider);
+        await BackupService.importData(pwd, db);
+
+        if (!mounted) return;
+        ref.invalidate(categoryProvider);
+        ref.invalidate(transactionProvider);
+        ref.invalidate(subscriptionProvider);
+        ref.invalidate(statsProvider);
+
+        Navigator.pop(context); // Закриваємо тільки після успіху
+        if (rootContext.mounted) {
+          _showSnackBar(rootContext, 'backup_success'.tr(), true);
+        }
+      }
+    } catch (e) {
+      // Якщо помилка — вимикаємо лоадер, щоб користувач міг спробувати ще раз
+      setState(() => _isLoading = false);
+      if (rootContext.mounted) {
+        _showSnackBar(
+          rootContext,
+          e.toString().replaceAll('Exception: ', ''),
+          false,
+        );
+      }
     }
   }
 
@@ -378,7 +457,9 @@ class _BackupBottomSheetState extends ConsumerState<_BackupBottomSheet> {
                 'export_subtitle'.tr(),
                 style: TextStyle(color: colors.textSecondary),
               ),
-              onTap: () => _toggleExpand(_ExpandedMode.export),
+              onTap: _isLoading
+                  ? null
+                  : () => _toggleExpand(_ExpandedMode.export),
             ),
             AnimatedSize(
               duration: const Duration(milliseconds: 300),
@@ -401,7 +482,9 @@ class _BackupBottomSheetState extends ConsumerState<_BackupBottomSheet> {
                 'warning_overwrite'.tr(),
                 style: TextStyle(color: colors.expense),
               ),
-              onTap: () => _toggleExpand(_ExpandedMode.import),
+              onTap: _isLoading
+                  ? null
+                  : () => _toggleExpand(_ExpandedMode.import),
             ),
             AnimatedSize(
               duration: const Duration(milliseconds: 300),
@@ -441,6 +524,7 @@ class _BackupBottomSheetState extends ConsumerState<_BackupBottomSheet> {
             controller: _passwordCtrl,
             focusNode: _focusNode,
             obscureText: _isObscured,
+            enabled: !_isLoading, // 👇 Блокуємо поле під час завантаження
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submit(),
             style: TextStyle(color: colors.textMain, fontSize: 16),
@@ -458,16 +542,31 @@ class _BackupBottomSheetState extends ConsumerState<_BackupBottomSheet> {
                       color: colors.textSecondary,
                       size: 22,
                     ),
-                    onPressed: () => setState(() => _isObscured = !_isObscured),
+                    onPressed: _isLoading
+                        ? null
+                        : () => setState(() => _isObscured = !_isObscured),
                   ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.check_circle,
-                      color: colors.textMain,
-                      size: 28,
-                    ),
-                    onPressed: _submit,
-                  ),
+                  // 👇 ТУТ МАГІЯ ЛОАДЕРА
+                  _isLoading
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colors.textMain,
+                            ),
+                          ),
+                        )
+                      : IconButton(
+                          icon: Icon(
+                            Icons.check_circle,
+                            color: colors.textMain,
+                            size: 28,
+                          ),
+                          onPressed: _submit,
+                        ),
                   const SizedBox(width: 4),
                 ],
               ),

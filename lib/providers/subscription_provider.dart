@@ -1,13 +1,13 @@
+import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
-import 'package:drift/drift.dart' as drift; // 👇 ДОДАНО для роботи з deletedAt
+import 'package:drift/drift.dart' as drift;
+import 'package:uuid/uuid.dart';
 
 import '../database/app_database.dart';
 import '../services/storage_service.dart';
 import '../services/subscription_service.dart';
-
-// Імпортуємо наш хаб провайдерів
 import 'all_providers.dart';
 
 part 'subscription_provider.g.dart';
@@ -15,7 +15,7 @@ part 'subscription_provider.g.dart';
 class SubscriptionState {
   final List<Subscription> subscriptions;
   final List<Subscription> dueSubscriptions;
-  final List<Subscription> deletedSubscriptions; // 👇 НОВЕ: Кошик підписок
+  final List<Subscription> deletedSubscriptions;
   final Set<String> ignoredSubIds;
 
   SubscriptionState({
@@ -56,60 +56,112 @@ class SubscriptionState {
 
 @Riverpod(keepAlive: true)
 class SubscriptionNotifier extends _$SubscriptionNotifier {
+  // 👇 Зручний геттер для доступу до нестатичного StorageService
+  StorageService get _storage =>
+      StorageService(ref.read(sharedPreferencesProvider));
+
   @override
-  SubscriptionState build() {
+  Future<SubscriptionState> build() async {
+    final db = ref.read(databaseProvider);
+    final allSubs = await StorageService.getSubscriptions(db);
+
+    // 👇 Оновлено: дістаємо ігноровані через екземпляр
+    final ignored = _storage.getIgnoredSubscriptions().toSet();
+
+    final activeSubs = allSubs.where((s) => s.deletedAt == null).toList();
+    final deletedSubs = allSubs.where((s) => s.deletedAt != null).toList();
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final due = activeSubs.where((sub) {
+      if (ignored.contains(sub.id)) return false;
+      final pDate = DateTime(
+        sub.nextPaymentDate.year,
+        sub.nextPaymentDate.month,
+        sub.nextPaymentDate.day,
+      );
+      return pDate.isBefore(today) || pDate.isAtSameMomentAs(today);
+    }).toList();
+
     final initialState = SubscriptionState(
-      subscriptions: [],
-      dueSubscriptions: [],
-      deletedSubscriptions: [], // 👇 Ініціалізація
-      ignoredSubIds: {},
+      subscriptions: activeSubs,
+      dueSubscriptions: due,
+      deletedSubscriptions: deletedSubs,
+      ignoredSubIds: ignored,
     );
 
-    Future.microtask(() => loadSubscriptions());
+    unawaited(processAutoPayments());
 
     return initialState;
+  }
+
+  void _updateState(SubscriptionState Function(SubscriptionState) update) {
+    if (state is AsyncData) {
+      state = AsyncData(update(state.value!));
+    }
   }
 
   Future<void> loadSubscriptions() async {
     final db = ref.read(databaseProvider);
     final allSubs = await StorageService.getSubscriptions(db);
-    final ignored = StorageService.getIgnoredSubscriptions().toSet();
 
-    // 👇 ФІЛЬТРУЄМО АКТИВНІ ТА ВИДАЛЕНІ
+    // 👇 Оновлено: дістаємо ігноровані через екземпляр
+    final ignored = _storage.getIgnoredSubscriptions().toSet();
+
     final activeSubs = allSubs.where((s) => s.deletedAt == null).toList();
     final deletedSubs = allSubs.where((s) => s.deletedAt != null).toList();
 
-    state = state.copyWith(
-      subscriptions: activeSubs,
-      deletedSubscriptions: deletedSubs,
-      ignoredSubIds: ignored,
-    );
-
-    await processAutoPayments();
-    _checkDueSubscriptions();
-  }
-
-  void _checkDueSubscriptions() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-
-    final due = state.subscriptions.where((sub) {
-      if (state.ignoredSubIds.contains(sub.id)) return false;
-      final paymentDate = DateTime(
+    final due = activeSubs.where((sub) {
+      if (ignored.contains(sub.id)) return false;
+      final pDate = DateTime(
         sub.nextPaymentDate.year,
         sub.nextPaymentDate.month,
         sub.nextPaymentDate.day,
       );
-      return paymentDate.isBefore(today) || paymentDate.isAtSameMomentAs(today);
+      return pDate.isBefore(today) || pDate.isAtSameMomentAs(today);
     }).toList();
 
-    state = state.copyWith(dueSubscriptions: due);
+    _updateState(
+      (s) => s.copyWith(
+        subscriptions: activeSubs,
+        deletedSubscriptions: deletedSubs,
+        ignoredSubIds: ignored,
+        dueSubscriptions: due,
+      ),
+    );
+
+    await processAutoPayments();
+  }
+
+  void _checkDueSubscriptions() {
+    _updateState((s) {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
+      final due = s.subscriptions.where((sub) {
+        if (s.ignoredSubIds.contains(sub.id)) return false;
+        final paymentDate = DateTime(
+          sub.nextPaymentDate.year,
+          sub.nextPaymentDate.month,
+          sub.nextPaymentDate.day,
+        );
+        return paymentDate.isBefore(today) ||
+            paymentDate.isAtSameMomentAs(today);
+      }).toList();
+
+      return s.copyWith(dueSubscriptions: due);
+    });
   }
 
   Future<void> addSubscription(Subscription sub) async {
     final db = ref.read(databaseProvider);
-    final newSubs = List<Subscription>.from(state.subscriptions)..add(sub);
-    state = state.copyWith(subscriptions: newSubs);
+    _updateState(
+      (s) => s.copyWith(
+        subscriptions: List<Subscription>.from(s.subscriptions)..add(sub),
+      ),
+    );
 
     await StorageService.saveSubscription(db, sub);
     await processAutoPayments();
@@ -118,58 +170,47 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
 
   Future<void> updateSubscription(Subscription updatedSub) async {
     final db = ref.read(databaseProvider);
-    final newSubs = List<Subscription>.from(state.subscriptions);
-    int index = newSubs.indexWhere((s) => s.id == updatedSub.id);
-    if (index != -1) {
-      newSubs[index] = updatedSub;
-      state = state.copyWith(subscriptions: newSubs);
+    _updateState((s) {
+      final newSubs = List<Subscription>.from(s.subscriptions);
+      int index = newSubs.indexWhere((item) => item.id == updatedSub.id);
+      if (index != -1) {
+        newSubs[index] = updatedSub;
+      }
+      return s.copyWith(subscriptions: newSubs);
+    });
 
-      await StorageService.saveSubscription(db, updatedSub);
-      await processAutoPayments();
-      _checkDueSubscriptions();
-    }
+    await StorageService.saveSubscription(db, updatedSub);
+    await processAutoPayments();
+    _checkDueSubscriptions();
   }
 
-  // ==========================================
-  // 👇 НОВА ЛОГІКА КОШИКА ТА ВИДАЛЕННЯ
-  // ==========================================
-
-  // 1. М'яке видалення в кошик
   Future<void> moveToTrash(Subscription sub) async {
     final db = ref.read(databaseProvider);
-
-    // Встановлюємо дату видалення
     final deletedSub = sub.copyWith(deletedAt: drift.Value(DateTime.now()));
     await StorageService.saveSubscription(db, deletedSub);
-
-    await loadSubscriptions(); // Перезавантажуємо списки
-  }
-
-  // 2. Відновлення з кошика
-  Future<void> restoreFromTrash(Subscription sub) async {
-    final db = ref.read(databaseProvider);
-
-    // Очищаємо дату видалення
-    final restoredSub = sub.copyWith(deletedAt: const drift.Value(null));
-    await StorageService.saveSubscription(db, restoredSub);
-
     await loadSubscriptions();
   }
 
-  // 3. Фізичне видалення назавжди (з кошика)
+  Future<void> restoreFromTrash(Subscription sub) async {
+    final db = ref.read(databaseProvider);
+    final restoredSub = sub.copyWith(deletedAt: const drift.Value(null));
+    await StorageService.saveSubscription(db, restoredSub);
+    await loadSubscriptions();
+  }
+
   Future<void> deletePermanently(String id) async {
     final db = ref.read(databaseProvider);
-
     await StorageService.deleteSubscription(db, id);
     await loadSubscriptions();
   }
-
-  // ==========================================
 
   Future<(bool, String)> confirmSubscriptionPayment(
     Subscription sub,
     int finalAmount,
   ) async {
+    if (state is! AsyncData) return (false, 'loading'.tr());
+    final currentState = state.value!;
+
     final db = ref.read(databaseProvider);
     final catState = ref.read(categoryProvider);
     final txNotifier = ref.read(transactionProvider.notifier);
@@ -187,9 +228,12 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
       return (false, 'error_category_deleted'.tr());
     }
 
-    final currentDue = List<Subscription>.from(state.dueSubscriptions)
-      ..removeWhere((s) => s.id == sub.id);
-    state = state.copyWith(dueSubscriptions: currentDue);
+    _updateState(
+      (s) => s.copyWith(
+        dueSubscriptions: List<Subscription>.from(s.dueSubscriptions)
+          ..removeWhere((item) => item.id == sub.id),
+      ),
+    );
 
     double subRate = settingsState.exchangeRates[sub.currency] ?? 1.0;
     double accRate = settingsState.exchangeRates[sourceAccount.currency] ?? 1.0;
@@ -216,7 +260,7 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
     bool isMultiCurrency = sourceAccount.currency != targetExpense.currency;
 
     final newTx = Transaction(
-      id: "${DateTime.now().millisecondsSinceEpoch}_${sub.id}",
+      id: const Uuid().v4(),
       fromId: sourceAccount.id,
       toId: targetExpense.id,
       title: sub.name,
@@ -229,22 +273,31 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
       baseCurrency: '',
     );
 
-    txNotifier.addTransactionDirectly(newTx);
-
+    await txNotifier.addTransactionDirectly(newTx);
     await SubscriptionService.advanceOnePeriod(db, sub);
 
-    final newIgnored = Set<String>.from(state.ignoredSubIds)..remove(sub.id);
-    state = state.copyWith(ignoredSubIds: newIgnored);
-    await StorageService.saveIgnoredSubscriptions(newIgnored.toList());
+    final newIgnored = Set<String>.from(currentState.ignoredSubIds)
+      ..remove(sub.id);
+    _updateState((s) => s.copyWith(ignoredSubIds: newIgnored));
+
+    // 👇 Оновлено: зберігаємо через екземпляр
+    await _storage.saveIgnoredSubscriptions(newIgnored.toList());
 
     await loadSubscriptions();
     return (true, 'paid_success'.tr(args: [sub.name]));
   }
 
-  void ignoreSubscriptionPermanently(String subId) {
-    final newIgnored = Set<String>.from(state.ignoredSubIds)..add(subId);
-    state = state.copyWith(ignoredSubIds: newIgnored);
-    StorageService.saveIgnoredSubscriptions(newIgnored.toList());
+  Future<void> ignoreSubscriptionPermanently(String subId) async {
+    Set<String>? nextIgnored;
+    _updateState((s) {
+      nextIgnored = Set<String>.from(s.ignoredSubIds)..add(subId);
+      return s.copyWith(ignoredSubIds: nextIgnored!);
+    });
+
+    if (nextIgnored != null) {
+      // 👇 Оновлено: зберігаємо через екземпляр
+      await _storage.saveIgnoredSubscriptions(nextIgnored!.toList());
+    }
     _checkDueSubscriptions();
   }
 
@@ -254,6 +307,9 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
   }
 
   Future<void> processAutoPayments() async {
+    if (state is! AsyncData) return;
+    final currentState = state.value!;
+
     final db = ref.read(databaseProvider);
     final catState = ref.read(categoryProvider);
     final txNotifier = ref.read(transactionProvider.notifier);
@@ -264,10 +320,9 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
     bool processedAny = false;
 
     List<Transaction> pendingTransactions = [];
-    List<Subscription> updatedSubs = [];
+    List<Subscription> updatedSubsList = [];
 
-    // 👇 Цикл йде ТІЛЬКИ по активних підписках (state.subscriptions)
-    for (var sub in state.subscriptions) {
+    for (var sub in currentState.subscriptions) {
       if (!sub.isAutoPay) continue;
 
       final all = catState.allCategoriesList;
@@ -314,7 +369,7 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
 
         if (currentBalance >= accountDeduction) {
           final newTx = Transaction(
-            id: "${DateTime.now().millisecondsSinceEpoch}_${currentSub.id}_${pDate.millisecondsSinceEpoch}",
+            id: const Uuid().v4(),
             fromId: account.id,
             toId: expense.id,
             title: 'auto_payment_marker'.tr(args: [currentSub.name]),
@@ -357,29 +412,34 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
       }
 
       if (subUpdated) {
-        updatedSubs.add(currentSub);
+        updatedSubsList.add(currentSub);
         await StorageService.saveSubscription(db, currentSub);
       }
     }
 
     for (var tx in pendingTransactions) {
-      txNotifier.addTransactionDirectly(tx);
+      await txNotifier.addTransactionDirectly(tx);
     }
 
     if (processedAny) {
-      final newSubs = List<Subscription>.from(state.subscriptions);
-      for (var us in updatedSubs) {
-        int index = newSubs.indexWhere((s) => s.id == us.id);
-        if (index != -1) newSubs[index] = us;
-      }
-      state = state.copyWith(subscriptions: newSubs);
+      _updateState((s) {
+        final newSubs = List<Subscription>.from(s.subscriptions);
+        for (var us in updatedSubsList) {
+          int index = newSubs.indexWhere((item) => item.id == us.id);
+          if (index != -1) newSubs[index] = us;
+        }
+        return s.copyWith(subscriptions: newSubs);
+      });
     }
   }
 
   Future<void> skipSubscriptionPayment(Subscription sub) async {
-    final currentDue = List<Subscription>.from(state.dueSubscriptions)
-      ..removeWhere((s) => s.id == sub.id);
-    state = state.copyWith(dueSubscriptions: currentDue);
+    _updateState(
+      (s) => s.copyWith(
+        dueSubscriptions: List<Subscription>.from(s.dueSubscriptions)
+          ..removeWhere((item) => item.id == sub.id),
+      ),
+    );
 
     final db = ref.read(databaseProvider);
     await SubscriptionService.advanceOnePeriod(db, sub);
@@ -387,25 +447,35 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
   }
 
   void ignoreSubscriptionForSession(String subId) {
-    final newIgnored = Set<String>.from(state.ignoredSubIds)..add(subId);
-    state = state.copyWith(ignoredSubIds: newIgnored);
+    _updateState((s) {
+      final newIgnored = Set<String>.from(s.ignoredSubIds)..add(subId);
+      return s.copyWith(ignoredSubIds: newIgnored);
+    });
     _checkDueSubscriptions();
   }
 
   Future<void> clearAllSubscriptions() async {
+    if (state is! AsyncData) return;
+    final currentState = state.value!;
+
     final db = ref.read(databaseProvider);
 
-    // 👇 ВИПРАВЛЕНО: Видаляємо як активні, так і ті, що вже в кошику
-    for (var sub in [...state.subscriptions, ...state.deletedSubscriptions]) {
+    for (var sub in [
+      ...currentState.subscriptions,
+      ...currentState.deletedSubscriptions,
+    ]) {
       await StorageService.deleteSubscription(db, sub.id);
     }
 
-    await StorageService.saveIgnoredSubscriptions([]);
-    state = state.copyWith(
-      subscriptions: [],
-      dueSubscriptions: [],
-      deletedSubscriptions: [],
-      ignoredSubIds: {},
+    // 👇 Оновлено: зберігаємо через екземпляр
+    await _storage.saveIgnoredSubscriptions([]);
+    _updateState(
+      (s) => s.copyWith(
+        subscriptions: [],
+        dueSubscriptions: [],
+        deletedSubscriptions: [],
+        ignoredSubIds: {},
+      ),
     );
   }
 }

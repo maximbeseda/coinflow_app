@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:collection/collection.dart';
@@ -19,7 +20,7 @@ class FilterState {
   final List<Transaction> results;
   final bool isLoading;
 
-  // 👇 ДОДАНО ДЛЯ ПАГІНАЦІЇ
+  // ДОДАНО ДЛЯ ПАГІНАЦІЇ
   final int currentPage;
   final bool hasMore;
 
@@ -76,8 +77,12 @@ class FilterNotifier extends _$FilterNotifier {
   FilterState build() {
     // 👇 МАГІЯ: Якщо ти видалив або відредагував транзакцію в UI,
     // FilterProvider миттєво це помітить і оновить список!
-    ref.listen(transactionProvider, (prev, next) {
-      if (prev != null && prev.history != next.history) {
+    ref.listen(transactionProvider, (prevAsync, nextAsync) {
+      // ВИПРАВЛЕНО: Використовуємо просто .value замість .valueOrNull
+      final prev = prevAsync?.value;
+      final next = nextAsync.value;
+
+      if (prev != null && next != null && prev.history != next.history) {
         _applyFilters();
       }
     });
@@ -127,7 +132,7 @@ class FilterNotifier extends _$FilterNotifier {
     _applyFilters();
   }
 
-  // 👇 НОВИЙ МЕТОД ДЛЯ ПАГІНАЦІЇ (Викликається при скролі вниз)
+  // НОВИЙ МЕТОД ДЛЯ ПАГІНАЦІЇ (Викликається при скролі вниз)
   Future<void> loadNextPage() async {
     // Якщо йде пошук, або більше немає даних, або вже вантажимо — ігноруємо
     if (state.searchQuery.isNotEmpty || !state.hasMore || state.isLoading) {

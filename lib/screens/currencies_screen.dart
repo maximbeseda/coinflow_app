@@ -157,8 +157,11 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
     }
   }
 
-  // Замість SettingsProvider передаємо об'єкт стану SettingsState (через dynamic/var для простоти)
-  Widget _buildStatusRow(AppColorsExtension colors, var settingsState) {
+  // ВИПРАВЛЕНО: Замість var вказуємо точний тип SettingsState
+  Widget _buildStatusRow(
+    AppColorsExtension colors,
+    SettingsState settingsState,
+  ) {
     if (_errorMessage != null) {
       return Row(
         children: [
@@ -283,7 +286,7 @@ class _CurrenciesScreenState extends ConsumerState<CurrenciesScreen> {
 
                     final rate = settingsState.exchangeRates[code];
                     final rateText = rate != null
-                        ? "1 ${currency.symbol} = ${_formatRate(1 / rate)} ${baseCurrency.symbol}"
+                        ? '1 ${currency.symbol} = ${_formatRate(1 / rate)} ${baseCurrency.symbol}'
                         : 'loading'.tr();
 
                     return _buildCurrencyCard(

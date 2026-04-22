@@ -4,7 +4,7 @@ class CalculatorHelper {
   /// Приймає рядок виразу (наприклад, "150+20*2") і повертає результат обчислення.
   /// Якщо вираз неповний (наприклад, "150+"), просто повертає його як є.
   static String calculate(String expression) {
-    if (expression.isEmpty) return "0";
+    if (expression.isEmpty) return '0';
 
     try {
       // 1. Очищаємо рядок: міняємо коми на крапки (для десяткових дробів)

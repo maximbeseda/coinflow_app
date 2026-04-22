@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -38,7 +39,7 @@ class _LockScreenState extends State<LockScreen>
 
     if (isEnabledInSettings && canUse) {
       setState(() => _canUseBiometrics = true);
-      _triggerBiometrics();
+      await _triggerBiometrics();
     }
   }
 
@@ -280,7 +281,7 @@ class _LockScreenState extends State<LockScreen>
       onTap: () {
         HapticFeedback.lightImpact();
         if (value == 'bio') {
-          _triggerBiometrics();
+          unawaited(_triggerBiometrics());
         } else {
           _onKeyPressed(value);
         }

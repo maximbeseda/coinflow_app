@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
-// 👇 1. Замінили provider на flutter_riverpod
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// 👇 2. Імпортуємо наш єдиний хаб провайдерів
 import '../../providers/all_providers.dart';
-
 import '../../utils/currency_formatter.dart';
 import 'rolling_digit.dart';
 import '../../theme/app_colors_extension.dart';
 import '../../models/app_currency.dart';
 import 'animated_dots.dart';
 
-// 👇 3. Змінили StatelessWidget на ConsumerWidget
 class SummaryHeader extends ConsumerWidget {
   final int totalBalance;
   final int totalIncomes;
@@ -35,19 +31,17 @@ class SummaryHeader extends ConsumerWidget {
   });
 
   @override
-  // 👇 4. Додали WidgetRef ref у метод build
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    // 👇 5. Отримуємо дані з нових провайдерів через ref.watch
     final settingsState = ref.watch(settingsProvider);
     final baseCurrencySymbol = AppCurrency.fromCode(
       settingsState.baseCurrency,
     ).symbol;
 
-    final hasPendingSubscriptions = ref
-        .watch(subscriptionProvider)
-        .hasPendingPayments;
+    // 👇 ВИПРАВЛЕНО: Отримуємо AsyncValue і безпечно дістаємо значення через .value
+    final subAsync = ref.watch(subscriptionProvider);
+    final hasPendingSubscriptions = subAsync.value?.hasPendingPayments ?? false;
 
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
@@ -167,7 +161,7 @@ class SummaryHeader extends ConsumerWidget {
                               ),
                             ),
                           Text(
-                            " $currencySymbol",
+                            ' $currencySymbol',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,

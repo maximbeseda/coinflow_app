@@ -1,105 +1,96 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:drift/drift.dart' as drift;
 import '../database/app_database.dart';
 
 class StorageService {
-  static const String _settingsBox = 'settings';
+  final SharedPreferences _prefs;
+
+  // Конструктор
+  StorageService(this._prefs);
 
   // ==========================================
-  // НАЛАШТУВАННЯ (Залишаються в Hive)
+  // НАЛАШТУВАННЯ (SharedPreferences)
   // ==========================================
 
-  static bool hasCompletedOnboarding() {
-    return Hive.box(
-      _settingsBox,
-    ).get('has_completed_onboarding', defaultValue: false);
+  bool hasCompletedOnboarding() {
+    return _prefs.getBool('has_completed_onboarding') ?? false;
   }
 
-  static Future<void> completeOnboarding() async {
-    await Hive.box(_settingsBox).put('has_completed_onboarding', true);
+  Future<void> completeOnboarding() async {
+    await _prefs.setBool('has_completed_onboarding', true);
   }
 
-  static String getThemeId() {
-    return Hive.box(
-      _settingsBox,
-    ).get('current_theme_id', defaultValue: 'light');
+  String getThemeId() {
+    return _prefs.getString('current_theme_id') ?? 'light';
   }
 
-  static Future<void> saveThemeId(String themeId) async {
-    await Hive.box(_settingsBox).put('current_theme_id', themeId);
+  Future<void> saveThemeId(String themeId) async {
+    await _prefs.setString('current_theme_id', themeId);
   }
 
-  static String getBaseCurrency() {
-    return Hive.box(_settingsBox).get('base_currency', defaultValue: 'UAH');
+  String getBaseCurrency() {
+    return _prefs.getString('base_currency') ?? 'UAH';
   }
 
-  static Future<void> saveBaseCurrency(String code) async {
-    await Hive.box(_settingsBox).put('base_currency', code);
+  Future<void> saveBaseCurrency(String code) async {
+    await _prefs.setString('base_currency', code);
   }
 
-  static List<String> getSelectedCurrencies() {
-    final list = Hive.box(
-      _settingsBox,
-    ).get('selected_currencies', defaultValue: <dynamic>['UAH', 'USD', 'EUR']);
-    return List<String>.from(list);
+  List<String> getSelectedCurrencies() {
+    return _prefs.getStringList('selected_currencies') ?? ['UAH', 'USD', 'EUR'];
   }
 
-  static Future<void> setSelectedCurrencies(List<String> codes) async {
-    await Hive.box(_settingsBox).put('selected_currencies', codes);
+  Future<void> setSelectedCurrencies(List<String> codes) async {
+    await _prefs.setStringList('selected_currencies', codes);
   }
 
-  static Map<String, double> getExchangeRates() {
-    final data = Hive.box(
-      _settingsBox,
-    ).get('exchange_rates', defaultValue: <dynamic, dynamic>{});
-    return Map<String, double>.from(data);
+  Map<String, double> getExchangeRates() {
+    final str = _prefs.getString('exchange_rates');
+    if (str == null) return {};
+    final decoded = jsonDecode(str) as Map<String, dynamic>;
+    return decoded.map(
+      (key, value) => MapEntry(key, (value as num).toDouble()),
+    );
   }
 
-  static Future<void> saveExchangeRates(Map<String, double> rates) async {
-    await Hive.box(_settingsBox).put('exchange_rates', rates);
+  Future<void> saveExchangeRates(Map<String, double> rates) async {
+    await _prefs.setString('exchange_rates', jsonEncode(rates));
   }
 
-  static DateTime? getLastRatesUpdateTime() {
-    final ms = Hive.box(_settingsBox).get('last_rates_update_time');
+  DateTime? getLastRatesUpdateTime() {
+    final ms = _prefs.getInt('last_rates_update_time');
     if (ms == null) return null;
     return DateTime.fromMillisecondsSinceEpoch(ms);
   }
 
-  static Future<void> setLastRatesUpdateTime(DateTime time) async {
-    await Hive.box(
-      _settingsBox,
-    ).put('last_rates_update_time', time.millisecondsSinceEpoch);
+  Future<void> setLastRatesUpdateTime(DateTime time) async {
+    await _prefs.setInt('last_rates_update_time', time.millisecondsSinceEpoch);
   }
 
-  static Map<String, dynamic> getHistoricalRatesCache() {
-    final data = Hive.box(
-      _settingsBox,
-    ).get('historical_rates_cache', defaultValue: <dynamic, dynamic>{});
-    return Map<String, dynamic>.from(data);
+  Map<String, dynamic> getHistoricalRatesCache() {
+    final str = _prefs.getString('historical_rates_cache');
+    if (str == null) return {};
+    return jsonDecode(str) as Map<String, dynamic>;
   }
 
-  static Future<void> saveHistoricalRatesCache(
-    Map<String, dynamic> cache,
-  ) async {
-    await Hive.box(_settingsBox).put('historical_rates_cache', cache);
+  Future<void> saveHistoricalRatesCache(Map<String, dynamic> cache) async {
+    await _prefs.setString('historical_rates_cache', jsonEncode(cache));
   }
 
   // ==========================================
   // ІГНОРОВАНІ ПІДПИСКИ
   // ==========================================
-  static List<String> getIgnoredSubscriptions() {
-    final list = Hive.box(
-      _settingsBox,
-    ).get('ignored_subscriptions', defaultValue: <dynamic>[]);
-    return List<String>.from(list);
+  List<String> getIgnoredSubscriptions() {
+    return _prefs.getStringList('ignored_subscriptions') ?? [];
   }
 
-  static Future<void> saveIgnoredSubscriptions(List<String> ids) async {
-    await Hive.box(_settingsBox).put('ignored_subscriptions', ids);
+  Future<void> saveIgnoredSubscriptions(List<String> ids) async {
+    await _prefs.setStringList('ignored_subscriptions', ids);
   }
 
   // ==========================================
-  // БІЗНЕС-ДАНІ (Drift SQLite)
+  // БІЗНЕС-ДАНІ (Drift SQLite) - СТАТИЧНІ МЕТОДИ
   // ==========================================
 
   // --- КАТЕГОРІЇ ---
@@ -149,6 +140,10 @@ class StorageService {
     await (db.delete(db.transactions)..where((t) => t.id.equals(id))).go();
   }
 
+  static Future<void> deleteAllTransactions(AppDatabase db) async {
+    await db.delete(db.transactions).go();
+  }
+
   // --- ПІДПИСКИ ---
   static Future<List<Subscription>> getSubscriptions(AppDatabase db) async {
     return await db.select(db.subscriptions).get();
@@ -168,10 +163,9 @@ class StorageService {
   }
 
   // ==========================================
-  // HARD RESET (ПОВНЕ ОЧИЩЕННЯ БАЗИ ДАНИХ)
+  // HARD RESET
   // ==========================================
   static Future<void> wipeEntireDatabase(AppDatabase db) async {
-    // Фізично видаляємо всі записи з таблиць
     await db.delete(db.transactions).go();
     await db.delete(db.categories).go();
     await db.delete(db.subscriptions).go();

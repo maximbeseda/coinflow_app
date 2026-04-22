@@ -3,20 +3,21 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:device_preview/device_preview.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// 👇 ДОДАНО: імпорт SharedPreferences
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'screens/home_screen.dart';
 import 'providers/all_providers.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/lock_screen.dart';
 import 'theme/app_theme.dart';
-import 'services/storage_service.dart';
 import 'services/security_service.dart';
-import 'database/migration_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,24 +28,27 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // 1. Ініціалізуємо Hive ТІЛЬКИ для налаштувань
-  await Hive.initFlutter();
-  await Hive.openBox('settings');
+  // 👇 1. Ініціалізуємо SharedPreferences ДО запуску UI
+  final prefs = await SharedPreferences.getInstance();
 
-  // 2. Створюємо контейнер Riverpod для ініціалізації провайдерів до runApp
-  final container = ProviderContainer();
+  // 👇 ДОДАНО: Отримуємо інформацію про версію
+  final packageInfo = await PackageInfo.fromPlatform();
 
-  // 3. Отримуємо базу даних через провайдер
-  final db = container.read(databaseProvider);
-
-  // 4. Запускаємо міграцію даних з Hive у Drift
-  await MigrationService.runMigrationIfNeeded(db);
+  // 👇 2. Створюємо контейнер Riverpod і ПЕРЕДАЄМО туди prefs
+  final container = ProviderContainer(
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      // 👇 ДОДАНО: Передаємо версію в провайдер
+      packageInfoProvider.overrideWithValue(packageInfo),
+    ],
+  );
 
   await initializeDateFormatting('uk_UA', null);
   const bool showPreview = false;
 
-  // Отримуємо початкові стани
-  final bool hasCompletedOnboarding = StorageService.hasCompletedOnboarding();
+  // 👇 3. Отримуємо статус онбордингу напряму з SharedPreferences
+  final bool hasCompletedOnboarding =
+      prefs.getBool('has_completed_onboarding') ?? false;
   final bool isPinSet = await SecurityService.isPinSet();
 
   runApp(

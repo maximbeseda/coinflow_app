@@ -56,8 +56,12 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
 
   Future<void> _runAutoCleanup() async {
     final catState = ref.read(categoryProvider);
-    final txState = ref.read(transactionProvider);
-    final subState = ref.read(subscriptionProvider);
+    final txAsync = ref.read(transactionProvider);
+    final txState = txAsync.value;
+
+    // 👇 ВИПРАВЛЕНО: дістаємо значення з AsyncValue
+    final subAsync = ref.read(subscriptionProvider);
+    final subState = subAsync.value;
 
     final now = DateTime.now();
     bool needsRefresh = false;
@@ -70,18 +74,25 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
       }
     }
 
-    for (var tx in txState.deletedHistory) {
-      if (tx.deletedAt != null && now.difference(tx.deletedAt!).inDays >= 30) {
-        await ref.read(transactionProvider.notifier).deletePermanently(tx);
-        needsRefresh = true;
+    if (txState != null) {
+      for (var tx in txState.deletedHistory) {
+        if (tx.deletedAt != null &&
+            now.difference(tx.deletedAt!).inDays >= 30) {
+          await ref.read(transactionProvider.notifier).deletePermanently(tx);
+          needsRefresh = true;
+        }
       }
     }
 
-    for (var sub in subState.deletedSubscriptions) {
-      if (sub.deletedAt != null &&
-          now.difference(sub.deletedAt!).inDays >= 30) {
-        await ref.read(subscriptionProvider.notifier).deletePermanently(sub.id);
-        needsRefresh = true;
+    if (subState != null) {
+      for (var sub in subState.deletedSubscriptions) {
+        if (sub.deletedAt != null &&
+            now.difference(sub.deletedAt!).inDays >= 30) {
+          await ref
+              .read(subscriptionProvider.notifier)
+              .deletePermanently(sub.id);
+          needsRefresh = true;
+        }
       }
     }
 
@@ -97,7 +108,6 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: colors.cardBg,
-        // Залишаємо радіус самого вікна таким, як у всіх діалогах
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -152,7 +162,6 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colors.expense,
                         foregroundColor: Colors.white,
-                        // 👇 ПРИБРАЛИ кастомний shape та elevation, щоб використовувалась тема додатка
                       ),
                       onPressed: () => Navigator.pop(ctx, true),
                       child: Text(
@@ -177,17 +186,27 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
     setState(() => _isCleaningUp = true);
 
     final catState = ref.read(categoryProvider);
-    final txState = ref.read(transactionProvider);
-    final subState = ref.read(subscriptionProvider);
+    final txAsync = ref.read(transactionProvider);
+    final txState = txAsync.value;
+
+    // 👇 ВИПРАВЛЕНО
+    final subAsync = ref.read(subscriptionProvider);
+    final subState = subAsync.value;
 
     for (var cat in catState.deletedCategories) {
       await ref.read(categoryProvider.notifier).emptyTrashOrArchive(cat);
     }
-    for (var tx in txState.deletedHistory) {
-      await ref.read(transactionProvider.notifier).deletePermanently(tx);
+
+    if (txState != null) {
+      for (var tx in txState.deletedHistory) {
+        await ref.read(transactionProvider.notifier).deletePermanently(tx);
+      }
     }
-    for (var sub in subState.deletedSubscriptions) {
-      await ref.read(subscriptionProvider.notifier).deletePermanently(sub.id);
+
+    if (subState != null) {
+      for (var sub in subState.deletedSubscriptions) {
+        await ref.read(subscriptionProvider.notifier).deletePermanently(sub.id);
+      }
     }
 
     if (mounted) {
@@ -203,8 +222,13 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
 
   List<TrashItem> _buildTrashItems(AppColorsExtension colors) {
     final catState = ref.watch(categoryProvider);
-    final txState = ref.watch(transactionProvider);
-    final subState = ref.watch(subscriptionProvider);
+    final txAsync = ref.watch(transactionProvider);
+    final txState = txAsync.value;
+
+    // 👇 ВИПРАВЛЕНО
+    final subAsync = ref.watch(subscriptionProvider);
+    final subState = subAsync.value;
+
     final allCats = catState.allCategoriesList;
     final catMap = {for (var c in allCats) c.id: c};
 
@@ -225,7 +249,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
           daysLeft: daysLeft,
           titleWidget: Text(
             cat.name,
-            maxLines: 1, // Твердо 1 рядок
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: colors.textMain,
@@ -258,164 +282,168 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
     }
 
     // 2. Транзакції
-    for (var tx in txState.deletedHistory) {
-      if (tx.deletedAt == null) continue;
-      int daysLeft = 30 - now.difference(tx.deletedAt!).inDays;
-      if (daysLeft < 0) daysLeft = 0;
+    if (txState != null) {
+      for (var tx in txState.deletedHistory) {
+        if (tx.deletedAt == null) continue;
+        int daysLeft = 30 - now.difference(tx.deletedAt!).inDays;
+        if (daysLeft < 0) daysLeft = 0;
 
-      final fromCat = catMap[tx.fromId];
-      final toCat = catMap[tx.toId];
-      final deletedCatName = 'deleted_category'.tr();
+        final fromCat = catMap[tx.fromId];
+        final toCat = catMap[tx.toId];
+        final deletedCatName = 'deleted_category'.tr();
 
-      Color amountColor = colors.textSecondary;
-      IconData txIconData = Icons.swap_horiz;
-      Color txIconColor = colors.textSecondary;
+        Color amountColor = colors.textSecondary;
+        IconData txIconData = Icons.swap_horiz;
+        Color txIconColor = colors.textSecondary;
 
-      String fromName = fromCat?.name ?? deletedCatName;
-      String toName = toCat?.name ?? deletedCatName;
+        String fromName = fromCat?.name ?? deletedCatName;
+        String toName = toCat?.name ?? deletedCatName;
 
-      if (fromCat != null && toCat != null) {
-        if (fromCat.type == CategoryType.income &&
-            toCat.type == CategoryType.account) {
-          amountColor = colors.income;
-          txIconData = Icons.call_made;
-          txIconColor = colors.income;
-        } else if (fromCat.type == CategoryType.account &&
-            toCat.type == CategoryType.expense) {
-          amountColor = colors.expense;
-          txIconData = Icons.call_received;
-          txIconColor = colors.expense;
+        if (fromCat != null && toCat != null) {
+          if (fromCat.type == CategoryType.income &&
+              toCat.type == CategoryType.account) {
+            amountColor = colors.income;
+            txIconData = Icons.call_made;
+            txIconColor = colors.income;
+          } else if (fromCat.type == CategoryType.account &&
+              toCat.type == CategoryType.expense) {
+            amountColor = colors.expense;
+            txIconData = Icons.call_received;
+            txIconColor = colors.expense;
+          }
         }
-      }
 
-      String sym = AppCurrency.fromCode(tx.currency).symbol;
+        String sym = AppCurrency.fromCode(tx.currency).symbol;
 
-      final titleWidget = Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: fromName,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: colors.textMain,
-              ),
-            ),
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                child: Icon(
-                  Icons.arrow_forward,
-                  size: 14,
-                  color: colors.textSecondary,
+        final titleWidget = Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: fromName,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: colors.textMain,
                 ),
               ),
-            ),
-            TextSpan(
-              text: toName,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: colors.textMain,
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: Icon(
+                    Icons.arrow_forward,
+                    size: 14,
+                    color: colors.textSecondary,
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-        maxLines: 1, // Твердо 1 рядок
-        overflow: TextOverflow.ellipsis,
-      );
-
-      final subtitleWidget = tx.title.isNotEmpty
-          ? Text(
-              tx.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
+              TextSpan(
+                text: toName,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: colors.textMain,
+                ),
               ),
-            )
-          : Text(
-              'transaction'.tr(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
-            );
-
-      items.add(
-        TrashItem(
-          id: tx.id,
-          type: TrashItemType.transaction,
-          deletedAt: tx.deletedAt!,
-          daysLeft: daysLeft,
-          titleWidget: titleWidget,
-          subtitleWidget: subtitleWidget,
-          amountStr: "${CurrencyFormatter.format(tx.amount)} $sym",
-          amountColor: amountColor,
-          icon: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: txIconColor.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(txIconData, color: txIconColor, size: 20),
+            ],
           ),
-          rawData: tx,
-        ),
-      );
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        );
+
+        final subtitleWidget = tx.title.isNotEmpty
+            ? Text(
+                tx.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              )
+            : Text(
+                'transaction'.tr(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              );
+
+        items.add(
+          TrashItem(
+            id: tx.id,
+            type: TrashItemType.transaction,
+            deletedAt: tx.deletedAt!,
+            daysLeft: daysLeft,
+            titleWidget: titleWidget,
+            subtitleWidget: subtitleWidget,
+            amountStr: '${CurrencyFormatter.format(tx.amount)} $sym',
+            amountColor: amountColor,
+            icon: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: txIconColor.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(txIconData, color: txIconColor, size: 20),
+            ),
+            rawData: tx,
+          ),
+        );
+      }
     }
 
     // 3. Підписки
-    for (var sub in subState.deletedSubscriptions) {
-      if (sub.deletedAt == null) continue;
-      int daysLeft = 30 - now.difference(sub.deletedAt!).inDays;
-      if (daysLeft < 0) daysLeft = 0;
+    if (subState != null) {
+      for (var sub in subState.deletedSubscriptions) {
+        if (sub.deletedAt == null) continue;
+        int daysLeft = 30 - now.difference(sub.deletedAt!).inDays;
+        if (daysLeft < 0) daysLeft = 0;
 
-      String sym = AppCurrency.fromCode(sub.currency).symbol;
+        String sym = AppCurrency.fromCode(sub.currency).symbol;
 
-      items.add(
-        TrashItem(
-          id: sub.id,
-          type: TrashItemType.subscription,
-          deletedAt: sub.deletedAt!,
-          daysLeft: daysLeft,
-          titleWidget: Text(
-            sub.name,
-            maxLines: 1, // Твердо 1 рядок
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: colors.textMain,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
+        items.add(
+          TrashItem(
+            id: sub.id,
+            type: TrashItemType.subscription,
+            deletedAt: sub.deletedAt!,
+            daysLeft: daysLeft,
+            titleWidget: Text(
+              sub.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.textMain,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          subtitleWidget: Text(
-            'subscription'.tr(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: colors.textSecondary, fontSize: 12),
-          ),
-          amountStr: "${CurrencyFormatter.format(sub.amount)} $sym",
-          amountColor: colors.textMain,
-          icon: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.blueAccent.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+            subtitleWidget: Text(
+              'subscription'.tr(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: colors.textSecondary, fontSize: 12),
             ),
-            child: const Icon(
-              Icons.event_repeat,
-              color: Colors.blueAccent,
-              size: 20,
+            amountStr: '${CurrencyFormatter.format(sub.amount)} $sym',
+            amountColor: colors.textMain,
+            icon: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.blueAccent.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.event_repeat,
+                color: Colors.blueAccent,
+                size: 20,
+              ),
             ),
+            rawData: sub,
           ),
-          rawData: sub,
-        ),
-      );
+        );
+      }
     }
 
     items.sort((a, b) => b.deletedAt.compareTo(a.deletedAt));
@@ -507,20 +535,14 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // ЛІВА ЧАСТИНА: Іконка
                         item.icon,
                         const SizedBox(width: 12),
-
-                        // СЕРЕДНЯ ЧАСТИНА: Тексти і Сума
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // РЯДОК 1: Заголовок (має весь вільний простір, ніколи не стрибає)
                               item.titleWidget,
                               const SizedBox(height: 4),
-
-                              // РЯДОК 2: Підзаголовок (зліва) + Сума (справа)
                               Row(
                                 children: [
                                   Expanded(child: item.subtitleWidget),
@@ -538,8 +560,6 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                                 ],
                               ),
                               const SizedBox(height: 6),
-
-                              // РЯДОК 3: Таймер
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
@@ -569,8 +589,6 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-
-                        // ПРАВА ЧАСТИНА: Кнопки одна над одною (завжди на своєму місці)
                         Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [

@@ -43,11 +43,11 @@ class TransactionScreen extends ConsumerStatefulWidget {
 }
 
 class _TransactionScreenState extends ConsumerState<TransactionScreen> {
-  String _sourceExpression = "";
-  String _sourceAmount = "0";
+  String _sourceExpression = '';
+  String _sourceAmount = '0';
 
-  String _targetExpression = "";
-  String _targetAmount = "0";
+  String _targetExpression = '';
+  String _targetAmount = '0';
 
   bool _isEditingTarget = false;
 
@@ -226,7 +226,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   }
 
   String _formatAmount(int val) {
-    if (val == 0) return "0";
+    if (val == 0) return '0';
     double displayVal = val / 100.0;
     return _formatDoubleForInput(displayVal);
   }
@@ -242,7 +242,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   }
 
   String _formatRate(double val) {
-    if (val == 0) return "0";
+    if (val == 0) return '0';
     String formatted = val.toStringAsFixed(4);
     if (formatted.contains('.')) {
       formatted = formatted.replaceAll(RegExp(r'0*$'), '');
@@ -275,14 +275,14 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       if (_clearOnNextDigit) {
         bool isNumberOrDot = RegExp(r'^[0-9.]$').hasMatch(key) || key == '00';
         if (isNumberOrDot) {
-          _activeExpression = "";
+          _activeExpression = '';
         }
         _clearOnNextDigit = false;
       }
 
       if (key == 'C') {
-        _activeExpression = "";
-        _setActiveAmount("0");
+        _activeExpression = '';
+        _setActiveAmount('0');
       } else if (key == '⌫') {
         if (_activeExpression.isNotEmpty) {
           _activeExpression = _activeExpression.substring(
@@ -373,7 +373,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
               _activeExpression += key;
             }
           } else {
-            if (currentNumber == "0") {
+            if (currentNumber == '0') {
               if (key == '0' || key == '00') {
                 return;
               } else {
@@ -402,9 +402,9 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       }
 
       if (_activeExpression.isEmpty) {
-        _setActiveAmount("0");
+        _setActiveAmount('0');
       } else if (_activeExpression == '-') {
-        _setActiveAmount("-0");
+        _setActiveAmount('-0');
       } else {
         String exprToCalc = _activeExpression;
 
@@ -479,7 +479,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
-      _fetchRateForDate(picked);
+      await _fetchRateForDate(picked);
     }
   }
 
@@ -632,7 +632,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
 
     String displayMainAmount = hasMathOperators
         ? amount
-        : (expression.isEmpty ? "0" : expression);
+        : (expression.isEmpty ? '0' : expression);
 
     String formatWithSpaces(String text) {
       return text.replaceAllMapped(RegExp(r'\d+(\.\d+)?'), (match) {
@@ -660,7 +660,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                   children: [
                     TextSpan(text: formatWithSpaces(displayMainAmount)),
                     TextSpan(
-                      text: " $symbol",
+                      text: ' $symbol',
                       style: TextStyle(
                         fontSize: isActive ? 36 : 28,
                         color: colors.textSecondary.withValues(
@@ -717,10 +717,10 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     String targetSymbol,
   ) {
     final settingsState = ref.read(settingsProvider);
-    String rateText = "";
+    String rateText = '';
 
     if (_isLoadingRate) {
-      rateText = "updating_rates".tr();
+      rateText = 'updating_rates'.tr();
     } else if (_isUsingFallbackRate) {
       rateText = "${"rate_unavailable".tr()}\n${"enter_manually".tr()}";
     } else if (_sourceCurrency == settingsState.baseCurrency &&
@@ -728,10 +728,10 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       double invertedRate = _currentExchangeRate > 0
           ? (1.0 / _currentExchangeRate)
           : 1.0;
-      rateText = "1 $targetSymbol = ${_formatRate(invertedRate)} $sourceSymbol";
+      rateText = '1 $targetSymbol = ${_formatRate(invertedRate)} $sourceSymbol';
     } else {
       rateText =
-          "1 $sourceSymbol = ${_formatRate(_currentExchangeRate)} $targetSymbol";
+          '1 $sourceSymbol = ${_formatRate(_currentExchangeRate)} $targetSymbol';
     }
 
     Color activeColor = _isUsingFallbackRate

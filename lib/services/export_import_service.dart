@@ -37,7 +37,7 @@ class ExportImportService {
 
       return rows;
     } catch (e) {
-      debugPrint("Read CSV raw error: $e");
+      debugPrint('Read CSV raw error: $e');
       return null;
     }
   }
@@ -126,7 +126,7 @@ class ExportImportService {
             rawTitle == trTopUp;
 
         // Якщо заголовок системний — записуємо порожній рядок, інакше екрануємо коментар
-        final comment = isDefaultTitle ? "" : _escapeCsv(rawTitle);
+        final comment = isDefaultTitle ? '' : _escapeCsv(rawTitle);
 
         buffer.writeln(
           '$dateStr,$txType,$fromName,$amountFrom,$currencyFrom,$toName,$amountTo,$currencyTo,$comment',
@@ -147,10 +147,10 @@ class ExportImportService {
       try {
         if (await file.exists()) {
           await file.delete();
-          debugPrint("✅ Тимчасовий CSV-файл успішно видалено з кешу");
+          debugPrint('✅ Тимчасовий CSV-файл успішно видалено з кешу');
         }
       } catch (e) {
-        debugPrint("❌ Не вдалося видалити тимчасовий файл експорту: $e");
+        debugPrint('❌ Не вдалося видалити тимчасовий файл експорту: $e');
       }
 
       if (result.status == ShareResultStatus.success) {
@@ -160,7 +160,7 @@ class ExportImportService {
       }
       return 'success';
     } catch (e) {
-      debugPrint("Export error: $e");
+      debugPrint('Export error: $e');
       return 'error';
     }
   }

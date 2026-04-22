@@ -20,14 +20,14 @@ class CurrencyFormatter {
   }
 
   static String format(int amount, {bool isHeader = false}) {
-    if (amount == 0) return "0";
+    if (amount == 0) return '0';
 
     // 👇 ТЕПЕР МАТЕМАТИКА ПРАВИЛЬНА (Беремо копійки з бази)
     int absCents = amount.abs();
-    String sign = amount < 0 ? "-" : "";
+    String sign = amount < 0 ? '-' : '';
 
     // Понад 100 мільярдів
-    if (absCents >= 10000000000000) return "${sign}99 999М+";
+    if (absCents >= 10000000000000) return '${sign}99 999М+';
 
     // Поріг для мільйонів (у копійках)
     int millionThresholdCents = isHeader ? 10000000000 : 100000000;
@@ -38,7 +38,7 @@ class CurrencyFormatter {
       int fractionalPart = ((millions - integerPart) * 10).truncate();
 
       String formattedInteger = _addSpaces(integerPart.toString());
-      return "$sign$formattedInteger,$fractionalPartМ";
+      return '$sign$formattedInteger,$fractionalPartМ';
     }
 
     // ЗВИЧАЙНІ СУМИ: Беремо цілу та дробову частину математично!
@@ -48,10 +48,10 @@ class CurrencyFormatter {
     String formattedInt = _addSpaces(iPart.toString());
 
     // Якщо сума >= 100 000 (тобто 10 000 000 копійок), показуємо без копійок
-    if (absCents >= 10000000) return "$sign$formattedInt";
+    if (absCents >= 10000000) return '$sign$formattedInt';
 
     String fString = fPart.toString().padLeft(2, '0');
-    return "$sign$formattedInt,$fString";
+    return '$sign$formattedInt,$fString';
   }
 
   static String formatBudget(int amount) {

@@ -232,24 +232,24 @@ class _GeneralHistoryBottomSheetState
                         () => AppCurrency.fromCode(secondaryCurrency).symbol,
                       );
 
-                      String prefix = "-";
+                      String prefix = '-';
                       Color amountColor = colors.expense;
 
                       if (widget.filterType == CategoryType.income) {
-                        prefix = "+";
+                        prefix = '+';
                         amountColor = colors.income;
                       } else if (widget.filterType == CategoryType.expense) {
-                        prefix = "-";
+                        prefix = '-';
                         amountColor = colors.expense;
                       } else if (widget.filterType == CategoryType.account) {
                         if (isIncome) {
-                          prefix = "+";
+                          prefix = '+';
                           amountColor = colors.income;
                         } else if (isTransfer) {
-                          prefix = "";
+                          prefix = '';
                           amountColor = colors.textSecondary;
                         } else {
-                          prefix = "-";
+                          prefix = '-';
                           amountColor = colors.expense;
                         }
                       }
@@ -385,7 +385,7 @@ class _GeneralHistoryBottomSheetState
                                 children: [
                                   // Головна сума
                                   Text(
-                                    "$prefix${CurrencyFormatter.format(mainAmount)} $mainSymbol",
+                                    '$prefix${CurrencyFormatter.format(mainAmount)} $mainSymbol',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: amountColor,
@@ -397,7 +397,7 @@ class _GeneralHistoryBottomSheetState
                                     Padding(
                                       padding: const EdgeInsets.only(top: 2.0),
                                       child: Text(
-                                        "~ ${CurrencyFormatter.format(secondaryAmount)} $secondarySymbol",
+                                        '~ ${CurrencyFormatter.format(secondaryAmount)} $secondarySymbol',
                                         style: TextStyle(
                                           color: colors.textSecondary,
                                           fontSize: 11,

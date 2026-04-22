@@ -81,8 +81,19 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     final settingsState = ref.watch(settingsProvider);
-    final txState = ref.watch(transactionProvider);
+    // 👇 Отримуємо стан як AsyncValue і витягуємо значення
+    final txAsync = ref.watch(transactionProvider);
+    final txState = txAsync.value;
+
     final catState = ref.watch(categoryProvider);
+
+    // 👇 Показуємо лоадер, якщо дані ще не завантажились
+    if (txAsync.isLoading || txState == null) {
+      return Scaffold(
+        backgroundColor: colors.bgGradientStart,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     final now = DateTime.now();
     final isCurrentMonth =
@@ -154,6 +165,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                         colors: colors,
                         baseCurrencySymbol: baseCurrencySymbol,
                         catState: catState,
+                        // 👇 Передаємо вже розпакований txState
                         txState: txState,
                         getUniqueColor: getUniqueColor,
                         statsMonth: _statsMonth,
@@ -272,7 +284,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   Widget _buildTotalsToggle(
     AppColorsExtension colors,
     String baseCurrencySymbol,
-    TransactionState txState,
+    TransactionState txState, // Отримуємо вже готовий стейт
   ) {
     final allMonthTotals = ref
         .read(statsProvider.notifier)
@@ -382,7 +394,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 Opacity(
                   opacity: isReady ? 1.0 : 0.0,
                   child: Text(
-                    "${CurrencyFormatter.format(amount)} $symbol",
+                    '${CurrencyFormatter.format(amount)} $symbol',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,

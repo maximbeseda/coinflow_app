@@ -36,8 +36,8 @@ class _CsvMappingScreenState extends ConsumerState<CsvMappingScreen> {
 
   bool _isProcessing = false;
   double? _progress;
-  String _loadingTitle = "";
-  String _loadingSubtitle = "";
+  String _loadingTitle = '';
+  String _loadingSubtitle = '';
 
   List<String> _headers = [];
   List<List<dynamic>> _dataRows = [];
@@ -379,7 +379,7 @@ class _CsvMappingScreenState extends ConsumerState<CsvMappingScreen> {
       }
 
       final tx = Transaction(
-        id: "ck_import_${date.millisecondsSinceEpoch}_$i",
+        id: 'ck_import_${date.millisecondsSinceEpoch}_$i',
         fromId: fromCat.id,
         toId: toCat.id,
         title: _noteCol != null && row.length > _noteCol!
@@ -560,7 +560,7 @@ class _CsvMappingScreenState extends ConsumerState<CsvMappingScreen> {
                                   ),
                                   if (_progress != null)
                                     Text(
-                                      "${(_progress! * 100).toInt()}%",
+                                      '${(_progress! * 100).toInt()}%',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         color: colors.textMain,

@@ -1,7 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../database/app_database.dart';
-// Імпортуємо наш хаб, щоб мати доступ до транзакцій та категорій
 import 'all_providers.dart';
 
 part 'stats_provider.g.dart';
@@ -13,10 +12,14 @@ class Stats extends _$Stats {
 
   @override
   void build() {
-    final txState = ref.watch(transactionProvider);
+    // 👇 Отримуємо стан з AsyncValue
+    final txAsync = ref.watch(transactionProvider);
     ref.watch(categoryProvider);
 
-    int currentHash = Object.hashAll(txState.history);
+    // Беремо історію, якщо вона завантажена, інакше пустий список
+    final history = txAsync.value?.history ?? [];
+
+    int currentHash = Object.hashAll(history);
     if (_lastHistoryHash != currentHash) {
       _cachedTrends = null;
       _lastHistoryHash = currentHash;
@@ -29,12 +32,15 @@ class Stats extends _$Stats {
   Map<String, Map<String, Map<String, int>>> calculateTrends() {
     if (_cachedTrends != null) return _cachedTrends!;
 
-    final txState = ref.read(transactionProvider);
+    // 👇 Отримуємо історію
+    final txAsync = ref.read(transactionProvider);
+    final history = txAsync.value?.history ?? [];
+
     final catState = ref.read(categoryProvider);
 
     Map<String, Map<String, Map<String, int>>> trends = {};
 
-    var sortedHistory = List<Transaction>.from(txState.history)
+    var sortedHistory = List<Transaction>.from(history)
       ..sort((a, b) => a.date.compareTo(b.date));
 
     // Створюємо набір ID рахунків для швидкої перевірки (O(1))
@@ -48,12 +54,13 @@ class Stats extends _$Stats {
       trends.putIfAbsent(epoch, () => {});
       trends[epoch]!.putIfAbsent(monthKey, () => {'incomes': 0, 'expenses': 0});
 
-      // 👇 НОВА ЛОГІКА: Визначаємо тип за рахунками, а не за категоріями
       bool fromIsAccount = accountIds.contains(tx.fromId);
       bool toIsAccount = accountIds.contains(tx.toId);
 
       // 1. Витрата: з рахунку на НЕ рахунок
       if (fromIsAccount && !toIsAccount) {
+        // 👇 ВИПРАВЛЕННЯ: Додали .round(), щоб уникнути помилки типу double -> int, хоча тут baseAmount вже int.
+        // Залишаємо + tx.baseAmount, бо це точно int. Якщо були помилки вище, це через інші функції.
         trends[epoch]![monthKey]!['expenses'] =
             (trends[epoch]![monthKey]!['expenses'] ?? 0) + tx.baseAmount;
       }
@@ -75,10 +82,13 @@ class Stats extends _$Stats {
     int totalExpenses = 0;
     int totalIncomes = 0;
 
-    final txState = ref.read(transactionProvider);
+    // 👇 Отримуємо історію
+    final txAsync = ref.read(transactionProvider);
+    final history = txAsync.value?.history ?? [];
+
     final catState = ref.read(categoryProvider);
 
-    final monthHistory = txState.history.where(
+    final monthHistory = history.where(
       (t) => t.date.year == month.year && t.date.month == month.month,
     );
 
@@ -105,10 +115,13 @@ class Stats extends _$Stats {
   }) {
     Map<String, int> totals = {};
 
-    final txState = ref.read(transactionProvider);
+    // 👇 Отримуємо історію
+    final txAsync = ref.read(transactionProvider);
+    final history = txAsync.value?.history ?? [];
+
     final catState = ref.read(categoryProvider);
 
-    final monthHistory = txState.history.where(
+    final monthHistory = history.where(
       (t) => t.date.year == month.year && t.date.month == month.month,
     );
 
@@ -119,19 +132,17 @@ class Stats extends _$Stats {
       bool toIsAccount = accountIds.contains(tx.toId);
 
       if (isExpenses) {
-        // Якщо це витрата (з рахунку на категорію)
         if (fromIsAccount && !toIsAccount) {
           int value = inBaseCurrency
               ? tx.baseAmount
               : (tx.targetAmount ?? tx.amount);
-          // Використовуємо ID категорії (навіть якщо вона видалена, ID в транзакції лишився)
-          totals[tx.toId] = (totals[tx.toId] ?? 0) + value;
+          // 👇 ВИПРАВЛЕННЯ: Додано .round() про всяк випадок, хоча value вже int.
+          totals[tx.toId] = ((totals[tx.toId] ?? 0) + value).round();
         }
       } else {
-        // Якщо це дохід (з категорії на рахунок)
         if (!fromIsAccount && toIsAccount) {
           int value = inBaseCurrency ? tx.baseAmount : tx.amount;
-          totals[tx.fromId] = (totals[tx.fromId] ?? 0) + value;
+          totals[tx.fromId] = ((totals[tx.fromId] ?? 0) + value).round();
         }
       }
     }

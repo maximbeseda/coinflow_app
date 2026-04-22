@@ -230,8 +230,8 @@ class _CoinWidgetState extends State<CoinWidget> {
                 );
               },
               child: Text(
-                "$displayAmount $currencySymbol",
-                key: ValueKey<String>("$displayAmount $currencySymbol"),
+                '$displayAmount $currencySymbol',
+                key: ValueKey<String>('$displayAmount $currencySymbol'),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

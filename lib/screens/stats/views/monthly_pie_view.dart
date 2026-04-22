@@ -216,8 +216,8 @@ class _MonthlyPieViewState extends ConsumerState<MonthlyPieView> {
                               color: widget.getUniqueColor(cat.id),
                               value: value,
                               title: percentage >= 5.0
-                                  ? "${percentage.toStringAsFixed(0)}%"
-                                  : "",
+                                  ? '${percentage.toStringAsFixed(0)}%'
+                                  : '',
                               radius: radius,
                               titlePositionPercentageOffset: 0.5,
                               titleStyle: const TextStyle(
@@ -294,7 +294,7 @@ class _MonthlyPieViewState extends ConsumerState<MonthlyPieView> {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    "${percentage.toStringAsFixed(1)}%",
+                                    '${percentage.toStringAsFixed(1)}%',
                                     style: TextStyle(
                                       color: widget.colors.textSecondary,
                                       fontWeight: FontWeight.bold,
@@ -310,7 +310,7 @@ class _MonthlyPieViewState extends ConsumerState<MonthlyPieView> {
                                             ? 0.0
                                             : 1.0,
                                         child: Text(
-                                          "${CurrencyFormatter.format(cat.amount.abs())} ${widget.baseCurrencySymbol}",
+                                          '${CurrencyFormatter.format(cat.amount.abs())} ${widget.baseCurrencySymbol}',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w800,
                                             fontSize: 14,

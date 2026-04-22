@@ -5,7 +5,7 @@ import 'package:local_auth_android/local_auth_android.dart';
 import 'package:local_auth_ios/local_auth_ios.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:crypto/crypto.dart';
-import 'package:easy_localization/easy_localization.dart'; // ТЕПЕР БУДЕ ВИКОРИСТАНО
+import 'package:easy_localization/easy_localization.dart';
 
 class SecurityService {
   static final LocalAuthentication _auth = LocalAuthentication();
@@ -14,6 +14,9 @@ class SecurityService {
   static const String _pinKey = 'user_secure_pin_hash';
   static const String _biometricsEnabledKey = 'use_biometrics';
 
+  // Сіль для ускладнення підбору PIN-коду
+  static const String _pinSalt = 'CoinFlow_Secure_Salt_2026';
+
   static Future<bool> canUseBiometrics() async {
     try {
       final bool canAuthenticateWithBiometrics = await _auth.canCheckBiometrics;
@@ -21,16 +24,15 @@ class SecurityService {
           canAuthenticateWithBiometrics || await _auth.isDeviceSupported();
       return canAuthenticate;
     } catch (e) {
-      debugPrint("Помилка перевірки біометрії: $e");
+      debugPrint('Помилка перевірки біометрії: $e');
       return false;
     }
   }
 
   static Future<bool> authenticateWithBiometrics(String localizedReason) async {
     try {
-      // Використовуємо dynamic, щоб VS Code мовчав,
-      // і передаємо ТОЧНО ті параметри, які телефон просить у логах!
-      return await (_auth as dynamic).authenticate(
+      // ТЕПЕР БЕЗ DYNAMIC! Для local_auth ^3.0.0 параметри передаються напряму.
+      return await _auth.authenticate(
         localizedReason: localizedReason,
         authMessages: [
           AndroidAuthMessages(
@@ -39,12 +41,11 @@ class SecurityService {
           ),
           IOSAuthMessages(cancelButton: 'cancel'.tr()),
         ],
-        // Передаємо параметри напряму, як того вимагає скомпільований движок:
         biometricOnly: true,
-        persistAcrossBackgrounding: true, // Це старий аналог stickyAuth
+        persistAcrossBackgrounding: true,
       );
     } catch (e) {
-      debugPrint("Помилка авторизації: $e");
+      debugPrint('Помилка авторизації: $e');
       return false;
     }
   }
@@ -61,14 +62,17 @@ class SecurityService {
     return value == 'true';
   }
 
-  static Uint8List deriveKey(String password) {
-    final bytes = utf8.encode(password);
-    final digest = sha256.convert(bytes);
-    return Uint8List.fromList(digest.bytes);
+  // Єдиний, безпечний метод генерації ключа (10 000 ітерацій)
+  static Uint8List _deriveKeySecure(String pin) {
+    List<int> bytes = utf8.encode(pin + _pinSalt);
+    for (int i = 0; i < 10000; i++) {
+      bytes = sha256.convert(bytes).bytes;
+    }
+    return Uint8List.fromList(bytes);
   }
 
   static Future<void> setPinCode(String pin) async {
-    final keyBytes = deriveKey(pin);
+    final keyBytes = _deriveKeySecure(pin);
     final hashToStore = base64Encode(keyBytes);
     await _secureStorage.write(key: _pinKey, value: hashToStore);
   }
@@ -76,9 +80,11 @@ class SecurityService {
   static Future<bool> verifyPinCode(String enteredPin) async {
     final storedHash = await _secureStorage.read(key: _pinKey);
     if (storedHash == null) return false;
-    final enteredKeyBytes = deriveKey(enteredPin);
-    final enteredHash = base64Encode(enteredKeyBytes);
-    return storedHash == enteredHash;
+
+    final secureKeyBytes = _deriveKeySecure(enteredPin);
+    final secureHash = base64Encode(secureKeyBytes);
+
+    return storedHash == secureHash;
   }
 
   static Future<bool> isPinSet() async {

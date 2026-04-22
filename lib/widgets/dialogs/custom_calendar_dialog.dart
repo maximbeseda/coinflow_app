@@ -384,7 +384,7 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
           final double boxHeight = constraints.maxHeight;
           final double boxWidth = constraints.maxWidth;
           final double tileHeight = (boxWidth / 4) / 1.8;
-          final double spacing = 12.0;
+          const double spacing = 12.0;
           double exactOffset =
               ((_focusedDay.year - _startYear) ~/ 4) * (tileHeight + spacing);
           double centeredOffset =

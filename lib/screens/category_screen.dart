@@ -41,7 +41,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.category?.name ?? "");
+    _nameCtrl = TextEditingController(text: widget.category?.name ?? '');
     _currencyCtrl = TextEditingController();
 
     String formatInt(int val) {
@@ -58,12 +58,12 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     }
 
     _amountCtrl = TextEditingController(
-      text: widget.category != null ? formatInt(widget.category!.amount) : "",
+      text: widget.category != null ? formatInt(widget.category!.amount) : '',
     );
     _budgetCtrl = TextEditingController(
       text: widget.category?.budget != null
           ? formatInt(widget.category!.budget!)
-          : "",
+          : '',
     );
 
     final IconData? iconFromDb = widget.category != null
@@ -726,7 +726,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                                 color: colors.textSecondary,
                               ),
                             ),
-                            counterText: "",
+                            counterText: '',
                             enabledBorder: UnderlineInputBorder(
                               borderSide: BorderSide(
                                 color: isCurrentBase
@@ -760,7 +760,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                                 : 'current_balance'.tr(),
                             colors: colors,
                             isNumber: true,
-                            suffix: " $currencySymbol",
+                            suffix: ' $currencySymbol',
                           ),
                           const SizedBox(height: 16),
 
@@ -788,7 +788,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                             label: 'monthly_budget'.tr(),
                             colors: colors,
                             isNumber: true,
-                            suffix: " $currencySymbol",
+                            suffix: ' $currencySymbol',
                           ),
                         ],
                       ],
@@ -896,7 +896,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
           color: colors.textSecondary,
           fontSize: 16,
         ),
-        counterText: "",
+        counterText: '',
         enabledBorder: UnderlineInputBorder(
           borderSide: BorderSide(
             color: underlineBaseColor,
