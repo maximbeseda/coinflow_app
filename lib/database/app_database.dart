@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'app_database.g.dart';
 
@@ -27,7 +28,6 @@ class Categories extends Table {
       boolean().withDefault(const Constant(true))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
-  // 👇 ДОДАНО ДЛЯ КОШИКА
   DateTimeColumn get deletedAt => dateTime().nullable()();
 
   @override
@@ -41,19 +41,15 @@ class Transactions extends Table {
   TextColumn get title => text()();
   DateTimeColumn get date => dateTime()();
 
-  // Source
   IntColumn get amount => integer()();
   TextColumn get currency => text()();
 
-  // Target
   IntColumn get targetAmount => integer().nullable()();
   TextColumn get targetCurrency => text().nullable()();
 
-  // Base
   IntColumn get baseAmount => integer().withDefault(const Constant(0))();
   TextColumn get baseCurrency => text()();
 
-  // 👇 ДОДАНО ДЛЯ КОШИКА
   DateTimeColumn get deletedAt => dateTime().nullable()();
 
   @override
@@ -72,7 +68,6 @@ class Subscriptions extends Table {
   BoolColumn get isAutoPay => boolean().withDefault(const Constant(false))();
   TextColumn get currency => text().withDefault(const Constant('UAH'))();
 
-  // 👇 ДОДАНО ДЛЯ КОШИКА
   DateTimeColumn get deletedAt => dateTime().nullable()();
 
   @override
@@ -85,13 +80,28 @@ class Subscriptions extends Table {
 
 @DriftDatabase(tables: [Categories, Transactions, Subscriptions])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  // --- SINGLETON ПАТТЕРН (ВИПРАВЛЕНО) ---
 
-  // 👇 ЗБІЛЬШИЛИ ВЕРСІЮ СХЕМИ ДО 2
+  // Приватний конструктор (позиційний аргумент)
+  AppDatabase._internal([QueryExecutor? e]) : super(e ?? _openConnection());
+
+  static AppDatabase? _instance;
+
+  // Фабрика тепер знову приймає [QueryExecutor? executor] як позиційний параметр
+  // Це дозволить твоїм тестам і коду працювати як раніше: AppDatabase(executor)
+  factory AppDatabase([QueryExecutor? executor]) {
+    if (executor != null) {
+      // Для тестів завжди створюємо новий екземпляр
+      return AppDatabase._internal(executor);
+    }
+    // Для додатка повертаємо синглтон
+    _instance ??= AppDatabase._internal();
+    return _instance!;
+  }
+
   @override
   int get schemaVersion => 2;
 
-  // 👇 ДОДАЛИ МІГРАЦІЮ, ЩОБ НЕ ЗЛАМАТИ ІСНУЮЧУ БАЗУ
   @override
   MigrationStrategy get migration {
     return MigrationStrategy(
@@ -100,7 +110,6 @@ class AppDatabase extends _$AppDatabase {
       },
       onUpgrade: (Migrator m, int from, int to) async {
         if (from < 2) {
-          // Якщо оновлюємося з 1-ї версії до 2-ї, просто додаємо нові колонки
           await m.addColumn(categories, categories.deletedAt);
           await m.addColumn(transactions, transactions.deletedAt);
           await m.addColumn(subscriptions, subscriptions.deletedAt);
@@ -116,7 +125,6 @@ class AppDatabase extends _$AppDatabase {
     String? currency,
     int? limit,
     int? offset,
-    // 👇 Додаємо можливість явно просити видалені або ні (за замовчуванням - тільки живі)
     bool includeDeleted = false,
   }) {
     final query = select(transactions);
@@ -124,7 +132,6 @@ class AppDatabase extends _$AppDatabase {
     query.where((t) {
       Expression<bool> predicate = const Constant(true);
 
-      // Фільтруємо кошик
       if (!includeDeleted) {
         predicate = predicate & t.deletedAt.isNull();
       }
@@ -180,10 +187,36 @@ class AppDatabase extends _$AppDatabase {
   }
 }
 
+// --- ПОКРАЩЕНЕ ПІДКЛЮЧЕННЯ (WAL + SETUP) ---
+
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'coinflow_db.sqlite'));
-    return NativeDatabase.createInBackground(file);
+
+    return NativeDatabase.createInBackground(
+      file,
+      setup: (db) {
+        // Вмикаємо режим Write-Ahead Logging (WAL)
+        // Це дозволяє одночасно читати та писати в базу без блокувань
+        db.execute('PRAGMA journal_mode = WAL;');
+        db.execute('PRAGMA synchronous = NORMAL;');
+      },
+    );
   });
+}
+
+// --- RIVERPOD ПРОВАЙДЕР ---
+
+@Riverpod(keepAlive: true)
+AppDatabase appDatabase(Ref ref) {
+  // Викликаємо фабричний конструктор
+  final db = AppDatabase();
+
+  ref.onDispose(() {
+    // Не закриваємо базу автоматично, якщо це синглтон,
+    // але залишаємо можливість для очищення ресурсів
+  });
+
+  return db;
 }

@@ -73,22 +73,25 @@ class CategoryNotifier extends _$CategoryNotifier {
 
   Future<void> loadCategories() async {
     final db = ref.read(databaseProvider);
+
+    // Асинхронний запит до БД
     final savedCats = await StorageService.loadCategories(db);
+
+    // 👇 КРИТИЧНО ДЛЯ PRODUCTION: Перевіряємо, чи провайдер ще існує
+    // Якщо користувач пішов з екрану або тест завершився — зупиняємо виконання
+    if (!ref.mounted) return;
 
     List<Category> newIncomes = [];
     List<Category> newAccounts = [];
     List<Category> newExpenses = [];
     List<Category> newArchived = [];
-    List<Category> newDeleted = []; // 👇 НОВЕ
+    List<Category> newDeleted = [];
 
     if (savedCats.isNotEmpty) {
       final sorted = List<Category>.from(savedCats)
         ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
-      // Спочатку відфільтровуємо ті, що в кошику
       newDeleted = sorted.where((c) => c.deletedAt != null).toList();
-
-      // Усі інші (живі та архівні)
       final notDeleted = sorted.where((c) => c.deletedAt == null).toList();
 
       newIncomes = notDeleted

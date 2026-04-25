@@ -19,6 +19,12 @@ abstract class CurrencyRepository {
 // 2. АДАПТЕР ДЛЯ ПОТОЧНОГО API (Fawazahmed)
 // =======================================================
 class FawazahmedApi implements CurrencyRepository {
+  // 👇 ДОДАНО: Зберігаємо клієнт
+  final http.Client _client;
+
+  // 👇 ДОДАНО: Якщо клієнт не передали, створюємо стандартний (для реального додатку)
+  FawazahmedApi({http.Client? client}) : _client = client ?? http.Client();
+
   // Внутрішній метод API, про який знає тільки цей адаптер
   Future<http.Response?> _fetchWithFallback(
     String dateStr,
@@ -31,7 +37,7 @@ class FawazahmedApi implements CurrencyRepository {
 
     for (var url in urls) {
       try {
-        final response = await http
+        final response = await _client
             .get(Uri.parse(url))
             .timeout(const Duration(seconds: 5));
         if (response.statusCode == 200) {

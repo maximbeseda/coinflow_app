@@ -92,6 +92,7 @@ class SettingsNotifier extends _$SettingsNotifier {
     if (currentState.lastRatesUpdate == null ||
         now.difference(currentState.lastRatesUpdate!).inHours >= 12) {
       await forceUpdateRates();
+      if (!ref.mounted) return;
     }
   }
 
@@ -192,11 +193,17 @@ class SettingsNotifier extends _$SettingsNotifier {
     debugPrint('Завантаження нових курсів для: ${state.baseCurrency}');
 
     final newRates = await _api.fetchLatestRates(state.baseCurrency);
+    if (!ref.mounted) return false;
 
     if (newRates != null) {
       final now = DateTime.now();
       await _storage.saveExchangeRates(newRates); // 👇 Оновлено
+
+      if (!ref.mounted) return true;
+
       await _storage.setLastRatesUpdateTime(now); // 👇 Оновлено
+
+      if (!ref.mounted) return true;
 
       state = state.copyWith(exchangeRates: newRates, lastRatesUpdate: now);
       return true;

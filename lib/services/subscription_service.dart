@@ -6,8 +6,9 @@ class SubscriptionService {
   /// 👇 ТЕПЕР ПРИЙМАЄ [db] ЯК ПЕРШИЙ ПАРАМЕТР
   static Future<void> shiftSubscriptionDate(
     AppDatabase db,
-    Subscription sub,
-  ) async {
+    Subscription sub, {
+    DateTime? todayOverride, // для тестів
+  }) async {
     DateTime now = DateTime.now();
     DateTime today = DateTime(now.year, now.month, now.day); // 00:00:00
 

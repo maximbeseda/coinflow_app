@@ -164,4 +164,49 @@ class ExportImportService {
       return 'error';
     }
   }
+
+  @visibleForTesting
+  static String generateCsvString({
+    required List<Transaction> transactions,
+    required List<Category> allCategories,
+  }) {
+    final catMap = {for (var c in allCategories) c.id: c};
+    final buffer = StringBuffer();
+    buffer.write('\uFEFF');
+    buffer.writeln('csv_export_headers'.tr());
+
+    final trOutgoing = 'outgoing_transfer'.tr();
+    final trTopUp = 'top_up'.tr();
+
+    for (var tx in transactions) {
+      final fromCat = catMap[tx.fromId];
+      final toCat = catMap[tx.toId];
+
+      final dateStr = DateFormat('dd.MM.yyyy HH:mm').format(tx.date);
+      final txType = _getTxType(fromCat, toCat);
+      final fromNameRaw = fromCat?.name ?? 'csv_deleted_category'.tr();
+      final toNameRaw = toCat?.name ?? 'csv_deleted_category'.tr();
+
+      final fromName = _escapeCsv(fromNameRaw);
+      final toName = _escapeCsv(toNameRaw);
+      final amountFrom = _formatAmount(tx.amount);
+      final amountTo = _formatAmount(tx.targetAmount ?? tx.amount);
+
+      String rawTitle = tx.title.trim();
+      bool isDefaultTitle =
+          rawTitle.isEmpty ||
+          rawTitle.contains('➡️') ||
+          rawTitle == fromNameRaw ||
+          rawTitle == toNameRaw ||
+          rawTitle == trOutgoing ||
+          rawTitle == trTopUp;
+
+      final comment = isDefaultTitle ? '' : _escapeCsv(rawTitle);
+
+      buffer.writeln(
+        '$dateStr,$txType,$fromName,$amountFrom,${tx.currency},$toName,$amountTo,${tx.targetCurrency ?? tx.currency},$comment',
+      );
+    }
+    return buffer.toString();
+  }
 }

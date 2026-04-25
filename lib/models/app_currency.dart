@@ -62,6 +62,6 @@ class AppCurrency {
 
   static AppCurrency fromCode(String code) {
     // Миттєво дістаємо з Map, а не перебираємо список
-    return _currencyCache[code] ?? supportedCurrencies.first;
+    return _currencyCache[code.toUpperCase()] ?? supportedCurrencies.first;
   }
 }

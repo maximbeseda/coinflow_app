@@ -186,6 +186,8 @@ class FilterNotifier extends _$FilterNotifier {
       offset: offset,
     );
 
+    if (!ref.mounted) return;
+
     // 4. РОЗУМНИЙ FUZZY-ПОШУК У ПАМ'ЯТІ
     if (state.searchQuery.isNotEmpty) {
       final query = state.searchQuery.toLowerCase().trim();

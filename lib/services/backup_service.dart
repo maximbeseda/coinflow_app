@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:meta/meta.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
@@ -195,5 +196,56 @@ class BackupService {
         debugPrint('⚠️ Не вдалося очистити кеш FilePicker: $e');
       }
     }
+  }
+
+  @visibleForTesting
+  static String generateEncryptedPayload(
+    String password,
+    List<Category> categories,
+    List<Transaction> transactions,
+    List<Subscription> subscriptions,
+  ) {
+    // Явно кажемо компілятору, що викликаємо .toJson() у конкретних класів
+    final data = <String, dynamic>{
+      'version': 1,
+      'categories': categories.map((Category c) => c.toJson()).toList(),
+      'transactions': transactions.map((Transaction t) => t.toJson()).toList(),
+      'subscriptions': subscriptions
+          .map((Subscription s) => s.toJson())
+          .toList(),
+    };
+
+    final String jsonString = jsonEncode(data);
+    final key = _generateKeyFromPassword(password);
+    final encrypter = enc.Encrypter(enc.AES(key));
+    final iv = enc.IV.fromSecureRandom(16);
+    final encrypted = encrypter.encrypt(jsonString, iv: iv);
+
+    return '${iv.base64}:${encrypted.base64}';
+  }
+
+  @visibleForTesting
+  static Map<String, dynamic> decryptPayload(
+    String password,
+    String fileContent,
+  ) {
+    final key = _generateKeyFromPassword(password);
+    final encrypter = enc.Encrypter(enc.AES(key));
+    final trimmedContent = fileContent.trim();
+    String jsonString;
+
+    if (trimmedContent.contains(':')) {
+      final parts = trimmedContent.split(':');
+      final iv = enc.IV.fromBase64(parts[0]);
+      final encryptedBase64 = parts[1];
+      jsonString = encrypter.decrypt64(encryptedBase64, iv: iv);
+    } else {
+      final legacyIv = enc.IV.fromLength(16);
+      jsonString = encrypter.decrypt64(trimmedContent, iv: legacyIv);
+    }
+
+    // 👇 ФІКС: Безпечне приведення типу з dynamic до Map
+    final dynamic decoded = jsonDecode(jsonString);
+    return Map<String, dynamic>.from(decoded as Map);
   }
 }
