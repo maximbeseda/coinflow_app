@@ -41,6 +41,8 @@ class _HistorySearchBarState extends ConsumerState<HistorySearchBar> {
   }
 
   void _onSearchChanged(String query) {
+    // ДОДАНО: Оновлюємо стан, щоб показати/сховати іконку хрестика
+    setState(() {});
     // 👇 Ми можемо просто скасувати таймер через безпечний виклик `?.`,
     // замість складної перевірки з `!`
     _debounce?.cancel();

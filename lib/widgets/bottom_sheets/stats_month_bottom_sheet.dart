@@ -13,12 +13,14 @@ class StatsMonthBottomSheet extends ConsumerStatefulWidget {
   final DateTime statsMonth;
   final String baseCurrencySymbol;
   final bool showExpenses;
+  final List<Transaction>? initialTransactions;
 
   const StatsMonthBottomSheet({
     super.key,
     required this.statsMonth,
     required this.baseCurrencySymbol,
     required this.showExpenses,
+    this.initialTransactions,
   });
 
   @override
@@ -80,11 +82,19 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final filterState = ref.watch(filterProvider);
-    final filteredTxs = filterState.results;
+    final filteredTxs =
+        (filterState.results.isEmpty &&
+            filterState.searchQuery.isEmpty &&
+            widget.initialTransactions != null)
+        ? widget.initialTransactions!
+        : filterState.results;
     final showLoader = filterState.hasMore;
 
     final allCategories = ref.watch(categoryProvider).allCategoriesList;
     final categoryMap = {for (var c in allCategories) c.id: c};
+
+    final localeCode =
+        Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
 
     final trUnknown = 'unknown'.tr();
     final trOutgoing = 'outgoing_transfer'.tr();
@@ -136,7 +146,7 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
                           Text(
                             DateFormatter.formatMonthYear(
                               widget.statsMonth,
-                              context.locale.languageCode,
+                              localeCode,
                             ),
                             style: TextStyle(
                               color: colors.textMain,
@@ -253,7 +263,10 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
               ),
 
               Expanded(
-                child: filterState.isLoading
+                child:
+                    (filterState.isLoading &&
+                        filteredTxs.isEmpty &&
+                        widget.initialTransactions == null)
                     ? const Center(child: CircularProgressIndicator())
                     : filteredTxs.isEmpty
                     ? Center(

@@ -85,13 +85,13 @@ class _HomeScreenSkeletonState extends State<HomeScreenSkeleton>
 
   // 👇 Ідеальна копія _buildSection з LayoutBuilder (тепер нейтрально-сіра)
   Widget _buildPulseSection(BuildContext context, bool isGrid, Color color) {
-    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+    final colors = Theme.of(context).extension<AppColorsExtension>();
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: colors.cardBg,
+        color: colors?.cardBg ?? Colors.grey,
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
@@ -229,16 +229,19 @@ class _HomeScreenSkeletonState extends State<HomeScreenSkeleton>
         maintainBottomViewPadding: true,
         child: Column(
           children: [
-            // 👇 ЗМІНЕНО: Передаємо нейтральний колір
             _buildSummaryHeader(context, skeletonColor),
-            _buildPulseSection(context, false, skeletonColor), // Рахунки
-            _buildPulseSection(context, false, skeletonColor), // Доходи
             Expanded(
-              child: _buildPulseSection(
-                context,
-                true,
-                skeletonColor,
-              ), // Витрати (Grid)
+              child: SingleChildScrollView(
+                physics:
+                    const NeverScrollableScrollPhysics(), // Щоб не заважало скролу екрана
+                child: Column(
+                  children: [
+                    _buildPulseSection(context, false, skeletonColor),
+                    _buildPulseSection(context, false, skeletonColor),
+                    _buildPulseSection(context, true, skeletonColor),
+                  ],
+                ),
+              ),
             ),
           ],
         ),

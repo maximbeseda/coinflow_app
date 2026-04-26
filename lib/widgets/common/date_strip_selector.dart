@@ -176,7 +176,7 @@ class _DateStripSelectorState extends State<DateStripSelector> {
     if (diff == -1) return 'yesterday'.tr();
     if (diff == 1) return 'tomorrow'.tr();
 
-    final locale = context.locale.languageCode;
+    final locale = Localizations.localeOf(context).languageCode;
     return DateFormat('MMM, E', locale).format(date);
   }
 

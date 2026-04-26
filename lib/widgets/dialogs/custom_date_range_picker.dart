@@ -5,7 +5,6 @@ import '../../theme/app_colors_extension.dart';
 // Сигнальний об'єкт для скидання фільтра
 class ResetRangeSignal {}
 
-// Модель дня
 class _DayModel {
   final DateTime date;
   final int value;
@@ -65,7 +64,11 @@ class _CustomDateRangePickerState extends State<CustomDateRangePicker> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _monthFormat = DateFormat('LLLL yyyy', context.locale.languageCode);
+    // 👇 ВИПРАВЛЕНО: Безпечне отримання локалі для тестів
+    final localeCode =
+        Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
+    _monthFormat = DateFormat('LLLL yyyy', localeCode);
+
     if (_flatItems.isEmpty) {
       _generateFlatItems();
     }
@@ -145,16 +148,14 @@ class _CustomDateRangePickerState extends State<CustomDateRangePicker> {
   }
 
   String _formatHeader() {
-    if (_start == null) return 'filter_select_period'.tr(); // Локалізовано
-    final s = DateFormat(
-      'dd MMM yyyy',
-      context.locale.languageCode,
-    ).format(_start!);
+    if (_start == null) return 'filter_select_period'.tr();
+    // 👇 ВИПРАВЛЕНО: Безпечне отримання локалі для тестів
+    final localeCode =
+        Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
+
+    final s = DateFormat('dd MMM yyyy', localeCode).format(_start!);
     if (_end == null) return s;
-    final e = DateFormat(
-      'dd MMM yyyy',
-      context.locale.languageCode,
-    ).format(_end!);
+    final e = DateFormat('dd MMM yyyy', localeCode).format(_end!);
     return '$s - $e';
   }
 
@@ -190,14 +191,20 @@ class _CustomDateRangePickerState extends State<CustomDateRangePicker> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      'filter_period'.tr(),
-                      style: TextStyle(
-                        color: widget.colors.textMain,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
+                    // 👇 ВИПРАВЛЕНО: Додано Expanded та обмеження рядків
+                    Expanded(
+                      child: Text(
+                        'filter_period'.tr(),
+                        style: TextStyle(
+                          color: widget.colors.textMain,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () => Navigator.pop(context, ResetRangeSignal()),
                       behavior: HitTestBehavior.opaque,
@@ -231,7 +238,7 @@ class _CustomDateRangePickerState extends State<CustomDateRangePicker> {
             ),
           ),
 
-          // Weekdays (Локалізовані)
+          // Weekdays
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -249,12 +256,16 @@ class _CustomDateRangePickerState extends State<CustomDateRangePicker> {
                         (d) => SizedBox(
                           width: cellWidth,
                           child: Center(
-                            child: Text(
-                              d,
-                              style: TextStyle(
-                                color: widget.colors.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                            // 👇 ВИПРАВЛЕНО: Додано FittedBox, щоб текст днів не вилазив за межі
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                d,
+                                style: TextStyle(
+                                  color: widget.colors.textSecondary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),

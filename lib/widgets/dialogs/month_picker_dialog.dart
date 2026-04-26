@@ -14,9 +14,10 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
   late int _selectedYear;
 
   String _getShortMonthName(int month, BuildContext context) {
-    String m = DateFormat.MMM(
-      context.locale.languageCode,
-    ).format(DateTime(2000, month));
+    // 👇 ВИПРАВЛЕНО: Безпечне отримання локалі для тестів
+    final localeCode =
+        Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
+    String m = DateFormat.MMM(localeCode).format(DateTime(2000, month));
     return m[0].toUpperCase() + m.substring(1);
   }
 
@@ -118,7 +119,6 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
-                  // ВИПРАВЛЕНО: Текст обрізається, якщо не влазить
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

@@ -19,10 +19,11 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
   late DateTime _focusedDay;
   CalendarMode _mode = CalendarMode.date;
 
+  // 👇 ВИПРАВЛЕНО: Безпечне отримання локалі, яке не "вбиває" тести
   String _getMonthName(int month, BuildContext context) {
-    String m = DateFormat.LLLL(
-      context.locale.languageCode,
-    ).format(DateTime(2000, month));
+    final localeCode =
+        Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
+    String m = DateFormat.LLLL(localeCode).format(DateTime(2000, month));
     return m[0].toUpperCase() + m.substring(1);
   }
 
@@ -49,7 +50,6 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ВИПРАВЛЕНО: Захист головного заголовка
               Text(
                 'select_date'.tr(),
                 style: TextStyle(
@@ -87,7 +87,6 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
                     ),
                   ),
 
-                  // ВИПРАВЛЕНО: Гнучкі кнопки вибору місяця та року з обрізанням тексту
                   Expanded(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -223,7 +222,6 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
 
               const SizedBox(height: 24),
 
-              // ВИПРАВЛЕНО: Кнопки дій з обрізанням тексту
               Row(
                 children: [
                   Expanded(
@@ -276,9 +274,13 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
   }
 
   Widget _buildCalendar(AppColorsExtension colors, Color invertedTextColor) {
+    // 👇 ВИПРАВЛЕНО: Безпечне отримання локалі
+    final localeCode =
+        Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
+
     return TableCalendar(
       key: const ValueKey('calendar'),
-      locale: context.locale.languageCode,
+      locale: localeCode,
       firstDay: DateTime.utc(_startYear, 1, 1),
       lastDay: DateTime.utc(_endYear, 12, 31),
       focusedDay: _focusedDay,

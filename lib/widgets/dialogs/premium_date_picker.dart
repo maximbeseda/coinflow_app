@@ -75,6 +75,10 @@ class _PremiumDatePickerState extends State<PremiumDatePicker> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
+    // 👇 ВИПРАВЛЕНО: Безпечне отримання локалі для тестів
+    final localeCode =
+        Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
+
     return Padding(
       // Додаємо padding знизу для безпечних зон (наприклад, на iPhone)
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
@@ -124,9 +128,7 @@ class _PremiumDatePickerState extends State<PremiumDatePicker> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    DateFormat.yMMMEd(
-                      context.locale.languageCode,
-                    ).format(_tempSelectedDate),
+                    DateFormat.yMMMEd(localeCode).format(_tempSelectedDate),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -143,7 +145,6 @@ class _PremiumDatePickerState extends State<PremiumDatePicker> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  // ВИПРАВЛЕНО: системний колір замість синього
                   backgroundColor: colors.textMain,
                   foregroundColor: colors.cardBg,
                   elevation: 0,
@@ -175,21 +176,21 @@ class _PremiumDatePickerState extends State<PremiumDatePicker> {
                       (i) => '${_startYear + i}',
                     ),
                     colors: colors,
-                    overlayWidth: 65, // Однакова ширина
+                    overlayWidth: 65,
                   ),
                   const SizedBox(width: 10),
                   _buildPickerWithIsland(
                     controller: _monthController,
                     items: List.generate(12, (i) => '${i + 1}'.padLeft(2, '0')),
                     colors: colors,
-                    overlayWidth: 65, // Однакова ширина
+                    overlayWidth: 65,
                   ),
                   const SizedBox(width: 10),
                   _buildPickerWithIsland(
                     controller: _dayController,
                     items: List.generate(31, (i) => '${i + 1}'.padLeft(2, '0')),
                     colors: colors,
-                    overlayWidth: 65, // Однакова ширина
+                    overlayWidth: 65,
                   ),
                 ],
               ),

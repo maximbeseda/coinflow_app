@@ -18,7 +18,8 @@ class DueSubscriptionDialog extends ConsumerWidget {
   const DueSubscriptionDialog({super.key, required this.subscription});
 
   String _getFormattedDate(BuildContext context) {
-    final languageCode = context.locale.languageCode;
+    final languageCode =
+        Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
     return DateFormat.yMMMMd(languageCode).format(subscription.nextPaymentDate);
   }
 

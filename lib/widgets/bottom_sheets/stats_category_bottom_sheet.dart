@@ -14,6 +14,8 @@ class StatsCategoryBottomSheet extends ConsumerStatefulWidget {
   final DateTime statsMonth;
   final String baseCurrencySymbol;
   final bool showExpenses;
+  // 👇 ДОДАНО для тестів
+  final List<Transaction>? initialTransactions;
 
   const StatsCategoryBottomSheet({
     super.key,
@@ -21,6 +23,7 @@ class StatsCategoryBottomSheet extends ConsumerStatefulWidget {
     required this.statsMonth,
     required this.baseCurrencySymbol,
     required this.showExpenses,
+    this.initialTransactions,
   });
 
   @override
@@ -68,9 +71,16 @@ class _StatsCategoryBottomSheetState
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final filterState = ref.watch(filterProvider);
-    final filteredTxs = filterState.results;
-    final showLoader = filterState.hasMore;
 
+    // 👇 ПРІОРИТЕТ: беремо дані з конструктора, якщо провайдер ще порожній
+    final filteredTxs =
+        (filterState.results.isEmpty &&
+            filterState.searchQuery.isEmpty &&
+            widget.initialTransactions != null)
+        ? widget.initialTransactions!
+        : filterState.results;
+
+    final showLoader = filterState.hasMore;
     final allCategories = ref.watch(categoryProvider).allCategoriesList;
     final categoryMap = {for (var c in allCategories) c.id: c};
 
@@ -78,12 +88,17 @@ class _StatsCategoryBottomSheetState
     final trOutgoing = 'outgoing_transfer'.tr();
     final trTopUp = 'top_up'.tr();
 
+    // 👇 ВИПРАВЛЕНО: Безпечне отримання локалі
+    final localeCode =
+        Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
+
     final Map<String, String> currencyCache = {};
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.4,
       maxChildSize: 0.9,
+      expand: false, // Важливо для bottom sheet
       builder: (_, controller) {
         return Container(
           decoration: BoxDecoration(
@@ -135,7 +150,7 @@ class _StatsCategoryBottomSheetState
                           Text(
                             DateFormatter.formatMonthYear(
                               widget.statsMonth,
-                              context.locale.languageCode,
+                              localeCode,
                             ),
                             style: TextStyle(
                               color: colors.textSecondary,
@@ -165,7 +180,10 @@ class _StatsCategoryBottomSheetState
               ),
 
               Expanded(
-                child: filterState.isLoading
+                child:
+                    (filterState.isLoading &&
+                        filteredTxs.isEmpty &&
+                        widget.initialTransactions == null)
                     ? const Center(child: CircularProgressIndicator())
                     : filteredTxs.isEmpty
                     ? Center(
@@ -240,7 +258,6 @@ class _StatsCategoryBottomSheetState
                                 ? fromCat
                                 : toCat;
 
-                            // 👇 ЛОГІКА ПЕРСПЕКТИВИ ДЛЯ МУЛЬТИВАЛЮТНОСТІ
                             bool isOut = tx.fromId == widget.category.id;
 
                             int mainAmount = isOut

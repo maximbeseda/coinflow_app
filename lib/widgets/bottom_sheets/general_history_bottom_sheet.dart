@@ -89,7 +89,10 @@ class _GeneralHistoryBottomSheetState
     final filterState = ref.watch(filterProvider);
 
     final allCategories = catState.allCategoriesList;
-    final filteredHistory = filterState.results;
+    final filteredHistory =
+        (filterState.results.isEmpty && filterState.searchQuery.isEmpty)
+        ? widget.transactions
+        : filterState.results;
 
     final showLoader = filterState.hasMore && filterState.searchQuery.isEmpty;
 
@@ -134,7 +137,7 @@ class _GeneralHistoryBottomSheetState
           const SizedBox(height: 12),
 
           Expanded(
-            child: filterState.isLoading
+            child: (filterState.isLoading && filteredHistory.isEmpty)
                 ? const Center(child: CircularProgressIndicator())
                 : filteredHistory.isEmpty
                 ? Center(
@@ -255,7 +258,7 @@ class _GeneralHistoryBottomSheetState
                       }
 
                       return Dismissible(
-                        key: Key(t.id),
+                        key: Key('gen_history_${t.id}'),
                         direction: DismissDirection.endToStart,
                         background: Container(
                           color: colors.expense,
