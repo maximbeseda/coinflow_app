@@ -706,9 +706,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     final settingsState = ref.read(settingsProvider);
 
     final newSub = Subscription(
-      id:
-          widget.subscription?.id ??
-          const Uuid().v4(), // ВИПРАВЛЕНО: надійна генерація ID
+      id: widget.subscription?.id ?? const Uuid().v4(),
       name: _nameCtrl.text.trim(),
       amount: amountInCents,
       categoryId: _selectedExpenseId!,
@@ -720,15 +718,17 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       currency: _selectedCurrency ?? settingsState.baseCurrency,
     );
 
-    if (widget.subscription == null) {
-      // ДОДАНО: await
+    final isNew = widget.subscription == null;
+
+    // 👇 ГОЛОВНИЙ ФІКС: Закриваємо екран створення/редагування ДО збереження в базу.
+    // Це гарантує, що Navigator.pop не закриє випадково вікно підтвердження.
+    if (mounted) Navigator.pop(context);
+
+    if (isNew) {
       await subNotifier.addSubscription(newSub);
     } else {
-      // ДОДАНО: await
       await subNotifier.updateSubscription(newSub);
     }
-
-    if (mounted) Navigator.pop(context);
   }
 
   Future<void> _delete() async {
@@ -850,12 +850,13 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
     if (!mounted) return;
     if (confirmed) {
-      // ДОДАНО: await, щоб дочекатися видалення в базу
-      await ref
-          .read(subscriptionProvider.notifier)
-          .moveToTrash(widget.subscription!);
+      final notifier = ref.read(subscriptionProvider.notifier);
+      final sub = widget.subscription!;
 
+      // 👇 ФІКС: Закриваємо екран ДО того, як відправляти в кошик
       if (mounted) Navigator.pop(context);
+
+      await notifier.moveToTrash(sub);
     }
   }
 

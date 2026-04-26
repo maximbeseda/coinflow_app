@@ -41,10 +41,7 @@ class _HistorySearchBarState extends ConsumerState<HistorySearchBar> {
   }
 
   void _onSearchChanged(String query) {
-    // ДОДАНО: Оновлюємо стан, щоб показати/сховати іконку хрестика
     setState(() {});
-    // 👇 Ми можемо просто скасувати таймер через безпечний виклик `?.`,
-    // замість складної перевірки з `!`
     _debounce?.cancel();
 
     _debounce = Timer(const Duration(milliseconds: 300), () {
@@ -54,19 +51,30 @@ class _HistorySearchBarState extends ConsumerState<HistorySearchBar> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorsExtension>()!;
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColorsExtension>()!;
+    final isDark = theme.brightness == Brightness.dark;
+
+    // 👇 Дістаємо налаштування полів з глобальної теми
+    final inputTheme = theme.inputDecorationTheme;
+
+    // 👇 Динамічно отримуємо радіус із теми (щоб тінь контейнера ідеально збігалася з рамкою поля)
+    final resolvedRadius =
+        (inputTheme.border as OutlineInputBorder?)?.borderRadius ??
+        BorderRadius.circular(8);
 
     return Container(
       decoration: BoxDecoration(
-        color: colors.cardBg,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: resolvedRadius, // Радіус тягнеться з теми
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: TextField(
         controller: _searchController,
@@ -74,6 +82,10 @@ class _HistorySearchBarState extends ConsumerState<HistorySearchBar> {
         onChanged: _onSearchChanged,
         style: TextStyle(color: colors.textMain, fontSize: 16),
         decoration: InputDecoration(
+          // Рамки (enabledBorder, focusedBorder) сюди НЕ пишемо, вони автоматично підтягнуться з теми!
+          filled: true,
+          // Задаємо лише колір фону: напівпрозорий для темної, стандартний для світлої
+          fillColor: isDark ? Colors.white.withValues(alpha: 0.08) : null,
           isDense: true,
           hintText: 'search_transactions'.tr(),
           hintStyle: TextStyle(color: colors.textSecondary),
@@ -92,7 +104,6 @@ class _HistorySearchBarState extends ConsumerState<HistorySearchBar> {
                   },
                 )
               : null,
-          border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 12,

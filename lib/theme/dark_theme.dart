@@ -84,7 +84,7 @@ final darkTheme = ThemeData(
   textButtonTheme: TextButtonThemeData(
     style: TextButton.styleFrom(
       padding: const EdgeInsets.symmetric(vertical: 14),
-      backgroundColor: const Color(0xFF3A3A3C),
+      backgroundColor: const Color(0x1AFFFFFF),
       foregroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),

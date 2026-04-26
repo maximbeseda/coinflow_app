@@ -351,23 +351,12 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
           overflow: TextOverflow.ellipsis,
         );
 
-        final subtitleWidget = tx.title.isNotEmpty
-            ? Text(
-                tx.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                ),
-              )
-            : Text(
-                'transaction'.tr(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: colors.textSecondary, fontSize: 12),
-              );
+        final subtitleWidget = Text(
+          'transaction'.tr(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: colors.textSecondary, fontSize: 12),
+        );
 
         items.add(
           TrashItem(

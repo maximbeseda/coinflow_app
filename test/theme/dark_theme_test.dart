@@ -61,7 +61,8 @@ void main() {
       // Перевірка Text Button
       final textStyle = theme.textButtonTheme.style!;
       final textBg = textStyle.backgroundColor?.resolve({});
-      expect(textBg, const Color(0xFF3A3A3C));
+      // 👇 ВИПРАВЛЕНО: Очікуємо новий напівпрозорий колір (10% білого)
+      expect(textBg, const Color(0x1AFFFFFF));
     });
   });
 }

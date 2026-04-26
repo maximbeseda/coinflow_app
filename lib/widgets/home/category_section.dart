@@ -9,13 +9,26 @@ import '../../providers/all_providers.dart';
 import '../../theme/app_colors_extension.dart';
 import '../common/coin_widget.dart';
 
+class DraggingCategoryNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setId(String? id) {
+    state = id;
+  }
+}
+
+final draggingCategoryProvider =
+    NotifierProvider<DraggingCategoryNotifier, String?>(
+      DraggingCategoryNotifier.new,
+    );
+
 class CategorySection extends ConsumerStatefulWidget {
   final List<Category> categories;
   final CategoryType type;
   final bool isTarget;
   final bool isGrid;
 
-  // Колбеки для зв'язку з головним екраном
   final void Function(Category source, Category target) onTransfer;
   final void Function(Category category) onHistoryTap;
   final Future<dynamic> Function(Category category) onEditTap;
@@ -42,7 +55,6 @@ class _CategorySectionState extends ConsumerState<CategorySection>
   late PageController _pageController;
   late AnimationController _jiggleController;
 
-  String? _draggedCategoryId;
   final List<String> _deletingIds = [];
 
   @override
@@ -78,9 +90,10 @@ class _CategorySectionState extends ConsumerState<CategorySection>
     Category c,
     HomeScreenState homeState,
     AppColorsExtension colors,
+    String? draggedCategoryId,
   ) {
     final bool isDeleting = _deletingIds.contains(c.id);
-    final bool isBeingDragged = _draggedCategoryId == c.id;
+    final bool isBeingDragged = draggedCategoryId == c.id;
 
     final Widget dragFeedback = Material(
       color: Colors.transparent,
@@ -97,10 +110,15 @@ class _CategorySectionState extends ConsumerState<CategorySection>
       return Draggable<Category>(
         data: c,
         maxSimultaneousDrags: 1,
-        onDragStarted: () => setState(() => _draggedCategoryId = c.id),
-        onDragEnd: (_) => setState(() => _draggedCategoryId = null),
+        onDragStarted: () =>
+            ref.read(draggingCategoryProvider.notifier).setId(c.id),
+        // 👇 ДОДАНО: Підстраховка при завершенні та успішному дропі
+        onDragEnd: (_) =>
+            ref.read(draggingCategoryProvider.notifier).setId(null),
+        onDragCompleted: () =>
+            ref.read(draggingCategoryProvider.notifier).setId(null),
         onDraggableCanceled: (_, _) =>
-            setState(() => _draggedCategoryId = null),
+            ref.read(draggingCategoryProvider.notifier).setId(null),
         feedback: dragFeedback,
         childWhenDragging: placeholderCoin,
         child: isBeingDragged ? placeholderCoin : normalCoin,
@@ -181,10 +199,15 @@ class _CategorySectionState extends ConsumerState<CategorySection>
           child: Draggable<Category>(
             data: c,
             maxSimultaneousDrags: 1,
-            onDragStarted: () => setState(() => _draggedCategoryId = c.id),
-            onDragEnd: (_) => setState(() => _draggedCategoryId = null),
+            onDragStarted: () =>
+                ref.read(draggingCategoryProvider.notifier).setId(c.id),
+            // 👇 ДОДАНО: Підстраховка
+            onDragEnd: (_) =>
+                ref.read(draggingCategoryProvider.notifier).setId(null),
+            onDragCompleted: () =>
+                ref.read(draggingCategoryProvider.notifier).setId(null),
             onDraggableCanceled: (_, _) =>
-                setState(() => _draggedCategoryId = null),
+                ref.read(draggingCategoryProvider.notifier).setId(null),
             feedback: dragFeedbackReorder,
             childWhenDragging: emptySpace,
             child: isBeingDragged ? emptySpace : coin,
@@ -202,11 +225,15 @@ class _CategorySectionState extends ConsumerState<CategorySection>
                 unawaited(Vibration.vibrate(duration: 15, amplitude: 40));
               }
               ref.read(homeScreenControllerProvider.notifier).toggleEditMode();
-              setState(() => _draggedCategoryId = c.id);
+              ref.read(draggingCategoryProvider.notifier).setId(c.id);
             },
-            onDragEnd: (_) => setState(() => _draggedCategoryId = null),
+            // 👇 ДОДАНО: Підстраховка
+            onDragEnd: (_) =>
+                ref.read(draggingCategoryProvider.notifier).setId(null),
+            onDragCompleted: () =>
+                ref.read(draggingCategoryProvider.notifier).setId(null),
             onDraggableCanceled: (_, _) =>
-                setState(() => _draggedCategoryId = null),
+                ref.read(draggingCategoryProvider.notifier).setId(null),
             feedback: dragFeedbackReorder,
             childWhenDragging: emptySpace,
             child: coin,
@@ -239,6 +266,9 @@ class _CategorySectionState extends ConsumerState<CategorySection>
                 }
               },
               onAcceptWithDetails: (d) {
+                // 👇 ГОЛОВНИЙ ФІКС: Примусово очищаємо тінь ДО того, як відкриється екран транзакції
+                ref.read(draggingCategoryProvider.notifier).setId(null);
+
                 if (!homeState.isEditMode) {
                   final source = d.data;
                   if (source.type == c.type &&
@@ -292,7 +322,8 @@ class _CategorySectionState extends ConsumerState<CategorySection>
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final homeState = ref.watch(homeScreenControllerProvider);
 
-    // Слухаємо зміну режиму для анімації тремтіння
+    final draggedCategoryId = ref.watch(draggingCategoryProvider);
+
     ref.listen(homeScreenControllerProvider.select((s) => s.isEditMode), (
       prev,
       next,
@@ -321,9 +352,14 @@ class _CategorySectionState extends ConsumerState<CategorySection>
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final int crossAxisCount = (constraints.maxWidth / 80).floor().clamp(4, 8);
+          final int crossAxisCount = (constraints.maxWidth / 80).floor().clamp(
+            4,
+            8,
+          );
           final items = [
-            ...widget.categories.map((c) => _buildCoin(c, homeState, colors)),
+            ...widget.categories.map(
+              (c) => _buildCoin(c, homeState, colors, draggedCategoryId),
+            ),
             _buildAddBtn(homeState, colors),
           ];
 
@@ -357,7 +393,8 @@ class _CategorySectionState extends ConsumerState<CategorySection>
                 ? 3
                 : (constraints.maxHeight > 500 ? 5 : 4);
             final int perPage = crossAxisCount * rowsCount;
-            final double itemWidth = (constraints.maxWidth / crossAxisCount) - 0.01;
+            final double itemWidth =
+                (constraints.maxWidth / crossAxisCount) - 0.01;
             final double itemHeight = (constraints.maxHeight / rowsCount).clamp(
               96.0,
               125.0,
@@ -399,7 +436,7 @@ class _CategorySectionState extends ConsumerState<CategorySection>
           return Stack(
             children: [
               pageView,
-              if (_draggedCategoryId != null) ...[
+              if (draggedCategoryId != null) ...[
                 Positioned(
                   left: 0,
                   top: 0,
