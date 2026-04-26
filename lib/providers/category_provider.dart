@@ -127,17 +127,17 @@ class CategoryNotifier extends _$CategoryNotifier {
 
     if (updatedCategory.type == CategoryType.income) {
       final newList = List<Category>.from(state.incomes);
-      int idx = newList.indexWhere((c) => c.id == id);
+      final int idx = newList.indexWhere((c) => c.id == id);
       if (idx != -1) newList[idx] = updatedCategory;
       state = state.copyWith(incomes: newList);
     } else if (updatedCategory.type == CategoryType.account) {
       final newList = List<Category>.from(state.accounts);
-      int idx = newList.indexWhere((c) => c.id == id);
+      final int idx = newList.indexWhere((c) => c.id == id);
       if (idx != -1) newList[idx] = updatedCategory;
       state = state.copyWith(accounts: newList);
     } else {
       final newList = List<Category>.from(state.expenses);
-      int idx = newList.indexWhere((c) => c.id == id);
+      final int idx = newList.indexWhere((c) => c.id == id);
       if (idx != -1) newList[idx] = updatedCategory;
       state = state.copyWith(expenses: newList);
     }
@@ -157,7 +157,7 @@ class CategoryNotifier extends _$CategoryNotifier {
       targetList = List<Category>.from(state.expenses);
     }
 
-    int index = targetList.indexWhere((c) => c.id == cat.id);
+    final int index = targetList.indexWhere((c) => c.id == cat.id);
     if (index == -1) {
       final newCat = cat.copyWith(sortOrder: targetList.length);
       targetList.add(newCat);
@@ -237,7 +237,7 @@ class CategoryNotifier extends _$CategoryNotifier {
     final db = ref.read(databaseProvider);
     if (dragged.type != target.type) return;
 
-    List<Category> targetList = List<Category>.from(
+    final List<Category> targetList = List<Category>.from(
       dragged.type == CategoryType.income
           ? state.incomes
           : dragged.type == CategoryType.account
@@ -245,8 +245,8 @@ class CategoryNotifier extends _$CategoryNotifier {
           : state.expenses,
     );
 
-    int oldIndex = targetList.indexWhere((c) => c.id == dragged.id);
-    int newIndex = targetList.indexWhere((c) => c.id == target.id);
+    final int oldIndex = targetList.indexWhere((c) => c.id == dragged.id);
+    final int newIndex = targetList.indexWhere((c) => c.id == target.id);
 
     if (oldIndex != -1 && newIndex != -1 && oldIndex != newIndex) {
       final item = targetList.removeAt(oldIndex);

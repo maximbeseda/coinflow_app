@@ -33,10 +33,10 @@ class YearSummaryScreen extends StatelessWidget {
 
     int grandTotalInc = 0;
     int grandTotalExp = 0;
-    Map<String, Map<String, Map<String, int>>> groupedByYear = {};
+    final Map<String, Map<String, Map<String, int>>> groupedByYear = {};
 
     data.forEach((monthStr, values) {
-      String year = monthStr.split('-')[0];
+      final String year = monthStr.split('-')[0];
       if (!groupedByYear.containsKey(year)) {
         groupedByYear[year] = {};
       }
@@ -46,12 +46,12 @@ class YearSummaryScreen extends StatelessWidget {
       grandTotalExp += values['expenses'] ?? 0;
     });
 
-    int grandNet = grandTotalInc - grandTotalExp;
-    double grandSavingsRate = grandTotalInc > 0
+    final int grandNet = grandTotalInc - grandTotalExp;
+    final double grandSavingsRate = grandTotalInc > 0
         ? (grandNet / grandTotalInc) * 100
         : 0.0;
 
-    List<String> sortedYears = groupedByYear.keys.toList()
+    final List<String> sortedYears = groupedByYear.keys.toList()
       ..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
@@ -141,7 +141,7 @@ class YearSummaryScreen extends StatelessWidget {
     double rate,
     String symbol,
   ) {
-    Color baseColor = net >= 0 ? colors.income : colors.expense;
+    final Color baseColor = net >= 0 ? colors.income : colors.expense;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -221,8 +221,8 @@ class YearSummaryScreen extends StatelessWidget {
     String minExpName = '';
 
     yearData.forEach((month, values) {
-      int inc = values['incomes'] ?? 0;
-      int exp = values['expenses'] ?? 0;
+      final int inc = values['incomes'] ?? 0;
+      final int exp = values['expenses'] ?? 0;
 
       totalInc += inc;
       totalExp += exp;
@@ -248,13 +248,13 @@ class YearSummaryScreen extends StatelessWidget {
     if (minMonthInc == 999999999) minMonthInc = 0;
     if (minMonthExp == 999999999) minMonthExp = 0;
 
-    int monthsCount = yearData.isNotEmpty ? yearData.length : 1;
-    int avgInc = (totalInc / monthsCount).round();
-    int avgExp = (totalExp / monthsCount).round();
-    int netProfit = totalInc - totalExp;
-    double savingsRate = totalInc > 0 ? (netProfit / totalInc) * 100 : 0;
+    final int monthsCount = yearData.isNotEmpty ? yearData.length : 1;
+    final int avgInc = (totalInc / monthsCount).round();
+    final int avgExp = (totalExp / monthsCount).round();
+    final int netProfit = totalInc - totalExp;
+    final double savingsRate = totalInc > 0 ? (netProfit / totalInc) * 100 : 0;
 
-    Color netColor = netProfit >= 0 ? colors.income : colors.expense;
+    final Color netColor = netProfit >= 0 ? colors.income : colors.expense;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),

@@ -42,12 +42,12 @@ class DueSubscriptionDialog extends ConsumerWidget {
     bool canPay = false;
     if (account != null && !account.isArchived) {
       // Конвертуємо в базову валюту і округлюємо до цілих копійок
-      int accountAmountBase = settingsNotifier.convertToBase(
+      final int accountAmountBase = settingsNotifier.convertToBase(
         account.amount,
         account.currency,
       );
 
-      int subAmountBase = settingsNotifier.convertToBase(
+      final int subAmountBase = settingsNotifier.convertToBase(
         subscription.amount,
         subscription.currency,
       );

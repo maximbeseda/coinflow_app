@@ -57,7 +57,7 @@ class _CsvMappingScreenState extends ConsumerState<CsvMappingScreen> {
       orElse: () => widget.rawRows.first,
     );
     _headers = headerRow.map((e) => e.toString().trim()).toList();
-    int headerIdx = widget.rawRows.indexOf(headerRow);
+    final int headerIdx = widget.rawRows.indexOf(headerRow);
     _dataRows = widget.rawRows.sublist(headerIdx + 1);
   }
 
@@ -110,8 +110,8 @@ class _CsvMappingScreenState extends ConsumerState<CsvMappingScreen> {
     final allCats = ref.read(categoryProvider).allCategoriesList;
     final defaultCurrency = ref.read(settingsProvider).baseCurrency;
 
-    Map<String, CategoryType> foundTypes = {};
-    Map<String, String> foundCurrencies = {};
+    final Map<String, CategoryType> foundTypes = {};
+    final Map<String, String> foundCurrencies = {};
 
     final requiredIndices = [
       _dateCol,
@@ -146,7 +146,7 @@ class _CsvMappingScreenState extends ConsumerState<CsvMappingScreen> {
       }
 
       if (fromName.isNotEmpty) {
-        bool existsActive = allCats.any(
+        final bool existsActive = allCats.any(
           (c) =>
               c.name.toLowerCase() == fromName.toLowerCase() && !c.isArchived,
         );
@@ -159,7 +159,7 @@ class _CsvMappingScreenState extends ConsumerState<CsvMappingScreen> {
         }
       }
       if (toName.isNotEmpty) {
-        bool existsActive = allCats.any(
+        final bool existsActive = allCats.any(
           (c) => c.name.toLowerCase() == toName.toLowerCase() && !c.isArchived,
         );
         if (!existsActive && !foundTypes.containsKey(toName)) {
@@ -293,7 +293,7 @@ class _CsvMappingScreenState extends ConsumerState<CsvMappingScreen> {
 
     final List<Transaction> txsToSave = [];
     final Map<String, int> accountDeltas = {};
-    int total = _dataRows.length;
+    final int total = _dataRows.length;
     int skippedCount = 0;
 
     final requiredIndices = [
@@ -758,8 +758,8 @@ class _CsvMappingScreenState extends ConsumerState<CsvMappingScreen> {
             child: ListView.builder(
               itemCount: _pendingCategories.length,
               itemBuilder: (context, index) {
-                String catName = _pendingCategories.keys.elementAt(index);
-                CategoryType currentType = _pendingCategories[catName]!;
+                final String catName = _pendingCategories.keys.elementAt(index);
+                final CategoryType currentType = _pendingCategories[catName]!;
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),

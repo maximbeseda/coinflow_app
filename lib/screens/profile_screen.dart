@@ -20,7 +20,7 @@ class ProfileScreen extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-    bool confirmed =
+    final bool confirmed =
         await showDialog<bool>(
           context: context,
           builder: (ctx) => Dialog(

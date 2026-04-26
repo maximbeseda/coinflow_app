@@ -125,11 +125,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       final settingsNotifier = ref.read(settingsProvider.notifier);
       final settingsState = ref.read(settingsProvider);
 
-      String txTitle = comment.trim().isNotEmpty
+      final String txTitle = comment.trim().isNotEmpty
           ? comment.trim()
           : '${'transfer'.tr()} ${source.name} ➡️ ${target.name}';
 
-      int baseAmt = settingsNotifier.convertToBase(amount, source.currency);
+      final int baseAmt = settingsNotifier.convertToBase(amount, source.currency);
 
       final newTx = Transaction(
         id: const Uuid().v4(),
@@ -155,14 +155,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     Transaction t,
     List<Category> allCategories,
   ) async {
-    Category? sourceCat = allCategories.firstWhereOrNull(
+    final Category? sourceCat = allCategories.firstWhereOrNull(
       (c) => c.id == t.fromId,
     );
-    Category? targetCat = allCategories.firstWhereOrNull((c) => c.id == t.toId);
+    final Category? targetCat = allCategories.firstWhereOrNull((c) => c.id == t.toId);
 
     if (sourceCat == null || targetCat == null) return;
 
-    String? initialNote = t.title.contains('➡️') ? '' : t.title;
+    final String initialNote = t.title.contains('➡️') ? '' : t.title;
 
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -369,10 +369,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final monthTotals = statsNotifier.calculateTotalsForMonth(
       txState.selectedMonth,
     );
-    int totalIncomes = monthTotals['incomes'] ?? 0;
-    int totalExpenses = monthTotals['expenses'] ?? 0;
+    final int totalIncomes = monthTotals['incomes'] ?? 0;
+    final int totalExpenses = monthTotals['expenses'] ?? 0;
 
-    int totalBalance = catState.accounts
+    final int totalBalance = catState.accounts
         .where((item) => item.includeInTotal)
         .fold(
           0,
@@ -392,7 +392,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
 
     final displayIncomes = catState.incomes.map((c) {
-      bool isBase = c.currency == settingsState.baseCurrency;
+      final bool isBase = c.currency == settingsState.baseCurrency;
       return c.copyWith(
         amount: isBase ? (baseIncomeMap[c.id] ?? 0) : (rawIncomeMap[c.id] ?? 0),
       );
@@ -410,7 +410,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
 
     final displayExpenses = catState.expenses.map((c) {
-      bool isBase = c.currency == settingsState.baseCurrency;
+      final bool isBase = c.currency == settingsState.baseCurrency;
       return c.copyWith(
         amount: isBase
             ? (baseExpenseMap[c.id] ?? 0)

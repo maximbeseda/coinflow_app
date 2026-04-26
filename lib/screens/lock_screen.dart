@@ -124,7 +124,7 @@ class _LockScreenState extends State<LockScreen>
 
     FocusManager.instance.primaryFocus?.unfocus();
 
-    String title = widget.isSetupMode
+    final String title = widget.isSetupMode
         ? (_isConfirming ? 'confirm_pin'.tr() : 'create_pin'.tr())
         : 'enter_pin'.tr();
 
@@ -173,7 +173,7 @@ class _LockScreenState extends State<LockScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(4, (index) {
-                          bool isFilled = index < _pin.length;
+                          final bool isFilled = index < _pin.length;
                           return AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
                             margin: const EdgeInsets.symmetric(horizontal: 12),

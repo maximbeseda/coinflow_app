@@ -322,12 +322,12 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
                             final fromCat = categoryMap[tx.fromId];
                             final toCat = categoryMap[tx.toId];
 
-                            String fromName = fromCat?.name ?? trUnknown;
-                            String toName = toCat?.name ?? trUnknown;
+                            final String fromName = fromCat?.name ?? trUnknown;
+                            final String toName = toCat?.name ?? trUnknown;
 
                             String customNote = tx.title.trim();
 
-                            bool isDefaultTitle =
+                            final bool isDefaultTitle =
                                 customNote.isEmpty ||
                                 customNote.contains('➡️') ||
                                 customNote == fromName ||
@@ -337,41 +337,41 @@ class _StatsMonthBottomSheetState extends ConsumerState<StatsMonthBottomSheet> {
 
                             if (isDefaultTitle) customNote = '';
 
-                            bool isIncome =
+                            final bool isIncome =
                                 fromCat?.type == CategoryType.income;
-                            bool isTransfer =
+                            final bool isTransfer =
                                 fromCat?.type == CategoryType.account &&
                                 toCat?.type == CategoryType.account;
 
                             final iconCat = isIncome ? toCat : fromCat;
 
                             // 👇 ЛОГІКА ПЕРСПЕКТИВИ ДЛЯ МУЛЬТИВАЛЮТНОСТІ
-                            int mainAmount = tx.amount;
-                            String mainCurrency = tx.currency;
+                            final int mainAmount = tx.amount;
+                            final String mainCurrency = tx.currency;
 
-                            int secondaryAmount = tx.targetAmount ?? tx.amount;
-                            String secondaryCurrency =
+                            final int secondaryAmount = tx.targetAmount ?? tx.amount;
+                            final String secondaryCurrency =
                                 tx.targetCurrency ?? tx.currency;
 
-                            bool isMultiCurrency =
+                            final bool isMultiCurrency =
                                 mainCurrency != secondaryCurrency &&
                                 tx.targetCurrency != null;
 
-                            String mainSymbol = currencyCache.putIfAbsent(
+                            final String mainSymbol = currencyCache.putIfAbsent(
                               mainCurrency,
                               () => AppCurrency.fromCode(mainCurrency).symbol,
                             );
-                            String secondarySymbol = currencyCache.putIfAbsent(
+                            final String secondarySymbol = currencyCache.putIfAbsent(
                               secondaryCurrency,
                               () => AppCurrency.fromCode(
                                 secondaryCurrency,
                               ).symbol,
                             );
 
-                            String prefix = isIncome
+                            final String prefix = isIncome
                                 ? '+'
                                 : (isTransfer ? '' : '-');
-                            Color amountColor = isIncome
+                            final Color amountColor = isIncome
                                 ? colors.income
                                 : (isTransfer
                                       ? colors.textSecondary

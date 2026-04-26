@@ -267,11 +267,11 @@ class _DateStripSelectorState extends State<DateStripSelector> {
                                 .toDouble();
                           }
 
-                          double scale = (1.0 - (pageOffset.abs() * 0.2)).clamp(
+                          final double scale = (1.0 - (pageOffset.abs() * 0.2)).clamp(
                             0.8,
                             1.0,
                           );
-                          double opacity = (1.0 - (pageOffset.abs() * 0.5))
+                          final double opacity = (1.0 - (pageOffset.abs() * 0.5))
                               .clamp(0.4, 1.0);
 
                           return GestureDetector(

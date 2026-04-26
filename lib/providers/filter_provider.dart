@@ -1,10 +1,7 @@
 import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:easy_localization/easy_localization.dart';
-import 'package:collection/collection.dart';
 
 import '../database/app_database.dart';
-import '../utils/currency_formatter.dart';
 import 'all_providers.dart';
 
 part 'filter_provider.g.dart';
@@ -73,8 +70,16 @@ class FilterState {
 class FilterNotifier extends _$FilterNotifier {
   static const int _pageSize = 30; // Скільки вантажимо за раз
 
+  // Таймер для затримки виконання запиту до БД (Debouncing)
+  Timer? _debounceTimer;
+
   @override
   FilterState build() {
+    // Очищаємо таймер при знищенні провайдера, щоб уникнути витоку пам'яті
+    ref.onDispose(() {
+      _debounceTimer?.cancel();
+    });
+
     // 👇 МАГІЯ: Якщо ти видалив або відредагував транзакцію в UI,
     // FilterProvider миттєво це помітить і оновить список!
     ref.listen(transactionProvider, (prevAsync, nextAsync) {
@@ -101,8 +106,16 @@ class FilterNotifier extends _$FilterNotifier {
   }
 
   void setSearchQuery(String query) {
+    // 1. Оновлюємо стан миттєво для плавного UI
     state = state.copyWith(searchQuery: query);
-    _applyFilters();
+
+    // 2. Скасовуємо попередній таймер, якщо користувач продовжує друкувати
+    _debounceTimer?.cancel();
+
+    // 3. Запускаємо новий таймер
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _applyFilters(); // Звернення до БД лише після паузи
+    });
   }
 
   void setDateRange(DateTime? start, DateTime? end) {
@@ -134,8 +147,8 @@ class FilterNotifier extends _$FilterNotifier {
 
   // НОВИЙ МЕТОД ДЛЯ ПАГІНАЦІЇ (Викликається при скролі вниз)
   Future<void> loadNextPage() async {
-    // Якщо йде пошук, або більше немає даних, або вже вантажимо — ігноруємо
-    if (state.searchQuery.isNotEmpty || !state.hasMore || state.isLoading) {
+    // Якщо більше немає даних, або вже вантажимо — ігноруємо
+    if (!state.hasMore || state.isLoading) {
       return;
     }
     await _applyFilters(loadMore: true);
@@ -167,91 +180,32 @@ class FilterNotifier extends _$FilterNotifier {
     }
 
     // 2. ВИЗНАЧАЄМО ЛІМІТ ТА ОФСЕТ ДЛЯ SQL
-    int? limit;
-    int? offset;
+    // Пагінація тепер працює завжди, навіть під час пошуку!
+    const limit = _pageSize;
+    final offset = state.currentPage * _pageSize;
 
-    // Якщо пошуку немає, вмикаємо жорстку оптимізацію SQL
-    if (state.searchQuery.isEmpty) {
-      limit = _pageSize;
-      offset = state.currentPage * _pageSize;
-    }
+    // Коли користувач вводить текст для пошуку, логічно шукати по всій історії (ігноруючи дати)
+    final isSearching = state.searchQuery.isNotEmpty;
 
     // 3. ОТРИМУЄМО ПОРЦІЮ З БАЗИ ДАНИХ (Блискавично)
-    var newBatch = await db.getFilteredTransactions(
-      startDate: state.startDate,
-      endDate: state.endDate,
+    final newBatch = await db.getFilteredTransactions(
+      startDate: isSearching ? null : state.startDate,
+      endDate: isSearching ? null : state.endDate,
       filterCategoryIds: filterCategoryIds,
       currency: state.selectedCurrency,
       limit: limit,
       offset: offset,
+      searchQuery: isSearching ? state.searchQuery : null,
     );
 
     if (!ref.mounted) return;
 
-    // 4. РОЗУМНИЙ FUZZY-ПОШУК У ПАМ'ЯТІ
-    if (state.searchQuery.isNotEmpty) {
-      final query = state.searchQuery.toLowerCase().trim();
-      final allCategories = catState.allCategoriesList;
-      final queryAmount = query
-          .replaceAll(RegExp(r'\s+'), '')
-          .replaceAll(',', '.');
-
-      final fuzzyResults = newBatch.where((t) {
-        final sourceCat = allCategories.firstWhereOrNull(
-          (c) => c.id == t.fromId,
-        );
-        final targetCat = allCategories.firstWhereOrNull((c) => c.id == t.toId);
-
-        bool matchesTitle =
-            t.title.toLowerCase().contains(query) ||
-            (sourceCat != null &&
-                sourceCat.name.toLowerCase().contains(query)) ||
-            (targetCat != null && targetCat.name.toLowerCase().contains(query));
-
-        String formattedAmount1 = CurrencyFormatter.format(
-          t.amount,
-        ).replaceAll(RegExp(r'\s+'), '');
-        String rawAmount1 = (t.amount / 100).toStringAsFixed(2);
-
-        String formattedAmount2 = t.targetAmount != null
-            ? CurrencyFormatter.format(
-                t.targetAmount!,
-              ).replaceAll(RegExp(r'\s+'), '')
-            : '';
-        String rawAmount2 = t.targetAmount != null
-            ? (t.targetAmount! / 100).toStringAsFixed(2)
-            : '';
-
-        bool matchesAmount =
-            formattedAmount1.contains(queryAmount) ||
-            rawAmount1.contains(queryAmount) ||
-            formattedAmount2.contains(queryAmount) ||
-            rawAmount2.contains(queryAmount);
-
-        String dateStrFull = DateFormat('dd.MM.yyyy').format(t.date);
-        String dateStrShort = DateFormat('dd.MM').format(t.date);
-        bool matchesDate =
-            dateStrFull.contains(query) || dateStrShort.contains(query);
-
-        return matchesTitle || matchesAmount || matchesDate;
-      }).toList();
-
-      // Вимикаємо пагінацію на час пошуку
-      state = state.copyWith(
-        results: fuzzyResults,
-        isLoading: false,
-        hasMore: false,
-      );
-    } else {
-      // 5. ЗБЕРІГАЄМО ПАГІНОВАНІ ДАНІ
-      state = state.copyWith(
-        results: loadMore ? [...state.results, ...newBatch] : newBatch,
-        isLoading: false,
-        hasMore:
-            newBatch.length ==
-            _pageSize, // Якщо прийшло менше 30, значить це кінець бази
-        currentPage: state.currentPage + 1,
-      );
-    }
+    // 4. ЗБЕРІГАЄМО ПАГІНОВАНІ ДАНІ (Пошук вже зроблено в SQL)
+    state = state.copyWith(
+      results: loadMore ? [...state.results, ...newBatch] : newBatch,
+      isLoading: false,
+      hasMore: newBatch.length == _pageSize,
+      currentPage: state.currentPage + 1,
+    );
   }
 }

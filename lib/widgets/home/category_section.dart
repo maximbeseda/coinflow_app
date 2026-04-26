@@ -79,10 +79,10 @@ class _CategorySectionState extends ConsumerState<CategorySection>
     HomeScreenState homeState,
     AppColorsExtension colors,
   ) {
-    bool isDeleting = _deletingIds.contains(c.id);
-    bool isBeingDragged = _draggedCategoryId == c.id;
+    final bool isDeleting = _deletingIds.contains(c.id);
+    final bool isBeingDragged = _draggedCategoryId == c.id;
 
-    Widget dragFeedback = Material(
+    final Widget dragFeedback = Material(
       color: Colors.transparent,
       child: CoinWidget(category: c, isFeedback: true, enableHero: false),
     );
@@ -167,8 +167,8 @@ class _CategorySectionState extends ConsumerState<CategorySection>
         );
       }
 
-      Widget emptySpace = Opacity(opacity: 0.0, child: coin);
-      Widget dragFeedbackReorder = Material(
+      final Widget emptySpace = Opacity(opacity: 0.0, child: coin);
+      final Widget dragFeedbackReorder = Material(
         color: Colors.transparent,
         child: CoinWidget(category: c, enableHero: false),
       );
@@ -222,7 +222,7 @@ class _CategorySectionState extends ConsumerState<CategorySection>
               onWillAcceptWithDetails: (details) {
                 final source = details.data;
                 if (source.id == c.id) return false;
-                bool isSameGroup = source.type == c.type;
+                final bool isSameGroup = source.type == c.type;
                 if (homeState.isEditMode) {
                   if (isSameGroup) {
                     ref
@@ -321,7 +321,7 @@ class _CategorySectionState extends ConsumerState<CategorySection>
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          int crossAxisCount = (constraints.maxWidth / 80).floor().clamp(4, 8);
+          final int crossAxisCount = (constraints.maxWidth / 80).floor().clamp(4, 8);
           final items = [
             ...widget.categories.map((c) => _buildCoin(c, homeState, colors)),
             _buildAddBtn(homeState, colors),
@@ -329,8 +329,8 @@ class _CategorySectionState extends ConsumerState<CategorySection>
 
           Widget pageView;
           if (!widget.isGrid) {
-            int perPage = crossAxisCount;
-            double itemWidth = (constraints.maxWidth / perPage) - 0.01;
+            final int perPage = crossAxisCount;
+            final double itemWidth = (constraints.maxWidth / perPage) - 0.01;
             pageView = SizedBox(
               height: 105,
               child: PageView.builder(
@@ -353,12 +353,12 @@ class _CategorySectionState extends ConsumerState<CategorySection>
               ),
             );
           } else {
-            int rowsCount = constraints.maxHeight < 380
+            final int rowsCount = constraints.maxHeight < 380
                 ? 3
                 : (constraints.maxHeight > 500 ? 5 : 4);
-            int perPage = crossAxisCount * rowsCount;
-            double itemWidth = (constraints.maxWidth / crossAxisCount) - 0.01;
-            double itemHeight = (constraints.maxHeight / rowsCount).clamp(
+            final int perPage = crossAxisCount * rowsCount;
+            final double itemWidth = (constraints.maxWidth / crossAxisCount) - 0.01;
+            final double itemHeight = (constraints.maxHeight / rowsCount).clamp(
               96.0,
               125.0,
             );

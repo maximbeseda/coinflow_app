@@ -10,7 +10,7 @@ class CustomNumpad extends StatelessWidget {
   const CustomNumpad({super.key, required this.onKeyPressed});
 
   void _handleKeyPress(String key) async {
-    bool? hasVibrator = await Vibration.hasVibrator();
+    final bool hasVibrator = await Vibration.hasVibrator();
     if (hasVibrator == true) {
       // ДОДАНО: unawaited
       unawaited(Vibration.vibrate(duration: 15, amplitude: 30));
@@ -61,14 +61,14 @@ class CustomNumpad extends StatelessWidget {
     AppColorsExtension colors,
     BuildContext context,
   ) {
-    bool isOperator = ['÷', '×', '-', '+'].contains(text);
-    bool isAction = ['C', '⌫', '%'].contains(text);
-    bool isEqual = text == '=';
+    final bool isOperator = ['÷', '×', '-', '+'].contains(text);
+    final bool isAction = ['C', '⌫', '%'].contains(text);
+    final bool isEqual = text == '=';
 
     Color textColor;
     Color bgColor;
 
-    bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (isEqual) {
       bgColor = CategoryDefaults.accountBg;

@@ -215,13 +215,13 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
     String trOutgoing,
     String trTopUp,
   ) {
-    bool isOut = t.fromId == widget.category.id;
-    String otherId = isOut ? t.toId : t.fromId;
+    final bool isOut = t.fromId == widget.category.id;
+    final String otherId = isOut ? t.toId : t.fromId;
     final otherCat = categoryMap[otherId];
 
     // Очищення нотатки
     String customNote = t.title.trim();
-    bool isDefaultTitle =
+    final bool isDefaultTitle =
         customNote.isEmpty ||
         customNote.contains('➡️') ||
         customNote == otherCat?.name ||
@@ -231,18 +231,18 @@ class _HistoryBottomSheetState extends ConsumerState<HistoryBottomSheet> {
     if (isDefaultTitle) customNote = '';
 
     // Розрахунок сум
-    int mainAmount = isOut ? t.amount : (t.targetAmount ?? t.amount);
-    String mainCurrency = isOut ? t.currency : (t.targetCurrency ?? t.currency);
-    int secondaryAmount = isOut ? (t.targetAmount ?? t.amount) : t.amount;
-    String secondaryCurrency = isOut
+    final int mainAmount = isOut ? t.amount : (t.targetAmount ?? t.amount);
+    final String mainCurrency = isOut ? t.currency : (t.targetCurrency ?? t.currency);
+    final int secondaryAmount = isOut ? (t.targetAmount ?? t.amount) : t.amount;
+    final String secondaryCurrency = isOut
         ? (t.targetCurrency ?? t.currency)
         : t.currency;
 
-    bool isMultiCurrency =
+    final bool isMultiCurrency =
         mainCurrency != secondaryCurrency && t.targetCurrency != null;
 
-    String mainSymbol = AppCurrency.fromCode(mainCurrency).symbol;
-    String secondarySymbol = AppCurrency.fromCode(secondaryCurrency).symbol;
+    final String mainSymbol = AppCurrency.fromCode(mainCurrency).symbol;
+    final String secondarySymbol = AppCurrency.fromCode(secondaryCurrency).symbol;
 
     // Колір та префікс
     String prefix = '';

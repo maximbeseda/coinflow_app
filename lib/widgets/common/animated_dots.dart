@@ -35,8 +35,8 @@ class _AnimatedDotsState extends State<AnimatedDots>
       animation: _controller,
       builder: (context, child) {
         // Рахуємо від 0 до 3 крапок
-        int dotsCount = (_controller.value * 4).floor() % 4;
-        String text = List.generate(dotsCount, (index) => '.').join();
+        final int dotsCount = (_controller.value * 4).floor() % 4;
+        final String text = List.generate(dotsCount, (index) => '.').join();
 
         return SizedBox(
           width: 24, // Жорстка ширина, щоб текст поруч не "смикався"

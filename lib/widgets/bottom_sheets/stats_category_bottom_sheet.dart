@@ -239,12 +239,12 @@ class _StatsCategoryBottomSheetState
                             final fromCat = categoryMap[tx.fromId];
                             final toCat = categoryMap[tx.toId];
 
-                            String fromName = fromCat?.name ?? trUnknown;
-                            String toName = toCat?.name ?? trUnknown;
+                            final String fromName = fromCat?.name ?? trUnknown;
+                            final String toName = toCat?.name ?? trUnknown;
 
                             String customNote = tx.title.trim();
 
-                            bool isDefaultTitle =
+                            final bool isDefaultTitle =
                                 customNote.isEmpty ||
                                 customNote.contains('➡️') ||
                                 customNote == fromName ||
@@ -258,39 +258,39 @@ class _StatsCategoryBottomSheetState
                                 ? fromCat
                                 : toCat;
 
-                            bool isOut = tx.fromId == widget.category.id;
+                            final bool isOut = tx.fromId == widget.category.id;
 
-                            int mainAmount = isOut
+                            final int mainAmount = isOut
                                 ? tx.amount
                                 : (tx.targetAmount ?? tx.amount);
-                            String mainCurrency = isOut
+                            final String mainCurrency = isOut
                                 ? tx.currency
                                 : (tx.targetCurrency ?? tx.currency);
 
-                            int secondaryAmount = isOut
+                            final int secondaryAmount = isOut
                                 ? (tx.targetAmount ?? tx.amount)
                                 : tx.amount;
-                            String secondaryCurrency = isOut
+                            final String secondaryCurrency = isOut
                                 ? (tx.targetCurrency ?? tx.currency)
                                 : tx.currency;
 
-                            bool isMultiCurrency =
+                            final bool isMultiCurrency =
                                 mainCurrency != secondaryCurrency &&
                                 tx.targetCurrency != null;
 
-                            String mainSymbol = currencyCache.putIfAbsent(
+                            final String mainSymbol = currencyCache.putIfAbsent(
                               mainCurrency,
                               () => AppCurrency.fromCode(mainCurrency).symbol,
                             );
-                            String secondarySymbol = currencyCache.putIfAbsent(
+                            final String secondarySymbol = currencyCache.putIfAbsent(
                               secondaryCurrency,
                               () => AppCurrency.fromCode(
                                 secondaryCurrency,
                               ).symbol,
                             );
 
-                            String prefix = widget.showExpenses ? '-' : '+';
-                            Color amountColor = widget.showExpenses
+                            final String prefix = widget.showExpenses ? '-' : '+';
+                            final Color amountColor = widget.showExpenses
                                 ? colors.expense
                                 : colors.income;
 

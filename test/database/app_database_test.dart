@@ -10,7 +10,21 @@ void main() {
     // Важливо: ми передаємо NativeDatabase.memory() у конструктор.
     // Наша нова фабрика бачить, що передано executor, і створює
     // НОВИЙ екземпляр спеціально для тесту, ігноруючи Singleton.
-    db = AppDatabase(NativeDatabase.memory());
+    db = AppDatabase(
+      NativeDatabase.memory(
+        setup: (db) {
+          db.createFunction(
+            functionName: 'dart_lower',
+            function: (args) {
+              if (args.isNotEmpty && args[0] is String) {
+                return (args[0] as String).toLowerCase();
+              }
+              return args.isEmpty ? null : args[0];
+            },
+          );
+        },
+      ),
+    );
   });
 
   tearDown(() async {
@@ -127,8 +141,8 @@ void main() {
   });
 
   group('AppDatabase - Схема та Міграції', () {
-    test('Версія схеми має бути 2', () {
-      expect(db.schemaVersion, 2);
+    test('Версія схеми має бути 3', () {
+      expect(db.schemaVersion, 3);
     });
   });
 

@@ -23,7 +23,7 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
   String _getMonthName(int month, BuildContext context) {
     final localeCode =
         Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
-    String m = DateFormat.LLLL(localeCode).format(DateTime(2000, month));
+    final String m = DateFormat.LLLL(localeCode).format(DateTime(2000, month));
     return m[0].toUpperCase() + m.substring(1);
   }
 
@@ -346,7 +346,7 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
       ),
       itemCount: 12,
       itemBuilder: (context, index) {
-        bool isSelected = _focusedDay.month == index + 1;
+        final bool isSelected = _focusedDay.month == index + 1;
         return GestureDetector(
           onTap: () => setState(() {
             _focusedDay = DateTime(_focusedDay.year, index + 1, 1);
@@ -387,9 +387,9 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
           final double boxWidth = constraints.maxWidth;
           final double tileHeight = (boxWidth / 4) / 1.8;
           const double spacing = 12.0;
-          double exactOffset =
+          final double exactOffset =
               ((_focusedDay.year - _startYear) ~/ 4) * (tileHeight + spacing);
-          double centeredOffset =
+          final double centeredOffset =
               exactOffset - (boxHeight / 2) + (tileHeight / 2);
 
           return GridView.builder(
@@ -405,8 +405,8 @@ class _CustomCalendarDialogState extends State<CustomCalendarDialog> {
             ),
             itemCount: _endYear - _startYear + 1,
             itemBuilder: (context, index) {
-              int year = _startYear + index;
-              bool isSelected = _focusedDay.year == year;
+              final int year = _startYear + index;
+              final bool isSelected = _focusedDay.year == year;
               return GestureDetector(
                 onTap: () => setState(() {
                   _focusedDay = DateTime(year, _focusedDay.month, 1);

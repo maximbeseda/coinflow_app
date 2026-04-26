@@ -8,8 +8,8 @@ void main() {
       String periodicity,
     ) {
       if (periodicity == 'monthly') {
-        int nextMonth = currentDate.month == 12 ? 1 : currentDate.month + 1;
-        int nextYear = currentDate.month == 12
+        final int nextMonth = currentDate.month == 12 ? 1 : currentDate.month + 1;
+        final int nextYear = currentDate.month == 12
             ? currentDate.year + 1
             : currentDate.year;
         int nextDay = currentDate.day;

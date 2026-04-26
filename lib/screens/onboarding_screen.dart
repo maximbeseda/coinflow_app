@@ -90,7 +90,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       if (initialLang['code'] == 'de') initialCurrency = 'EUR';
     }
 
-    bool isCurrencySupported = AppCurrency.supportedCurrencies.any(
+    final bool isCurrencySupported = AppCurrency.supportedCurrencies.any(
       (c) => c.code == initialCurrency,
     );
     if (!isCurrencySupported) {
@@ -180,7 +180,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   itemCount: _supportedLanguages.length,
                   itemBuilder: (context, index) {
                     final lang = _supportedLanguages[index];
-                    bool isSelected =
+                    final bool isSelected =
                         context.locale.languageCode == lang['code'];
 
                     return ListTile(
@@ -239,7 +239,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   void _openCurrencyPicker(AppColorsExtension colors) {
     FocusScope.of(context).unfocus();
-    List<String> availableCurrencies = AppCurrency.supportedCurrencies
+    final List<String> availableCurrencies = AppCurrency.supportedCurrencies
         .map((c) => c.code)
         .toList();
 
@@ -283,7 +283,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   itemBuilder: (context, index) {
                     final code = availableCurrencies[index];
                     final curr = AppCurrency.fromCode(code);
-                    bool isSelected = _selectedCurrencyCode == code;
+                    final bool isSelected = _selectedCurrencyCode == code;
 
                     return ListTile(
                       onTap: () {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:coin_flow/widgets/common/history_search_bar.dart';
+import 'package:coin_flow/providers/filter_provider.dart';
 import '../../helpers/test_wrapper.dart';
 
 void main() {
@@ -10,7 +12,20 @@ void main() {
       (WidgetTester tester) async {
         // Будуємо віджет. TextField обов'язково потребує Scaffold як предка.
         await tester.pumpWidget(
-          makeTestableWidget(child: const Scaffold(body: HistorySearchBar())),
+          ProviderScope(
+            child: makeTestableWidget(
+              child: Scaffold(
+                body: Consumer(
+                  builder: (context, ref, _) {
+                    ref.watch(
+                      filterProvider,
+                    ); // Тримаємо провайдер живим для тесту
+                    return const HistorySearchBar();
+                  },
+                ),
+              ),
+            ),
+          ),
         );
 
         // 1. Спочатку іконка "очистити" (Clear) не повинна відображатися

@@ -39,6 +39,8 @@ class Transactions extends Table {
   TextColumn get fromId => text()();
   TextColumn get toId => text()();
   TextColumn get title => text()();
+  TextColumn get titleLower =>
+      text().nullable()(); // Додано для швидкого пошуку
   DateTimeColumn get date => dateTime()();
 
   IntColumn get amount => integer()();
@@ -80,27 +82,21 @@ class Subscriptions extends Table {
 
 @DriftDatabase(tables: [Categories, Transactions, Subscriptions])
 class AppDatabase extends _$AppDatabase {
-  // --- SINGLETON ПАТТЕРН (ВИПРАВЛЕНО) ---
-
   // Приватний конструктор (позиційний аргумент)
   AppDatabase._internal([QueryExecutor? e]) : super(e ?? _openConnection());
 
   static AppDatabase? _instance;
 
-  // Фабрика тепер знову приймає [QueryExecutor? executor] як позиційний параметр
-  // Це дозволить твоїм тестам і коду працювати як раніше: AppDatabase(executor)
   factory AppDatabase([QueryExecutor? executor]) {
     if (executor != null) {
-      // Для тестів завжди створюємо новий екземпляр
       return AppDatabase._internal(executor);
     }
-    // Для додатка повертаємо синглтон
     _instance ??= AppDatabase._internal();
     return _instance!;
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration {
@@ -114,6 +110,12 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(transactions, transactions.deletedAt);
           await m.addColumn(subscriptions, subscriptions.deletedAt);
         }
+        if (from < 3) {
+          await m.addColumn(transactions, transactions.titleLower);
+          await customStatement(
+            'UPDATE transactions SET title_lower = dart_lower(title);',
+          );
+        }
       },
     );
   }
@@ -125,6 +127,7 @@ class AppDatabase extends _$AppDatabase {
     String? currency,
     int? limit,
     int? offset,
+    String? searchQuery,
     bool includeDeleted = false,
   }) {
     final query = select(transactions);
@@ -172,6 +175,142 @@ class AppDatabase extends _$AppDatabase {
             (t.currency.equals(currency) | t.targetCurrency.equals(currency));
       }
 
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        final cleanSearch = searchQuery.trim().replaceAll(',', '.');
+        final queryLower = cleanSearch.toLowerCase();
+
+        // 1. Пошук по назві
+        final titleFallback = FunctionCallExpression<String>('dart_lower', [
+          t.title,
+        ]);
+        final titleField = coalesce<String>([t.titleLower, titleFallback]);
+
+        Expression<bool> searchPredicate = titleField.like('%$queryLower%');
+
+        // 2. Пошук по сумі
+        final amountFormatted = FunctionCallExpression<String>('printf', [
+          const Constant('%.2f'),
+          t.amount.cast<double>() / const Constant(100.0),
+        ]);
+        searchPredicate =
+            searchPredicate | amountFormatted.like('%$cleanSearch%');
+
+        // 3. Пошук по назві категорії
+        final matchingCategories = selectOnly(categories)
+          ..addColumns([categories.id])
+          ..where(
+            FunctionCallExpression<String>('dart_lower', [
+              categories.name,
+            ]).like('%$queryLower%'),
+          );
+
+        searchPredicate =
+            searchPredicate |
+            t.fromId.isInQuery(matchingCategories) |
+            t.toId.isInQuery(matchingCategories);
+
+        // ==============================================================
+        // 4. Пошук по даті (Комбінований підхід: Dart Regex + SQLite)
+        // ==============================================================
+        DateTime? parsedStart;
+        DateTime? parsedEnd;
+
+        // Патерни для розпізнавання дат у тексті:
+        final dateEu = RegExp(
+          r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$',
+        ).firstMatch(cleanSearch); // DD.MM.YYYY
+        final dateIso = RegExp(
+          r'^(\d{4})-(\d{1,2})-(\d{1,2})$',
+        ).firstMatch(cleanSearch); // YYYY-MM-DD
+        // ВИПРАВЛЕНО: Рік має бути строго 4 цифри, щоб 12.10 не сприймалося як MM.YYYY
+        final monthYearEu = RegExp(
+          r'^(\d{1,2})\.(\d{4})$',
+        ).firstMatch(cleanSearch); // MM.YYYY
+        final monthIso = RegExp(
+          r'^(\d{4})-(\d{1,2})$',
+        ).firstMatch(cleanSearch); // YYYY-MM
+        // ДОДАНО: Розпізнавання лише дня і місяця (наприклад 12.10)
+        final dayMonthEu = RegExp(
+          r'^(\d{1,2})\.(\d{1,2})$',
+        ).firstMatch(cleanSearch); // DD.MM
+        final yearOnly = RegExp(r'^(\d{4})$').firstMatch(cleanSearch); // YYYY
+
+        try {
+          if (dateEu != null) {
+            final day = int.parse(dateEu.group(1)!);
+            final month = int.parse(dateEu.group(2)!);
+            final year = int.parse(dateEu.group(3)!);
+            parsedStart = DateTime(year, month, day);
+            parsedEnd = DateTime(year, month, day, 23, 59, 59);
+          } else if (dateIso != null) {
+            final year = int.parse(dateIso.group(1)!);
+            final month = int.parse(dateIso.group(2)!);
+            final day = int.parse(dateIso.group(3)!);
+            parsedStart = DateTime(year, month, day);
+            parsedEnd = DateTime(year, month, day, 23, 59, 59);
+          } else if (monthYearEu != null) {
+            final month = int.parse(monthYearEu.group(1)!);
+            final year = int.parse(monthYearEu.group(2)!);
+            parsedStart = DateTime(year, month, 1);
+            parsedEnd = DateTime(
+              year,
+              month + 1,
+              1,
+            ).subtract(const Duration(seconds: 1));
+          } else if (monthIso != null) {
+            final year = int.parse(monthIso.group(1)!);
+            final month = int.parse(monthIso.group(2)!);
+            parsedStart = DateTime(year, month, 1);
+            parsedEnd = DateTime(
+              year,
+              month + 1,
+              1,
+            ).subtract(const Duration(seconds: 1));
+          } else if (dayMonthEu != null) {
+            final day = int.parse(dayMonthEu.group(1)!);
+            final month = int.parse(dayMonthEu.group(2)!);
+            final year = DateTime.now().year; // Прив'язуємо до поточного року
+            parsedStart = DateTime(year, month, day);
+            parsedEnd = DateTime(year, month, day, 23, 59, 59);
+          } else if (yearOnly != null) {
+            final year = int.parse(yearOnly.group(1)!);
+            parsedStart = DateTime(year, 1, 1);
+            parsedEnd = DateTime(year, 12, 31, 23, 59, 59);
+          }
+        } catch (_) {
+          // Ігноруємо помилки (наприклад якщо введено 99.99)
+        }
+
+        // Якщо Dart зрозумів дату, додаємо строгий та швидкий фільтр
+        if (parsedStart != null && parsedEnd != null) {
+          searchPredicate =
+              searchPredicate | t.date.isBetweenValues(parsedStart, parsedEnd);
+        }
+
+        // РЕЗЕРВНИЙ ВАРІАНТ (Fallback SQLite):
+        // Працює, коли ти вводиш дату посимвольно ("1", "12.", "12.1"),
+        // а також дозволяє знайти "12.10" за всі минулі роки!
+        final sqlDateEu = FunctionCallExpression<String>('strftime', [
+          const Constant('%d.%m.%Y'),
+          t.date,
+          const Constant('unixepoch'),
+          const Constant('localtime'),
+        ]);
+        final sqlDateIso = FunctionCallExpression<String>('strftime', [
+          const Constant('%Y-%m-%d'),
+          t.date,
+          const Constant('unixepoch'),
+          const Constant('localtime'),
+        ]);
+
+        searchPredicate =
+            searchPredicate |
+            sqlDateEu.like('%$cleanSearch%') |
+            sqlDateIso.like('%$cleanSearch%');
+
+        predicate = predicate & searchPredicate;
+      }
+
       return predicate;
     });
 
@@ -197,10 +336,18 @@ LazyDatabase _openConnection() {
     return NativeDatabase.createInBackground(
       file,
       setup: (db) {
-        // Вмикаємо режим Write-Ahead Logging (WAL)
-        // Це дозволяє одночасно читати та писати в базу без блокувань
         db.execute('PRAGMA journal_mode = WAL;');
         db.execute('PRAGMA synchronous = NORMAL;');
+
+        db.createFunction(
+          functionName: 'dart_lower',
+          function: (args) {
+            if (args.isNotEmpty && args[0] is String) {
+              return (args[0] as String).toLowerCase();
+            }
+            return args.isEmpty ? null : args[0];
+          },
+        );
       },
     );
   });
@@ -210,13 +357,7 @@ LazyDatabase _openConnection() {
 
 @Riverpod(keepAlive: true)
 AppDatabase appDatabase(Ref ref) {
-  // Викликаємо фабричний конструктор
   final db = AppDatabase();
-
-  ref.onDispose(() {
-    // Не закриваємо базу автоматично, якщо це синглтон,
-    // але залишаємо можливість для очищення ресурсів
-  });
-
+  ref.onDispose(() {});
   return db;
 }

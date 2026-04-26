@@ -13,7 +13,7 @@ class DateFormatter {
 
   /// Назва місяця та рік: Березень 2026
   static String formatMonthYear(DateTime date, String locale) {
-    String month = DateFormat.MMMM(locale).format(date);
+    final String month = DateFormat.MMMM(locale).format(date);
     return '${month[0].toUpperCase()}${month.substring(1)} ${date.year}';
   }
 

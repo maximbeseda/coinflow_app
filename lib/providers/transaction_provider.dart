@@ -153,7 +153,7 @@ class TransactionNotifier extends _$TransactionNotifier {
     final settingsNotif = ref.read(settingsProvider.notifier);
     double fromRate =
         (await settingsNotif.getRateForDate(currency, txDate)) ?? 1.0;
-    double toRate =
+    final double toRate =
         (await settingsNotif.getRateForDate(baseCur, txDate)) ?? 1.0;
 
     if (fromRate == 0) fromRate = 1.0;
@@ -196,6 +196,7 @@ class TransactionNotifier extends _$TransactionNotifier {
     final updatedTx = tx.copyWith(
       baseCurrency: currentBase,
       baseAmount: baseAmt,
+      titleLower: drift.Value(tx.title.toLowerCase()),
     );
 
     final newHistory = List<Transaction>.from(currentState.history)
@@ -247,6 +248,7 @@ class TransactionNotifier extends _$TransactionNotifier {
       fromId: source.id,
       toId: target.id,
       title: target.name,
+      titleLower: target.name.toLowerCase(),
       amount: amount,
       date: date,
       currency: source.currency,
@@ -307,6 +309,7 @@ class TransactionNotifier extends _$TransactionNotifier {
       date: newDate,
       targetAmount: drift.Value(finalTargetAmount),
       baseAmount: finalBaseAmount,
+      titleLower: drift.Value(oldT.title.toLowerCase()),
     );
 
     _updateAccountBalance(updatedT.fromId, -updatedT.amount);
@@ -316,7 +319,7 @@ class TransactionNotifier extends _$TransactionNotifier {
     );
 
     final newHistory = List<Transaction>.from(currentState.history);
-    int index = newHistory.indexWhere((t) => t.id == oldT.id);
+    final int index = newHistory.indexWhere((t) => t.id == oldT.id);
     if (index != -1) newHistory[index] = updatedT;
     newHistory.sort((a, b) => b.date.compareTo(a.date));
 
@@ -389,7 +392,7 @@ class TransactionNotifier extends _$TransactionNotifier {
 
       tx = tx.copyWith(baseAmount: newBaseAmount, baseCurrency: newBase);
 
-      int mainIndex = newHistory.indexWhere((t) => t.id == tx.id);
+      final int mainIndex = newHistory.indexWhere((t) => t.id == tx.id);
       if (mainIndex != -1) newHistory[mainIndex] = tx;
 
       await StorageService.saveTransaction(db, tx);

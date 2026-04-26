@@ -60,8 +60,8 @@ class SettingsNotifier extends _$SettingsNotifier {
 
   @override
   SettingsState build() {
-    String base = _storage.getBaseCurrency();
-    List<String> selected = _storage.getSelectedCurrencies();
+    final String base = _storage.getBaseCurrency();
+    final List<String> selected = _storage.getSelectedCurrencies();
 
     if (!selected.contains(base)) {
       selected.insert(0, base);
@@ -99,7 +99,7 @@ class SettingsNotifier extends _$SettingsNotifier {
   Future<double?> getRateForDate(String currencyCode, DateTime date) async {
     if (currencyCode == state.baseCurrency) return 1.0;
 
-    String dateKey =
+    final String dateKey =
         "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
 
     if (state.historicalCache.containsKey(dateKey)) {
@@ -156,7 +156,7 @@ class SettingsNotifier extends _$SettingsNotifier {
     await _storage.saveExchangeRates(newRates);
     await _storage.setLastRatesUpdateTime(now);
 
-    List<String> newSelected = List.from(state.selectedCurrencies);
+    final List<String> newSelected = List.from(state.selectedCurrencies);
     newSelected.remove(code);
     newSelected.insert(0, code);
     await _storage.setSelectedCurrencies(newSelected);
@@ -176,7 +176,7 @@ class SettingsNotifier extends _$SettingsNotifier {
   }
 
   Future<void> toggleSelectedCurrency(String code) async {
-    List<String> newSelected = List.from(state.selectedCurrencies);
+    final List<String> newSelected = List.from(state.selectedCurrencies);
 
     if (newSelected.contains(code)) {
       if (code == state.baseCurrency) return;
@@ -226,11 +226,11 @@ class SettingsNotifier extends _$SettingsNotifier {
   }) {
     if (fromCurrency == toCurrency) return amount;
 
-    double inBase = fromCurrency == state.baseCurrency
+    final double inBase = fromCurrency == state.baseCurrency
         ? amount.toDouble()
         : amount / (state.exchangeRates[fromCurrency] ?? 1.0);
 
-    double result = toCurrency == state.baseCurrency
+    final double result = toCurrency == state.baseCurrency
         ? inBase
         : inBase * (state.exchangeRates[toCurrency] ?? 1.0);
 

@@ -9,8 +9,8 @@ class SubscriptionService {
     Subscription sub, {
     DateTime? todayOverride, // для тестів
   }) async {
-    DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day); // 00:00:00
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day); // 00:00:00
 
     DateTime nextDate = DateTime(
       sub.nextPaymentDate.year,
@@ -20,8 +20,8 @@ class SubscriptionService {
 
     while (nextDate.isBefore(today) || nextDate.isAtSameMomentAs(today)) {
       if (sub.periodicity == 'monthly') {
-        int nextMonth = nextDate.month == 12 ? 1 : nextDate.month + 1;
-        int nextYear = nextDate.month == 12 ? nextDate.year + 1 : nextDate.year;
+        final int nextMonth = nextDate.month == 12 ? 1 : nextDate.month + 1;
+        final int nextYear = nextDate.month == 12 ? nextDate.year + 1 : nextDate.year;
 
         int nextDay = sub.nextPaymentDate.day;
         final lastDayOfNextMonth = DateTime(nextYear, nextMonth + 1, 0).day;
@@ -46,8 +46,8 @@ class SubscriptionService {
     DateTime nextDate = sub.nextPaymentDate;
 
     if (sub.periodicity == 'monthly') {
-      int nextMonth = nextDate.month == 12 ? 1 : nextDate.month + 1;
-      int nextYear = nextDate.month == 12 ? nextDate.year + 1 : nextDate.year;
+      final int nextMonth = nextDate.month == 12 ? 1 : nextDate.month + 1;
+      final int nextYear = nextDate.month == 12 ? nextDate.year + 1 : nextDate.year;
 
       int nextDay = sub.nextPaymentDate.day;
       final lastDayOfNextMonth = DateTime(nextYear, nextMonth + 1, 0).day;

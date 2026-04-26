@@ -38,21 +38,21 @@ class _CoinWidgetState extends State<CoinWidget> {
       fontFamily: 'MaterialIcons',
     );
 
-    String displayAmount = CurrencyFormatter.format(widget.category.amount);
-    String currencySymbol = AppCurrency.fromCode(
+    final String displayAmount = CurrencyFormatter.format(widget.category.amount);
+    final String currencySymbol = AppCurrency.fromCode(
       widget.category.currency,
     ).symbol;
 
-    bool isIncome = widget.category.type == CategoryType.income;
-    bool isExpense = widget.category.type == CategoryType.expense;
+    final bool isIncome = widget.category.type == CategoryType.income;
+    final bool isExpense = widget.category.type == CategoryType.expense;
 
     double progress = 0.0;
     Color ringColor = Colors.blueAccent;
-    bool hasBudget =
+    final bool hasBudget =
         widget.category.budget != null && widget.category.budget! > 0;
 
     if (hasBudget) {
-      double amountAbs = widget.category.amount.abs().toDouble();
+      final double amountAbs = widget.category.amount.abs().toDouble();
       progress = (amountAbs / widget.category.budget!.toDouble()).clamp(
         0.0,
         1.0,
@@ -61,11 +61,11 @@ class _CoinWidgetState extends State<CoinWidget> {
       if (isIncome) {
         ringColor = progress >= 1.0 ? colors.income : Colors.blueAccent;
       } else if (isExpense) {
-        DateTime now = DateTime.now();
-        int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
-        int currentDay = now.day;
+        final DateTime now = DateTime.now();
+        final int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+        final int currentDay = now.day;
 
-        double expectedPace =
+        final double expectedPace =
             (widget.category.budget!.toDouble() / daysInMonth) * currentDay;
 
         if (amountAbs >= widget.category.budget!.toDouble()) {
@@ -78,9 +78,9 @@ class _CoinWidgetState extends State<CoinWidget> {
       }
     }
 
-    Color shadowColor = colors.textMain.withValues(alpha: 0.1);
+    final Color shadowColor = colors.textMain.withValues(alpha: 0.1);
 
-    Widget innerCoin = Container(
+    final Widget innerCoin = Container(
       width: 55,
       height: 55,
       decoration: BoxDecoration(
@@ -114,7 +114,7 @@ class _CoinWidgetState extends State<CoinWidget> {
       ),
     );
 
-    Widget basicCoin = widget.enableHero
+    final Widget basicCoin = widget.enableHero
         ? Hero(
             tag: 'category_coin_${widget.category.id}',
             flightShuttleBuilder:
@@ -134,7 +134,7 @@ class _CoinWidgetState extends State<CoinWidget> {
           )
         : innerCoin;
 
-    Widget placeholderCoin = Container(
+    final Widget placeholderCoin = Container(
       width: 55,
       height: 55,
       decoration: BoxDecoration(color: colors.iconBg, shape: BoxShape.circle),
@@ -149,11 +149,11 @@ class _CoinWidgetState extends State<CoinWidget> {
       return basicCoin;
     }
 
-    Widget interactiveCoin = widget.coinWrapper != null
+    final Widget interactiveCoin = widget.coinWrapper != null
         ? widget.coinWrapper!(basicCoin, placeholderCoin)
         : basicCoin;
 
-    Widget coinWithBudget = SizedBox(
+    final Widget coinWithBudget = SizedBox(
       width: 62,
       height: 62,
       child: Stack(
@@ -176,7 +176,7 @@ class _CoinWidgetState extends State<CoinWidget> {
     );
 
     // 👇 ВИПРАВЛЕНО: Додано перевірку if (mounted)
-    Widget scaledCoin = Listener(
+    final Widget scaledCoin = Listener(
       onPointerDown: (_) {
         if (mounted) setState(() => _isPressed = true);
       },

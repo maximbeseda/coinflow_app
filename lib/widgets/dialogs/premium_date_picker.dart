@@ -62,10 +62,10 @@ class _PremiumDatePickerState extends State<PremiumDatePicker> {
 
   void _updateDate() {
     setState(() {
-      int year = _startYear + _yearController.selectedItem;
-      int month = _monthController.selectedItem + 1;
+      final int year = _startYear + _yearController.selectedItem;
+      final int month = _monthController.selectedItem + 1;
       int day = _dayController.selectedItem + 1;
-      int lastDay = DateTime(year, month + 1, 0).day;
+      final int lastDay = DateTime(year, month + 1, 0).day;
       if (day > lastDay) day = lastDay;
       _tempSelectedDate = DateTime(year, month, day);
     });

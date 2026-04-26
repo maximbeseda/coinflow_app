@@ -54,7 +54,7 @@ class _MonthlyPieViewState extends ConsumerState<MonthlyPieView> {
           widget.showExpenses,
         );
 
-    List<Category> activeCategories = [];
+    final List<Category> activeCategories = [];
     categoryTotals.forEach((categoryId, amountInBaseCurrency) {
       if (amountInBaseCurrency > 0 && categoryMap.containsKey(categoryId)) {
         activeCategories.add(
@@ -92,7 +92,7 @@ class _MonthlyPieViewState extends ConsumerState<MonthlyPieView> {
   @override
   Widget build(BuildContext context) {
     final activeData = _getSortedActiveCategories();
-    int activeTotal = activeData.fold(
+    final int activeTotal = activeData.fold(
       0,
       (sum, item) => sum + item.amount.abs().toInt(),
     );
@@ -100,7 +100,7 @@ class _MonthlyPieViewState extends ConsumerState<MonthlyPieView> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onHorizontalDragEnd: (details) {
-        int sensitivity = 300;
+        const int sensitivity = 300;
         if (details.primaryVelocity != null) {
           if (details.primaryVelocity! < -sensitivity) {
             widget.onChangeMonth(

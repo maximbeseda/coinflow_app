@@ -104,8 +104,8 @@ class _HomeScreenSkeletonState extends State<HomeScreenSkeleton>
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          int crossAxisCount = (constraints.maxWidth / 80).floor().clamp(4, 8);
-          double itemWidth = (constraints.maxWidth / crossAxisCount) - 0.01;
+          final int crossAxisCount = (constraints.maxWidth / 80).floor().clamp(4, 8);
+          final double itemWidth = (constraints.maxWidth / crossAxisCount) - 0.01;
 
           if (!isGrid) {
             return SizedBox(
@@ -129,7 +129,7 @@ class _HomeScreenSkeletonState extends State<HomeScreenSkeleton>
             } else if (constraints.maxHeight > 500) {
               rowsCount = 5;
             }
-            double itemHeight = (constraints.maxHeight / rowsCount).clamp(
+            final double itemHeight = (constraints.maxHeight / rowsCount).clamp(
               96.0,
               125.0,
             );

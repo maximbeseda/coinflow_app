@@ -40,11 +40,11 @@ class SubscriptionState {
   }
 
   bool get hasPendingPayments {
-    DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day);
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
 
     return subscriptions.any((sub) {
-      DateTime pDate = DateTime(
+      final DateTime pDate = DateTime(
         sub.nextPaymentDate.year,
         sub.nextPaymentDate.month,
         sub.nextPaymentDate.day,
@@ -172,7 +172,7 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
     final db = ref.read(databaseProvider);
     _updateState((s) {
       final newSubs = List<Subscription>.from(s.subscriptions);
-      int index = newSubs.indexWhere((item) => item.id == updatedSub.id);
+      final int index = newSubs.indexWhere((item) => item.id == updatedSub.id);
       if (index != -1) {
         newSubs[index] = updatedSub;
       }
@@ -235,7 +235,7 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
       ),
     );
 
-    double subRate = settingsState.exchangeRates[sub.currency] ?? 1.0;
+    final double subRate = settingsState.exchangeRates[sub.currency] ?? 1.0;
     double accRate = settingsState.exchangeRates[sourceAccount.currency] ?? 1.0;
     double expRate = settingsState.exchangeRates[targetExpense.currency] ?? 1.0;
 
@@ -257,7 +257,7 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
       return (false, 'not_enough_funds'.tr(args: [sourceAccount.name]));
     }
 
-    bool isMultiCurrency = sourceAccount.currency != targetExpense.currency;
+    final bool isMultiCurrency = sourceAccount.currency != targetExpense.currency;
 
     final newTx = Transaction(
       id: const Uuid().v4(),
@@ -315,12 +315,12 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
     final txNotifier = ref.read(transactionProvider.notifier);
     final settingsState = ref.read(settingsProvider);
 
-    DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day);
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
     bool processedAny = false;
 
-    List<Transaction> pendingTransactions = [];
-    List<Subscription> updatedSubsList = [];
+    final List<Transaction> pendingTransactions = [];
+    final List<Subscription> updatedSubsList = [];
 
     for (var sub in currentState.subscriptions) {
       if (!sub.isAutoPay) continue;
@@ -336,7 +336,7 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
         continue;
       }
 
-      double subRate = settingsState.exchangeRates[sub.currency] ?? 1.0;
+      final double subRate = settingsState.exchangeRates[sub.currency] ?? 1.0;
       double accRate = settingsState.exchangeRates[account.currency] ?? 1.0;
       double expRate = settingsState.exchangeRates[expense.currency] ?? 1.0;
 
@@ -353,13 +353,13 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
         expenseAddition = (sub.amount * (expRate / subRate)).round();
       }
 
-      bool isMultiCurrency = account.currency != expense.currency;
+      final bool isMultiCurrency = account.currency != expense.currency;
       int currentBalance = account.amount;
       bool subUpdated = false;
       var currentSub = sub;
 
       while (true) {
-        DateTime pDate = DateTime(
+        final DateTime pDate = DateTime(
           currentSub.nextPaymentDate.year,
           currentSub.nextPaymentDate.month,
           currentSub.nextPaymentDate.day,
@@ -386,8 +386,8 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
           currentBalance -= accountDeduction;
 
           if (currentSub.periodicity == 'monthly') {
-            int nextMonth = pDate.month == 12 ? 1 : pDate.month + 1;
-            int nextYear = pDate.month == 12 ? pDate.year + 1 : pDate.year;
+            final int nextMonth = pDate.month == 12 ? 1 : pDate.month + 1;
+            final int nextYear = pDate.month == 12 ? pDate.year + 1 : pDate.year;
             int nextDay = currentSub.nextPaymentDate.day;
             final lastDayOfNextMonth = DateTime(nextYear, nextMonth + 1, 0).day;
             if (nextDay > lastDayOfNextMonth) nextDay = lastDayOfNextMonth;
@@ -425,7 +425,7 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
       _updateState((s) {
         final newSubs = List<Subscription>.from(s.subscriptions);
         for (var us in updatedSubsList) {
-          int index = newSubs.indexWhere((item) => item.id == us.id);
+          final int index = newSubs.indexWhere((item) => item.id == us.id);
           if (index != -1) newSubs[index] = us;
         }
         return s.copyWith(subscriptions: newSubs);

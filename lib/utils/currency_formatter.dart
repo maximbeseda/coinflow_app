@@ -23,39 +23,39 @@ class CurrencyFormatter {
     if (amount == 0) return '0';
 
     // 👇 ТЕПЕР МАТЕМАТИКА ПРАВИЛЬНА (Беремо копійки з бази)
-    int absCents = amount.abs();
-    String sign = amount < 0 ? '-' : '';
+    final int absCents = amount.abs();
+    final String sign = amount < 0 ? '-' : '';
 
     // Понад 100 мільярдів
     if (absCents >= 10000000000000) return '${sign}99 999М+';
 
     // Поріг для мільйонів (у копійках)
-    int millionThresholdCents = isHeader ? 10000000000 : 100000000;
+    final int millionThresholdCents = isHeader ? 10000000000 : 100000000;
 
     if (absCents >= millionThresholdCents) {
-      double millions = (absCents / 100.0) / 1000000.0;
-      int integerPart = millions.truncate();
-      int fractionalPart = ((millions - integerPart) * 10).truncate();
+      final double millions = (absCents / 100.0) / 1000000.0;
+      final int integerPart = millions.truncate();
+      final int fractionalPart = ((millions - integerPart) * 10).truncate();
 
-      String formattedInteger = _addSpaces(integerPart.toString());
+      final String formattedInteger = _addSpaces(integerPart.toString());
       return '$sign$formattedInteger,$fractionalPartМ';
     }
 
     // ЗВИЧАЙНІ СУМИ: Беремо цілу та дробову частину математично!
-    int iPart = absCents ~/ 100; // Це цілі гривні/долари
-    int fPart = absCents % 100; // Це залишок (копійки/центи)
+    final int iPart = absCents ~/ 100; // Це цілі гривні/долари
+    final int fPart = absCents % 100; // Це залишок (копійки/центи)
 
-    String formattedInt = _addSpaces(iPart.toString());
+    final String formattedInt = _addSpaces(iPart.toString());
 
     // Якщо сума >= 100 000 (тобто 10 000 000 копійок), показуємо без копійок
     if (absCents >= 10000000) return '$sign$formattedInt';
 
-    String fString = fPart.toString().padLeft(2, '0');
+    final String fString = fPart.toString().padLeft(2, '0');
     return '$sign$formattedInt,$fString';
   }
 
   static String formatBudget(int amount) {
-    String formatted = format(amount);
+    final String formatted = format(amount);
     if (formatted.contains(',') && !formatted.contains('М')) {
       return formatted.split(',')[0];
     }

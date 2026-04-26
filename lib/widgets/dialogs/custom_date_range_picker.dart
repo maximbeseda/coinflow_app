@@ -77,13 +77,13 @@ class _CustomDateRangePickerState extends State<CustomDateRangePicker> {
   void _generateFlatItems() {
     final now = DateTime.now();
     for (int y = now.year; y >= 2000; y--) {
-      int mStart = (y == now.year) ? now.month : 12;
+      final int mStart = (y == now.year) ? now.month : 12;
       for (int m = mStart; m >= 1; m--) {
-        DateTime monthDate = DateTime(y, m, 1);
-        int daysInMonth = DateUtils.getDaysInMonth(y, m);
-        int offset = monthDate.weekday - 1;
+        final DateTime monthDate = DateTime(y, m, 1);
+        final int daysInMonth = DateUtils.getDaysInMonth(y, m);
+        final int offset = monthDate.weekday - 1;
 
-        List<List<_DayModel?>> monthWeeks = [];
+        final List<List<_DayModel?>> monthWeeks = [];
         List<_DayModel?> currentWeek = List.filled(
           offset,
           null,
@@ -384,14 +384,14 @@ class _DayCellWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     if (day == null) return SizedBox(width: cellWidth, height: 44);
 
-    bool isStart = startInt == day!.value;
-    bool isEnd = endInt == day!.value;
-    bool inRange =
+    final bool isStart = startInt == day!.value;
+    final bool isEnd = endInt == day!.value;
+    final bool inRange =
         startInt != null &&
         endInt != null &&
         day!.value > startInt! &&
         day!.value < endInt!;
-    bool isSelected = isStart || isEnd || inRange;
+    final bool isSelected = isStart || isEnd || inRange;
 
     BoxDecoration decoration = const BoxDecoration();
     if (isSelected) {

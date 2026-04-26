@@ -58,12 +58,12 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     _nameCtrl = TextEditingController(text: sub?.name ?? '');
 
     String formatInt(int val) {
-      double displayVal = val / 100.0;
-      String str = displayVal
+      final double displayVal = val / 100.0;
+      final String str = displayVal
           .toStringAsFixed(2)
           .replaceAll(RegExp(r'\.?0*$'), '');
-      var parts = str.split('.');
-      String intPart = parts[0].replaceAllMapped(
+      final parts = str.split('.');
+      final String intPart = parts[0].replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
         (Match m) => '${m[1]} ',
       );
@@ -112,7 +112,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       }
 
       if (_selectedAccountId == null && widget.subscription != null) {
-        bool accountExists = catState.accounts.any(
+        final bool accountExists = catState.accounts.any(
           (c) => c.id == widget.subscription?.accountId,
         );
         if (accountExists) {
@@ -126,7 +126,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       }
 
       if (_selectedExpenseId == null && widget.subscription != null) {
-        bool expenseExists = catState.expenses.any(
+        final bool expenseExists = catState.expenses.any(
           (c) => c.id == widget.subscription?.categoryId,
         );
         if (expenseExists) {
@@ -191,7 +191,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
     final baseCurrency = ref.read(settingsProvider).baseCurrency;
-    List<String> availableCurrencies = AppCurrency.supportedCurrencies
+    final List<String> availableCurrencies = AppCurrency.supportedCurrencies
         .map((c) => c.code)
         .toList();
 
@@ -240,10 +240,10 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                     final code = availableCurrencies[index];
                     final curr = AppCurrency.fromCode(code);
 
-                    bool isSelected = _selectedCurrency == code;
-                    bool isBase = code == baseCurrency;
+                    final bool isSelected = _selectedCurrency == code;
+                    final bool isBase = code == baseCurrency;
 
-                    Color activeColor = isBase
+                    final Color activeColor = isBase
                         ? colors.income
                         : Colors.blueAccent;
 
@@ -405,7 +405,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                   itemCount: list.length,
                   itemBuilder: (context, index) {
                     final cat = list[index];
-                    bool isSelected = currentId == cat.id;
+                    final bool isSelected = currentId == cat.id;
 
                     return ListTile(
                       onTap: () {
@@ -504,7 +504,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
             ),
             const SizedBox(height: 10),
             ...options.entries.map((entry) {
-              bool isSelected = _selectedPeriodicity == entry.key;
+              final bool isSelected = _selectedPeriodicity == entry.key;
               return ListTile(
                 onTap: () {
                   FocusManager.instance.primaryFocus?.unfocus();
@@ -634,8 +634,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                               mainAxisSpacing: 10,
                             ),
                         delegate: SliverChildBuilderDelegate((context, i) {
-                          IconData icon = entry.value[i];
-                          bool isSelected =
+                          final IconData icon = entry.value[i];
+                          final bool isSelected =
                               _customIconCodePoint == icon.codePoint;
                           return GestureDetector(
                             onTap: () {
@@ -680,13 +680,13 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   Future<void> _save() async {
     FocusManager.instance.primaryFocus?.unfocus();
 
-    double parsedAmount =
+    final double parsedAmount =
         double.tryParse(
           _amountCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
         ) ??
         0.0;
 
-    int amountInCents = (parsedAmount * 100).round();
+    final int amountInCents = (parsedAmount * 100).round();
 
     setState(() {
       _showNameError = _nameCtrl.text.trim().isEmpty;
@@ -736,7 +736,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     if (widget.subscription == null) return;
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    bool confirmed =
+    final bool confirmed =
         await showDialog<bool>(
           context: context,
           builder: (ctx) => Dialog(
@@ -898,7 +898,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
                 if (text.startsWith('.')) text = '0$text';
 
-                var parts = text.split('.');
+                final parts = text.split('.');
                 String intPart = parts[0];
                 String? decPart = parts.length > 1 ? parts[1] : null;
 
@@ -910,12 +910,12 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                   decPart = decPart.substring(0, 2);
                 }
 
-                String formattedInt = intPart.replaceAllMapped(
+                final String formattedInt = intPart.replaceAllMapped(
                   RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
                   (Match m) => '${m[1]} ',
                 );
 
-                String newString = decPart == null
+                final String newString = decPart == null
                     ? formattedInt
                     : (text.endsWith('.')
                           ? '$formattedInt.'
@@ -1062,10 +1062,10 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     final isEditing = widget.subscription != null;
 
     // 👇 ОНОВЛЕНО: Логіка підсвітки базової валюти
-    bool isCurrentBase =
+    final bool isCurrentBase =
         (_selectedCurrency ?? settingsState.baseCurrency) ==
         settingsState.baseCurrency;
-    Color currencyAccentColor = isCurrentBase
+    final Color currencyAccentColor = isCurrentBase
         ? colors.income
         : Colors.blueAccent;
 

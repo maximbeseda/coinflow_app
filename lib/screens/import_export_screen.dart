@@ -76,8 +76,8 @@ class _ImportExportScreenState extends ConsumerState<ImportExportScreen> {
     if (_isExporting) return;
     setState(() => _isExporting = true);
 
-    List<Transaction> txToExport = _getFilteredTransactions();
-    List<Category> allCats = ref.read(categoryProvider).allCategoriesList;
+    final List<Transaction> txToExport = _getFilteredTransactions();
+    final List<Category> allCats = ref.read(categoryProvider).allCategoriesList;
 
     final result = await ExportImportService.exportToCsv(
       transactions: txToExport,

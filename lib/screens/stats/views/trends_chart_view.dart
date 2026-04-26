@@ -87,7 +87,7 @@ class _TrendsChartViewState extends State<TrendsChartView> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(keys.length, (index) {
-                bool isActive = _currentPage == index;
+                final bool isActive = _currentPage == index;
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -213,8 +213,8 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
 
     maxY = 0.0;
     for (var m in widget.data.values) {
-      double inc = (m['incomes'] ?? 0) / 100.0;
-      double exp = (m['expenses'] ?? 0) / 100.0;
+      final double inc = (m['incomes'] ?? 0) / 100.0;
+      final double exp = (m['expenses'] ?? 0) / 100.0;
       if (inc > maxY) maxY = inc;
       if (exp > maxY) maxY = exp;
     }
@@ -224,13 +224,13 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
     _incomeSpots = _generateSpots('incomes');
     _expenseSpots = _generateSpots('expenses');
 
-    double initialOffset = months.length > 1 ? (months.length - 1) * 60.0 : 0.0;
+    final double initialOffset = months.length > 1 ? (months.length - 1) * 60.0 : 0.0;
     _scrollController = ScrollController(initialScrollOffset: initialOffset);
     _focusedIndex = months.length > 1 ? months.length - 1 : 0;
 
     _scrollController.addListener(() {
       if (!_scrollController.hasClients) return;
-      int newIndex = (_scrollController.offset / 60.0).round().clamp(
+      final int newIndex = (_scrollController.offset / 60.0).round().clamp(
         0,
         months.isNotEmpty ? months.length - 1 : 0,
       );
@@ -243,7 +243,7 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
   List<FlSpot> _generateSpots(String key) {
     int i = 0;
     return widget.data.values.map((v) {
-      double val = (v[key] ?? 0) / 100.0;
+      final double val = (v[key] ?? 0) / 100.0;
       return FlSpot((i++).toDouble(), val);
     }).toList();
   }
@@ -285,10 +285,10 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
       dotData: FlDotData(
         show: true,
         getDotPainter: (spot, percent, barData, index) {
-          bool isFocused = index == _focusedIndex;
+          final bool isFocused = index == _focusedIndex;
 
-          double incVal = _incomeSpots[index].y;
-          double expVal = _expenseSpots[index].y;
+          final double incVal = _incomeSpots[index].y;
+          final double expVal = _expenseSpots[index].y;
 
           double offset = -18.0;
           if ((incVal - expVal).abs() < (maxY * 0.15)) {
@@ -352,14 +352,14 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
 
   @override
   Widget build(BuildContext context) {
-    String symbol = AppCurrency.fromCode(widget.currency).symbol;
-    double interval = maxY / 5;
+    final String symbol = AppCurrency.fromCode(widget.currency).symbol;
+    final double interval = maxY / 5;
 
-    String focusedYear = months.isEmpty
+    final String focusedYear = months.isEmpty
         ? DateTime.now().year.toString()
         : months[_focusedIndex].split('-')[0];
 
-    var yearData = widget.data.entries
+    final yearData = widget.data.entries
         .where((e) => e.key.startsWith(focusedYear))
         .toList();
     int totalInc = 0, totalExp = 0;
@@ -367,12 +367,12 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
       totalInc += (m.value['incomes'] ?? 0);
       totalExp += (m.value['expenses'] ?? 0);
     }
-    int monthCount = yearData.isEmpty ? 1 : yearData.length;
+    final int monthCount = yearData.isEmpty ? 1 : yearData.length;
 
-    double avgInc = totalInc / monthCount;
-    double avgExp = totalExp / monthCount;
+    final double avgInc = totalInc / monthCount;
+    final double avgExp = totalExp / monthCount;
 
-    String maxLabel = NumberFormat.compact(
+    final String maxLabel = NumberFormat.compact(
       locale: context.locale.languageCode,
     ).format(maxY);
     double leftAxisWidth = 24.0 + (maxLabel.length * 8.0) + 8.0;
@@ -475,7 +475,7 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
                 onTap: () => _openMonthTransactions(_focusedIndex),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    double chartWidth = months.isEmpty
+                    final double chartWidth = months.isEmpty
                         ? 0
                         : (months.length - 1) * 60.0;
 
@@ -536,12 +536,12 @@ class _TrendCardWidgetState extends State<_TrendCardWidget> {
                                           reservedSize: 30,
                                           interval: 1,
                                           getTitlesWidget: (value, meta) {
-                                            int index = value.toInt();
+                                            final int index = value.toInt();
                                             if (index < 0 ||
                                                 index >= months.length) {
                                               return const SizedBox.shrink();
                                             }
-                                            DateTime d = DateTime(
+                                            final DateTime d = DateTime(
                                               int.parse(
                                                 months[index].split('-')[0],
                                               ),

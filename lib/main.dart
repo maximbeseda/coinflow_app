@@ -107,7 +107,7 @@ class MyApp extends ConsumerWidget {
       locale: context.locale,
       theme: currentTheme,
       builder: (context, child) {
-        Widget currentChild = DevicePreview.appBuilder(context, child);
+        final Widget currentChild = DevicePreview.appBuilder(context, child);
         final mediaQueryData = MediaQuery.of(context);
         final double baseScale = mediaQueryData.textScaler.scale(10) / 10;
         final double safeScale = baseScale.clamp(1.0, 1.15);

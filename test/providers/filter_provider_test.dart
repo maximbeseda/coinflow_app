@@ -65,7 +65,21 @@ void main() {
   late AppDatabase db;
 
   Future<ProviderContainer> createContainer() async {
-    db = AppDatabase(NativeDatabase.memory());
+    db = AppDatabase(
+      NativeDatabase.memory(
+        setup: (db) {
+          db.createFunction(
+            functionName: 'dart_lower',
+            function: (args) {
+              if (args.isNotEmpty && args[0] is String) {
+                return (args[0] as String).toLowerCase();
+              }
+              return args.isEmpty ? null : args[0];
+            },
+          );
+        },
+      ),
+    );
 
     final container = ProviderContainer(
       overrides: [
@@ -83,6 +97,11 @@ void main() {
     return container;
   }
 
+  // 💡 Використовуємо гарантовану затримку: 300мс (debounce) + 1200мс (на виконання SQL)
+  Future<void> awaitSearchEventLoop() async {
+    await Future.delayed(const Duration(milliseconds: 1500));
+  }
+
   group('FilterNotifier - Fuzzy Search', () {
     test(
       'Повинен знаходити транзакції за назвою, категорією, сумою та датою',
@@ -92,13 +111,39 @@ void main() {
         // 👇 МАГІЯ: Підключаємо фейкового слухача, щоб Riverpod не вбив AutoDispose-провайдер
         container.listen(filterProvider, (_, _) {});
 
+        // Зберігаємо категорії в тестову БД
+        await db
+            .into(db.categories)
+            .insert(
+              CategoriesCompanion.insert(
+                id: 'exp_1',
+                type: CategoryType.expense,
+                name: 'Groceries',
+                icon: 0,
+                bgColor: 0,
+                iconColor: 0,
+              ),
+            );
+        await db
+            .into(db.categories)
+            .insert(
+              CategoriesCompanion.insert(
+                id: 'acc_1',
+                type: CategoryType.account,
+                name: 'Monobank',
+                icon: 0,
+                bgColor: 0,
+                iconColor: 0,
+              ),
+            );
+
         final tx = Transaction(
           id: 'tx_search_1',
           fromId: 'acc_1',
           toId: 'exp_1',
           title: 'Silpo Supermarket',
           amount: 15050,
-          date: DateTime(2026, 10, 12),
+          date: DateTime(2026, 10, 12, 12),
           currency: 'UAH',
           targetAmount: null,
           targetCurrency: null,
@@ -109,26 +154,42 @@ void main() {
         await StorageService.saveTransaction(db, tx);
 
         final notifier = container.read(filterProvider.notifier);
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 100));
 
         notifier.setSearchQuery('silpo');
-        await Future.delayed(const Duration(milliseconds: 50));
-        expect(container.read(filterProvider).results.length, 1);
+        await awaitSearchEventLoop();
+        expect(
+          container.read(filterProvider).results.length,
+          1,
+          reason: "SQL запит не знайшов транзакцію за словом 'silpo'",
+        );
 
         notifier.setSearchQuery('groc');
-        await Future.delayed(const Duration(milliseconds: 50));
-        expect(container.read(filterProvider).results.length, 1);
+        await awaitSearchEventLoop();
+        expect(
+          container.read(filterProvider).results.length,
+          1,
+          reason: "SQL запит не знайшов транзакцію за категорією 'groc'",
+        );
 
         notifier.setSearchQuery('150.50');
-        await Future.delayed(const Duration(milliseconds: 50));
-        expect(container.read(filterProvider).results.length, 1);
+        await awaitSearchEventLoop();
+        expect(
+          container.read(filterProvider).results.length,
+          1,
+          reason: "SQL запит не знайшов транзакцію за сумою '150.50'",
+        );
 
-        notifier.setSearchQuery('12.10');
-        await Future.delayed(const Duration(milliseconds: 50));
-        expect(container.read(filterProvider).results.length, 1);
+        notifier.setSearchQuery('10.2026');
+        await awaitSearchEventLoop();
+        expect(
+          container.read(filterProvider).results.length,
+          1,
+          reason: "SQL запит не знайшов транзакцію за датою '10.2026'",
+        );
 
         notifier.setSearchQuery('non_existent_data');
-        await Future.delayed(const Duration(milliseconds: 50));
+        await awaitSearchEventLoop();
         expect(container.read(filterProvider).results.isEmpty, true);
       },
     );
@@ -140,7 +201,6 @@ void main() {
       () async {
         final container = await createContainer();
 
-        // 👇 Підключаємо слухача
         container.listen(filterProvider, (_, _) {});
 
         final List<Transaction> batch = List.generate(
@@ -168,7 +228,7 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         notifier.initGeneral();
-        await Future.delayed(const Duration(milliseconds: 100));
+        await Future.delayed(const Duration(milliseconds: 300));
 
         var state = container.read(filterProvider);
         expect(state.results.length, 30);
@@ -176,7 +236,7 @@ void main() {
         expect(state.currentPage, 1);
 
         await notifier.loadNextPage();
-        await Future.delayed(const Duration(milliseconds: 100));
+        await Future.delayed(const Duration(milliseconds: 300));
 
         state = container.read(filterProvider);
         expect(state.results.length, 35);
@@ -190,7 +250,6 @@ void main() {
     test('clearAllFilters повинен скидати дати, валюту та тип', () async {
       final container = await createContainer();
 
-      // 👇 Підключаємо слухача
       container.listen(filterProvider, (_, _) {});
 
       final notifier = container.read(filterProvider.notifier);

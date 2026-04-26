@@ -104,7 +104,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
   Future<void> _emptyTrash() async {
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    bool? confirm = await showDialog<bool>(
+    final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: colors.cardBg,
@@ -232,7 +232,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
     final allCats = catState.allCategoriesList;
     final catMap = {for (var c in allCats) c.id: c};
 
-    List<TrashItem> items = [];
+    final List<TrashItem> items = [];
     final now = DateTime.now();
 
     // 1. Категорії
@@ -296,8 +296,8 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
         IconData txIconData = Icons.swap_horiz;
         Color txIconColor = colors.textSecondary;
 
-        String fromName = fromCat?.name ?? deletedCatName;
-        String toName = toCat?.name ?? deletedCatName;
+        final String fromName = fromCat?.name ?? deletedCatName;
+        final String toName = toCat?.name ?? deletedCatName;
 
         if (fromCat != null && toCat != null) {
           if (fromCat.type == CategoryType.income &&
@@ -313,7 +313,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
           }
         }
 
-        String sym = AppCurrency.fromCode(tx.currency).symbol;
+        final String sym = AppCurrency.fromCode(tx.currency).symbol;
 
         final titleWidget = Text.rich(
           TextSpan(
@@ -401,7 +401,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
         int daysLeft = 30 - now.difference(sub.deletedAt!).inDays;
         if (daysLeft < 0) daysLeft = 0;
 
-        String sym = AppCurrency.fromCode(sub.currency).symbol;
+        final String sym = AppCurrency.fromCode(sub.currency).symbol;
 
         items.add(
           TrashItem(

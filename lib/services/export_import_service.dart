@@ -115,9 +115,9 @@ class ExportImportService {
         final currencyTo = tx.targetCurrency ?? tx.currency;
 
         // 👇 НОВА ЛОГІКА ФІЛЬТРАЦІЇ КОМЕНТАРЯ
-        String rawTitle = tx.title.trim();
+        final String rawTitle = tx.title.trim();
 
-        bool isDefaultTitle =
+        final bool isDefaultTitle =
             rawTitle.isEmpty ||
             rawTitle.contains('➡️') ||
             rawTitle == fromNameRaw ||
@@ -192,8 +192,8 @@ class ExportImportService {
       final amountFrom = _formatAmount(tx.amount);
       final amountTo = _formatAmount(tx.targetAmount ?? tx.amount);
 
-      String rawTitle = tx.title.trim();
-      bool isDefaultTitle =
+      final String rawTitle = tx.title.trim();
+      final bool isDefaultTitle =
           rawTitle.isEmpty ||
           rawTitle.contains('➡️') ||
           rawTitle == fromNameRaw ||

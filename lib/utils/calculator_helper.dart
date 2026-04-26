@@ -14,12 +14,12 @@ class CalculatorHelper {
       sanitized = sanitized.replaceAll('×', '*').replaceAll('÷', '/');
 
       // 3. Створюємо парсер і розпізнаємо математичний вираз
-      GrammarParser p = GrammarParser();
-      Expression exp = p.parse(sanitized);
+      final GrammarParser p = GrammarParser();
+      final Expression exp = p.parse(sanitized);
 
       // 4. Виконуємо обчислення
-      ContextModel cm = ContextModel();
-      double eval = exp.evaluate(EvaluationType.REAL, cm);
+      final ContextModel cm = ContextModel();
+      final double eval = exp.evaluate(EvaluationType.REAL, cm);
 
       // 5. Форматуємо результат
       // Якщо число ціле (наприклад, 150.0), повертаємо без нулів після крапки ("150")

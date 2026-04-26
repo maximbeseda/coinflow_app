@@ -126,7 +126,7 @@ class SummaryHeader extends ConsumerWidget {
     AppColorsExtension colors,
     String currencySymbol,
   ) {
-    String formattedAmount = CurrencyFormatter.format(amount, isHeader: true);
+    final String formattedAmount = CurrencyFormatter.format(amount, isHeader: true);
 
     return Expanded(
       child: GestureDetector(

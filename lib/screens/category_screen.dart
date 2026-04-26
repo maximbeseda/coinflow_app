@@ -45,12 +45,12 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     _currencyCtrl = TextEditingController();
 
     String formatInt(int val) {
-      double displayVal = val / 100.0;
-      String str = displayVal
+      final double displayVal = val / 100.0;
+      final String str = displayVal
           .toStringAsFixed(2)
           .replaceAll(RegExp(r'\.?0*$'), '');
-      var parts = str.split('.');
-      String intPart = parts[0].replaceAllMapped(
+      final parts = str.split('.');
+      final String intPart = parts[0].replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
         (Match m) => '${m[1]} ',
       );
@@ -163,8 +163,8 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                               mainAxisSpacing: 10,
                             ),
                         delegate: SliverChildBuilderDelegate((context, i) {
-                          IconData icon = entry.value[i];
-                          bool isSelected = _selectedIcon == icon;
+                          final IconData icon = entry.value[i];
+                          final bool isSelected = _selectedIcon == icon;
                           return GestureDetector(
                             onTap: () {
                               setState(() => _selectedIcon = icon);
@@ -206,7 +206,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
 
     // Сортуємо: базова валюта завжди перша, інші за алфавітом
     final baseCurrency = ref.read(settingsProvider).baseCurrency;
-    List<String> availableCurrencies = AppCurrency.supportedCurrencies
+    final List<String> availableCurrencies = AppCurrency.supportedCurrencies
         .map((c) => c.code)
         .toList();
 
@@ -255,13 +255,13 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                     final code = availableCurrencies[index];
                     final curr = AppCurrency.fromCode(code);
 
-                    bool isSelected = _selectedCurrency == code;
-                    bool isBase =
+                    final bool isSelected = _selectedCurrency == code;
+                    final bool isBase =
                         code ==
                         baseCurrency; // 👈 Визначаємо, чи це базова валюта
 
                     // Колір акценту: зелений для базової, синій для кастомних
-                    Color activeColor = isBase
+                    final Color activeColor = isBase
                         ? colors.income
                         : Colors.blueAccent;
 
@@ -369,15 +369,15 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
       return;
     }
 
-    double parsedAmount =
+    final double parsedAmount =
         double.tryParse(
           _amountCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
         ) ??
         0.0;
-    int finalAmount = (parsedAmount * 100).round();
+    final int finalAmount = (parsedAmount * 100).round();
 
     int? finalBudget;
-    double? parsedBudget = double.tryParse(
+    final double? parsedBudget = double.tryParse(
       _budgetCtrl.text.replaceAll(',', '.').replaceAll(' ', ''),
     );
     if (parsedBudget != null) {
@@ -398,7 +398,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     if (widget.category == null) return;
     final colors = Theme.of(context).extension<AppColorsExtension>()!;
 
-    bool confirmed =
+    final bool confirmed =
         await showDialog<bool>(
           context: context,
           builder: (ctx) => Dialog(
@@ -524,12 +524,12 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
     // 👇 6. Тепер використовуємо ref.watch для реактивного доступу
     final settings = ref.watch(settingsProvider);
 
-    Color previewBgColor = CategoryDefaults.getBgColor(widget.type);
-    Color previewIconColor = CategoryDefaults.getIconColor(widget.type);
+    final Color previewBgColor = CategoryDefaults.getBgColor(widget.type);
+    final Color previewIconColor = CategoryDefaults.getIconColor(widget.type);
 
     // 👇 Візуально підсвічуємо валюту на формі, якщо вона базова
-    bool isCurrentBase = _selectedCurrency == settings.baseCurrency;
-    Color currencyAccentColor = isCurrentBase
+    final bool isCurrentBase = _selectedCurrency == settings.baseCurrency;
+    final Color currencyAccentColor = isCurrentBase
         ? colors.income
         : Colors.blueAccent;
 
@@ -845,7 +845,7 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
 
                 if (text.startsWith('.')) text = '0$text';
 
-                var parts = text.split('.');
+                final parts = text.split('.');
                 String intPart = parts[0];
                 String? decPart = parts.length > 1 ? parts[1] : null;
 
@@ -857,12 +857,12 @@ class _CategoryScreenState extends ConsumerState<CategoryScreen> {
                   decPart = decPart.substring(0, 2);
                 }
 
-                String formattedInt = intPart.replaceAllMapped(
+                final String formattedInt = intPart.replaceAllMapped(
                   RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
                   (Match m) => '${m[1]} ',
                 );
 
-                String newString = decPart == null
+                final String newString = decPart == null
                     ? formattedInt
                     : (text.endsWith('.')
                           ? '$formattedInt.'

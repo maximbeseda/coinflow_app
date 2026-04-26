@@ -17,7 +17,7 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
     // 👇 ВИПРАВЛЕНО: Безпечне отримання локалі для тестів
     final localeCode =
         Localizations.maybeLocaleOf(context)?.languageCode ?? 'en';
-    String m = DateFormat.MMM(localeCode).format(DateTime(2000, month));
+    final String m = DateFormat.MMM(localeCode).format(DateTime(2000, month));
     return m[0].toUpperCase() + m.substring(1);
   }
 
@@ -73,7 +73,7 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
               ),
               itemCount: 12,
               itemBuilder: (context, index) {
-                bool isSelected =
+                final bool isSelected =
                     widget.initialDate.year == _selectedYear &&
                     widget.initialDate.month == index + 1;
 

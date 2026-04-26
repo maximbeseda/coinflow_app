@@ -193,17 +193,17 @@ class _GeneralHistoryBottomSheetState
                       final fromCat = categoryMap[t.fromId];
                       final toCat = categoryMap[t.toId];
 
-                      String fromName = fromCat?.name ?? trUnknown;
-                      String toName = toCat?.name ?? trUnknown;
+                      final String fromName = fromCat?.name ?? trUnknown;
+                      final String toName = toCat?.name ?? trUnknown;
 
-                      bool isIncome = fromCat?.type == CategoryType.income;
-                      bool isTransfer =
+                      final bool isIncome = fromCat?.type == CategoryType.income;
+                      final bool isTransfer =
                           fromCat?.type == CategoryType.account &&
                           toCat?.type == CategoryType.account;
 
                       String customNote = t.title.trim();
 
-                      bool isDefaultTitle =
+                      final bool isDefaultTitle =
                           customNote.isEmpty ||
                           customNote.contains('➡️') ||
                           customNote == fromName ||
@@ -215,22 +215,22 @@ class _GeneralHistoryBottomSheetState
 
                       // ЛОГІКА ДЛЯ ЗАГАЛЬНОЇ ІСТОРІЇ
                       // Головною завжди є оригінальна сума списання (amount / currency)
-                      int mainAmount = t.amount;
-                      String mainCurrency = t.currency;
+                      final int mainAmount = t.amount;
+                      final String mainCurrency = t.currency;
 
                       // Додатковою є цільова сума (targetAmount / targetCurrency)
-                      int secondaryAmount = t.targetAmount ?? t.amount;
-                      String secondaryCurrency = t.targetCurrency ?? t.currency;
+                      final int secondaryAmount = t.targetAmount ?? t.amount;
+                      final String secondaryCurrency = t.targetCurrency ?? t.currency;
 
-                      bool isMultiCurrency =
+                      final bool isMultiCurrency =
                           mainCurrency != secondaryCurrency &&
                           t.targetCurrency != null;
 
-                      String mainSymbol = currencyCache.putIfAbsent(
+                      final String mainSymbol = currencyCache.putIfAbsent(
                         mainCurrency,
                         () => AppCurrency.fromCode(mainCurrency).symbol,
                       );
-                      String secondarySymbol = currencyCache.putIfAbsent(
+                      final String secondarySymbol = currencyCache.putIfAbsent(
                         secondaryCurrency,
                         () => AppCurrency.fromCode(secondaryCurrency).symbol,
                       );

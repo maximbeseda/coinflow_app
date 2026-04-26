@@ -19,7 +19,7 @@ class Stats extends _$Stats {
     // Беремо історію, якщо вона завантажена, інакше пустий список
     final history = txAsync.value?.history ?? [];
 
-    int currentHash = Object.hashAll(history);
+    final int currentHash = Object.hashAll(history);
     if (_lastHistoryHash != currentHash) {
       _cachedTrends = null;
       _lastHistoryHash = currentHash;
@@ -38,24 +38,24 @@ class Stats extends _$Stats {
 
     final catState = ref.read(categoryProvider);
 
-    Map<String, Map<String, Map<String, int>>> trends = {};
+    final Map<String, Map<String, Map<String, int>>> trends = {};
 
-    var sortedHistory = List<Transaction>.from(history)
+    final sortedHistory = List<Transaction>.from(history)
       ..sort((a, b) => a.date.compareTo(b.date));
 
     // Створюємо набір ID рахунків для швидкої перевірки (O(1))
     final accountIds = catState.accounts.map((a) => a.id).toSet();
 
     for (var tx in sortedHistory) {
-      String epoch = tx.baseCurrency.isEmpty ? 'UAH' : tx.baseCurrency;
-      String monthKey =
+      final String epoch = tx.baseCurrency.isEmpty ? 'UAH' : tx.baseCurrency;
+      final String monthKey =
           "${tx.date.year}-${tx.date.month.toString().padLeft(2, '0')}";
 
       trends.putIfAbsent(epoch, () => {});
       trends[epoch]!.putIfAbsent(monthKey, () => {'incomes': 0, 'expenses': 0});
 
-      bool fromIsAccount = accountIds.contains(tx.fromId);
-      bool toIsAccount = accountIds.contains(tx.toId);
+      final bool fromIsAccount = accountIds.contains(tx.fromId);
+      final bool toIsAccount = accountIds.contains(tx.toId);
 
       // 1. Витрата: з рахунку на НЕ рахунок
       if (fromIsAccount && !toIsAccount) {
@@ -95,8 +95,8 @@ class Stats extends _$Stats {
     final accountIds = catState.accounts.map((a) => a.id).toSet();
 
     for (var tx in monthHistory) {
-      bool fromIsAccount = accountIds.contains(tx.fromId);
-      bool toIsAccount = accountIds.contains(tx.toId);
+      final bool fromIsAccount = accountIds.contains(tx.fromId);
+      final bool toIsAccount = accountIds.contains(tx.toId);
 
       if (fromIsAccount && !toIsAccount) {
         totalExpenses += tx.baseAmount;
@@ -113,7 +113,7 @@ class Stats extends _$Stats {
     bool isExpenses, {
     bool inBaseCurrency = true,
   }) {
-    Map<String, int> totals = {};
+    final Map<String, int> totals = {};
 
     // 👇 Отримуємо історію
     final txAsync = ref.read(transactionProvider);
@@ -128,12 +128,12 @@ class Stats extends _$Stats {
     final accountIds = catState.accounts.map((a) => a.id).toSet();
 
     for (var tx in monthHistory) {
-      bool fromIsAccount = accountIds.contains(tx.fromId);
-      bool toIsAccount = accountIds.contains(tx.toId);
+      final bool fromIsAccount = accountIds.contains(tx.fromId);
+      final bool toIsAccount = accountIds.contains(tx.toId);
 
       if (isExpenses) {
         if (fromIsAccount && !toIsAccount) {
-          int value = inBaseCurrency
+          final int value = inBaseCurrency
               ? tx.baseAmount
               : (tx.targetAmount ?? tx.amount);
           // 👇 ВИПРАВЛЕННЯ: Додано .round() про всяк випадок, хоча value вже int.
@@ -141,7 +141,7 @@ class Stats extends _$Stats {
         }
       } else {
         if (!fromIsAccount && toIsAccount) {
-          int value = inBaseCurrency ? tx.baseAmount : tx.amount;
+          final int value = inBaseCurrency ? tx.baseAmount : tx.amount;
           totals[tx.fromId] = ((totals[tx.fromId] ?? 0) + value).round();
         }
       }

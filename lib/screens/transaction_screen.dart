@@ -176,12 +176,12 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
         }
         _isUsingFallbackRate = false;
 
-        double rawRate = targetRate / sourceRate;
+        final double rawRate = targetRate / sourceRate;
         if (rawRate >= 1.0) {
           _currentExchangeRate = double.parse(rawRate.toStringAsFixed(4));
         } else {
-          double inverted = sourceRate / targetRate;
-          double invertedRounded = double.parse(inverted.toStringAsFixed(4));
+          final double inverted = sourceRate / targetRate;
+          final double invertedRounded = double.parse(inverted.toStringAsFixed(4));
           _currentExchangeRate = 1.0 / invertedRounded;
         }
       }
@@ -192,16 +192,16 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
   void _recalculateLinkedAmounts() {
     if (!_isRateLinked || _isUsingFallbackRate) return;
 
-    double currentVal =
+    final double currentVal =
         double.tryParse(_isEditingTarget ? _targetAmount : _sourceAmount) ??
         0.0;
 
     if (!_isEditingTarget) {
-      double targetVal = currentVal * _currentExchangeRate;
+      final double targetVal = currentVal * _currentExchangeRate;
       _targetAmount = _formatDoubleForInput(targetVal);
       _targetExpression = _targetAmount;
     } else {
-      double sourceVal = currentVal / _currentExchangeRate;
+      final double sourceVal = currentVal / _currentExchangeRate;
       _sourceAmount = _formatDoubleForInput(sourceVal);
       _sourceExpression = _sourceAmount;
     }
@@ -227,12 +227,12 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
 
   String _formatAmount(int val) {
     if (val == 0) return '0';
-    double displayVal = val / 100.0;
+    final double displayVal = val / 100.0;
     return _formatDoubleForInput(displayVal);
   }
 
   String _formatDoubleForInput(double val) {
-    String formatted = val.toStringAsFixed(2);
+    final String formatted = val.toStringAsFixed(2);
     if (formatted.endsWith('.00')) {
       return formatted.substring(0, formatted.length - 3);
     } else if (formatted.endsWith('0')) {
@@ -273,7 +273,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       _lastEdited = _isEditingTarget ? 'target' : 'source';
 
       if (_clearOnNextDigit) {
-        bool isNumberOrDot = RegExp(r'^[0-9.]$').hasMatch(key) || key == '00';
+        final bool isNumberOrDot = RegExp(r'^[0-9.]$').hasMatch(key) || key == '00';
         if (isNumberOrDot) {
           _activeExpression = '';
         }
@@ -298,42 +298,42 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
           return;
         }
 
-        String currentNumber = _activeExpression.split(RegExp(r'[+\-×÷]')).last;
+        final String currentNumber = _activeExpression.split(RegExp(r'[+\-×÷]')).last;
         if (currentNumber.isEmpty) return;
 
-        double percentValue = double.tryParse(currentNumber) ?? 0.0;
-        String baseExpression = _activeExpression.substring(
+        final double percentValue = double.tryParse(currentNumber) ?? 0.0;
+        final String baseExpression = _activeExpression.substring(
           0,
           _activeExpression.length - currentNumber.length,
         );
 
         if (baseExpression.isNotEmpty) {
-          String operator = baseExpression.substring(baseExpression.length - 1);
+          final String operator = baseExpression.substring(baseExpression.length - 1);
           if (operator == '+' || operator == '-') {
-            String exprWithoutOp = baseExpression.substring(
+            final String exprWithoutOp = baseExpression.substring(
               0,
               baseExpression.length - 1,
             );
-            double baseAmount =
+            final double baseAmount =
                 double.tryParse(CalculatorHelper.calculate(exprWithoutOp)) ??
                 0.0;
-            double calculatedPercent = baseAmount * (percentValue / 100);
+            final double calculatedPercent = baseAmount * (percentValue / 100);
 
-            String formattedPercent =
+            final String formattedPercent =
                 calculatedPercent == calculatedPercent.toInt()
                 ? calculatedPercent.toInt().toString()
                 : calculatedPercent.toStringAsFixed(2);
             _activeExpression = baseExpression + formattedPercent;
           } else if (operator == '×' || operator == '÷') {
-            double calc = percentValue / 100;
-            String formatted = calc == calc.toInt()
+            final double calc = percentValue / 100;
+            final String formatted = calc == calc.toInt()
                 ? calc.toInt().toString()
                 : calc.toString();
             _activeExpression = baseExpression + formatted;
           }
         } else {
-          double calc = percentValue / 100;
-          String formatted = calc == calc.toInt()
+          final double calc = percentValue / 100;
+          final String formatted = calc == calc.toInt()
               ? calc.toInt().toString()
               : calc.toString();
           _activeExpression = formatted;
@@ -349,7 +349,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
           _activeExpression += key;
         }
       } else {
-        String currentNumber = _activeExpression.split(RegExp(r'[+\-×÷]')).last;
+        final String currentNumber = _activeExpression.split(RegExp(r'[+\-×÷]')).last;
 
         if (key == '.') {
           if (currentNumber.contains('.')) return;
@@ -360,7 +360,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
           }
         } else {
           if (currentNumber.contains('.')) {
-            int decimalPlaces = currentNumber.split('.').last.length;
+            final int decimalPlaces = currentNumber.split('.').last.length;
             if (decimalPlaces >= 2) return;
 
             if (key == '00') {
@@ -412,7 +412,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
           exprToCalc = exprToCalc.substring(0, exprToCalc.length - 1);
         }
 
-        String result = CalculatorHelper.calculate(exprToCalc);
+        final String result = CalculatorHelper.calculate(exprToCalc);
         _setActiveAmount(result);
       }
 
@@ -433,13 +433,13 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       cleanTarget = cleanTarget.substring(0, cleanTarget.length - 1);
     }
 
-    double sourceDouble =
+    final double sourceDouble =
         double.tryParse(CalculatorHelper.calculate(cleanSource)) ?? 0.0;
-    double targetDouble =
+    final double targetDouble =
         double.tryParse(CalculatorHelper.calculate(cleanTarget)) ?? 0.0;
 
-    int finalSourceAmount = (sourceDouble * 100).round();
-    int finalTargetAmount = (targetDouble * 100).round();
+    final int finalSourceAmount = (sourceDouble * 100).round();
+    final int finalTargetAmount = (targetDouble * 100).round();
 
     Navigator.pop(context, {
       'amount': finalSourceAmount,
@@ -624,20 +624,20 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     required VoidCallback onTap,
     required AppColorsExtension colors,
   }) {
-    bool hasMathOperators =
+    final bool hasMathOperators =
         expression.contains('+') ||
         expression.contains('×') ||
         expression.contains('÷') ||
         (expression.contains('-') && expression.lastIndexOf('-') > 0);
 
-    String displayMainAmount = hasMathOperators
+    final String displayMainAmount = hasMathOperators
         ? amount
         : (expression.isEmpty ? '0' : expression);
 
     String formatWithSpaces(String text) {
       return text.replaceAllMapped(RegExp(r'\d+(\.\d+)?'), (match) {
-        var parts = match[0]!.split('.');
-        String intPart = parts[0].replaceAllMapped(
+        final parts = match[0]!.split('.');
+        final String intPart = parts[0].replaceAllMapped(
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (Match m) => '${m[1]} ',
         );
@@ -725,7 +725,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
       rateText = "${"rate_unavailable".tr()}\n${"enter_manually".tr()}";
     } else if (_sourceCurrency == settingsState.baseCurrency &&
         _targetCurrency != settingsState.baseCurrency) {
-      double invertedRate = _currentExchangeRate > 0
+      final double invertedRate = _currentExchangeRate > 0
           ? (1.0 / _currentExchangeRate)
           : 1.0;
       rateText = '1 $targetSymbol = ${_formatRate(invertedRate)} $sourceSymbol';
@@ -734,10 +734,10 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
           '1 $sourceSymbol = ${_formatRate(_currentExchangeRate)} $targetSymbol';
     }
 
-    Color activeColor = _isUsingFallbackRate
+    final Color activeColor = _isUsingFallbackRate
         ? colors.expense
         : Colors.blueAccent;
-    Color inactiveColor = colors.textSecondary.withValues(alpha: 0.4);
+    final Color inactiveColor = colors.textSecondary.withValues(alpha: 0.4);
     Color currentColor = _isRateLinked ? activeColor : inactiveColor;
 
     if (_isUsingFallbackRate) currentColor = colors.expense;
@@ -805,9 +805,9 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
 
   Widget _buildAmountArea(AppColorsExtension colors) {
     // 👇 Використовуємо локальні валюти для відображення
-    bool isMultiCurrency = _sourceCurrency != _targetCurrency;
-    String sourceSymbol = AppCurrency.fromCode(_sourceCurrency).symbol;
-    String targetSymbol = AppCurrency.fromCode(_targetCurrency).symbol;
+    final bool isMultiCurrency = _sourceCurrency != _targetCurrency;
+    final String sourceSymbol = AppCurrency.fromCode(_sourceCurrency).symbol;
+    final String targetSymbol = AppCurrency.fromCode(_targetCurrency).symbol;
 
     if (!isMultiCurrency) {
       return Center(
