@@ -257,7 +257,8 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
       return (false, 'not_enough_funds'.tr(args: [sourceAccount.name]));
     }
 
-    final bool isMultiCurrency = sourceAccount.currency != targetExpense.currency;
+    final bool isMultiCurrency =
+        sourceAccount.currency != targetExpense.currency;
 
     final newTx = Transaction(
       id: const Uuid().v4(),
@@ -387,7 +388,9 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
 
           if (currentSub.periodicity == 'monthly') {
             final int nextMonth = pDate.month == 12 ? 1 : pDate.month + 1;
-            final int nextYear = pDate.month == 12 ? pDate.year + 1 : pDate.year;
+            final int nextYear = pDate.month == 12
+                ? pDate.year + 1
+                : pDate.year;
             int nextDay = currentSub.nextPaymentDate.day;
             final lastDayOfNextMonth = DateTime(nextYear, nextMonth + 1, 0).day;
             if (nextDay > lastDayOfNextMonth) nextDay = lastDayOfNextMonth;
@@ -430,6 +433,10 @@ class SubscriptionNotifier extends _$SubscriptionNotifier {
         }
         return s.copyWith(subscriptions: newSubs);
       });
+
+      // 👇 ДОДАНО: Перераховуємо прострочені платежі, щоб прибрати звідти ті,
+      // що щойно були успішно оплачені автоматично
+      _checkDueSubscriptions();
     }
   }
 

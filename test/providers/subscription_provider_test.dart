@@ -184,6 +184,76 @@ void main() {
         expect(state.dueSubscriptions.length, 1);
       },
     );
+
+    test(
+      'Перевірка кількості транзакцій: автооплата та ручне підтвердження працюють коректно',
+      () async {
+        final container = await createContainer();
+
+        // Ставимо дату на вчора, щоб обидві підписки гарантовано потребували оплати
+        final yesterday = DateTime.now().subtract(const Duration(days: 1));
+
+        // 1. Створюємо підписку з автооплатою
+        final autoSub = subBase.copyWith(
+          id: 'sub_auto',
+          name: 'Spotify (Auto)',
+          nextPaymentDate: yesterday,
+          isAutoPay: true,
+          amount: 150, // Сума для перевірки
+        );
+
+        // 2. Створюємо підписку з ручним підтвердженням
+        final manualSub = subBase.copyWith(
+          id: 'sub_manual',
+          name: 'Gym (Manual)',
+          nextPaymentDate: yesterday,
+          isAutoPay: false,
+          amount: 500, // Сума для перевірки
+        );
+
+        // Зберігаємо обидві в базу
+        await StorageService.saveSubscription(db, autoSub);
+        await StorageService.saveSubscription(db, manualSub);
+
+        final notifier = container.read(subscriptionProvider.notifier);
+        await Future.delayed(Duration.zero);
+
+        // Виклик loadSubscriptions автоматично запускає processAutoPayments()
+        await notifier.loadSubscriptions();
+
+        final txNotifier =
+            container.read(transactionProvider.notifier)
+                as SpyTransactionNotifier;
+
+        // ПЕРЕВІРКА 1: Автооплата мала відпрацювати і створити рівно 1 транзакцію
+        expect(txNotifier.addedTransactions.length, 1);
+        expect(txNotifier.addedTransactions.first.amount, 150);
+        // У тестах easy_localization просто повертає сам ключ, якщо переклади не завантажені
+        expect(
+          txNotifier.addedTransactions.first.title.contains(
+            'auto_payment_marker',
+          ),
+          true,
+        );
+
+        // ПЕРЕВІРКА 2: Ручна підписка мала потрапити у dueSubscriptions і чекати
+        final state = container.read(subscriptionProvider).value!;
+        expect(state.dueSubscriptions.length, 1);
+        expect(state.dueSubscriptions.first.id, 'sub_manual');
+
+        // ПЕРЕВІРКА 3: Робимо ручне підтвердження
+        final (success, _) = await notifier.confirmSubscriptionPayment(
+          state.dueSubscriptions.first,
+          500,
+        );
+        expect(success, true);
+
+        // ПЕРЕВІРКА 4: Тепер транзакцій має стати рівно 2
+        expect(txNotifier.addedTransactions.length, 2);
+        expect(txNotifier.addedTransactions.last.amount, 500);
+        expect(txNotifier.addedTransactions.last.title, 'Gym (Manual)');
+      },
+    );
   });
 
   group('SubscriptionNotifier - User Actions (Skip & Ignore)', () {
